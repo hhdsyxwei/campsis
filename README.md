@@ -44,4 +44,4 @@ Like the trumpet creeper, Campsis is committed to becoming a benchmark product i
 - Bloom brilliantly at the summit
 
 ## Core Value Proposition
-"Upward, Never Stop" – We believe that every piece of data has its value, every analysis can bring breakthroughs, and every progress is worth celebrating. Campsis is not just a tool, but a reliable partner on enterprises' journey of digital transformation.
+"Upward, Never Stop" - We believe that every piece of data has its value, every analysis can bring breakthroughs, and every progress is worth celebrating. Campsis is not just a tool, but a reliable partner on enterprises' journey of digital transformation.
