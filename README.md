@@ -1,47 +1,47 @@
-# Campsis - 企业级数据智能平台
+# Campsis - Enterprise-Grade Data Intelligence Platform
 
-## 项目名称寓意
-Campsis源于植物学名凌霄花（Campsis grandiflora），这是一种具有顽强生命力的攀援植物。凌霄花以其向上的生长姿态和绚烂的花朵而闻名，象征着：
-- **坚韧不拔**：在各种环境下都能茁壮成长
-- **向上攀登**：不断追求更高的目标
-- **绽放成就**：在巅峰时刻展现最美的成果
-- **持久生长**：具备可持续发展的强大生命力
+## Project Name Meaning
+Campsis is derived from the scientific name of the Chinese trumpet creeper (*Campsis grandiflora*), a climbing plant renowned for its tenacious vitality. Known for its upward-growing posture and brilliant flowers, it symbolizes:
+- **Tenacity**: Thriving in all kinds of environments
+- **Aspiration**: Constantly pursuing higher goals
+- **Blooming Achievement**: Showcasing the most beautiful results at the peak
+- **Sustainable Growth**: Boasting strong vitality for sustainable development
 
-## 项目目标
-Campsis项目旨在打造一个具备"凌霄花精神"的企业级数据智能平台，实现：
-- **数据赋能**：让数据成为企业增长的核心驱动力
-- **智能决策**：通过深度分析为业务决策提供精准支撑
-- **生态融合**：无缝集成各类数据源，构建完整数据生态
-- **持续进化**：伴随业务发展不断优化升级
+## Project Goals
+The Campsis project aims to build an enterprise-grade data intelligence platform that embodies the "spirit of the trumpet creeper", achieving:
+- **Data Empowerment**: Making data the core driving force for enterprise growth
+- **Intelligent Decision-Making**: Providing precise support for business decisions through in-depth analysis
+- **Ecosystem Integration**: Seamlessly integrating various data sources to build a complete data ecosystem
+- **Continuous Evolution**: Continuously optimizing and upgrading alongside business development
 
-## 设计理念
-### 1. 向上生长的架构
-- 采用分层模块化设计，支持水平扩展
-- 具备强大的适应性，能应对业务变化
-- 持续迭代，保持技术领先性
+## Design Philosophy
 
-### 2. 生命力旺盛的生态系统
-- 开放的API设计，支持第三方集成
-- 灵活的插件机制，满足个性化需求
-- 强大的容错和恢复能力
+### 1. Upward-Growing Architecture
+- Adopts a layered modular design to support horizontal scaling
+- Has strong adaptability to cope with business changes
+- Iterates continuously to maintain technological leadership
 
-### 3. 绚丽绽放的用户体验
-- 直观的数据可视化界面
-- 简洁易用的操作流程
-- 个性化的定制选项
+### 2. Dynamic Ecosystem
+- Open API design to support third-party integration
+- Flexible plugin mechanism to meet personalized needs
+- Powerful fault tolerance and recovery capabilities
 
-### 4. 持续进化的智能引擎
-- 自学习算法，不断提升分析精度
-- 智能预警和异常检测
-- 预测性分析和趋势洞察
+### 3. Brilliant User Experience
+- Intuitive data visualization interface
+- Simple and easy-to-use operation processes
+- Personalized customization options
 
-## 项目愿景
-如凌霄花般，Campsis致力于成为数据智能领域的标杆产品，帮助企业：
-- 在数据海洋中稳健攀登
-- 在竞争中脱颖而出
-- 在变化中持续成长
-- 在顶峰处绚烂绽放
+### 4. Continuously Evolving Intelligent Engine
+- Self-learning algorithms to continuously improve analysis accuracy
+- Intelligent early warning and anomaly detection
+- Predictive analysis and trend insights
 
-## 核心价值主张
-"向上，不止步" - 我们相信每一个数据都有其价值，每一次分析都能带来突破，每一个进步都值得庆祝。Campsis不仅是工具，更是企业数字化转型路上的可靠伙伴。
+## Project Vision
+Like the trumpet creeper, Campsis is committed to becoming a benchmark product in the field of data intelligence, helping enterprises:
+- Climb steadily in the ocean of data
+- Stand out in competition
+- Grow continuously amid changes
+- Bloom brilliantly at the summit
 
+## Core Value Proposition
+"Upward, Never Stop" – We believe that every piece of data has its value, every analysis can bring breakthroughs, and every progress is worth celebrating. Campsis is not just a tool, but a reliable partner on enterprises' journey of digital transformation.
