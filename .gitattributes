@@ -1,0 +1,10 @@
+# 所有文本文件强制 UTF-8、LF 换行
+*           text working-tree-encoding=UTF-8 eol=lf
+*.py        text working-tree-encoding=UTF-8 eol=lf
+*.txt       text working-tree-encoding=UTF-8 eol=lf
+*.md        text working-tree-encoding=UTF-8 eol=lf
+*.sql       text working-tree-encoding=UTF-8 eol=lf
+
+# 二进制文件不转码
+*.png *.jpg *.jpeg *.gif *.ico binary
+*.exe *.dll *.so *.dylib binary
