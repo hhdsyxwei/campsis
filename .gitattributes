@@ -1,10 +1,83 @@
-# 所有文本文件强制 UTF-8、LF 换行
-*           text working-tree-encoding=UTF-8 eol=lf
-*.py        text working-tree-encoding=UTF-8 eol=lf
-*.txt       text working-tree-encoding=UTF-8 eol=lf
-*.md        text working-tree-encoding=UTF-8 eol=lf
-*.sql       text working-tree-encoding=UTF-8 eol=lf
+# Python量化项目Git属性配置：文本文件统一LF换行符，二进制文件原样存储
+# 核心规则：text=auto自动识别文本，eol=lf统一换行符，binary标记二进制文件
 
-# 二进制文件不转码
-*.png *.jpg *.jpeg *.gif *.ico binary
-*.exe *.dll *.so *.dylib binary
+# Python源码文件（策略/回测/数据处理核心代码）
+*.py text=auto eol=lf
+# Python类型提示文件
+*.pyi text=auto eol=lf
+# Cython加速计算文件
+*.pyx text=auto eol=lf
+*.pxd text=auto eol=lf
+# Windows Python GUI脚本
+*.pyw text=auto eol=lf
+
+# 配置文件（策略参数/环境配置/数据库连接）
+*.ini text=auto eol=lf
+*.toml text=auto eol=lf
+*.yml text=auto eol=lf
+*.yaml text=auto eol=lf
+*.cfg text=auto eol=lf
+*.conf text=auto eol=lf
+
+# 文档文件（策略说明/项目文档）
+*.md text=auto eol=lf
+*.rst text=auto eol=lf
+*.txt text=auto eol=lf
+
+# Git/工程配置文件（协作核心配置）
+.gitignore text=auto eol=lf
+.gitattributes text=auto eol=lf
+.editorconfig text=auto eol=lf
+
+# 构建/依赖文件（包依赖/打包配置）
+requirements.txt text=auto eol=lf
+setup.py text=auto eol=lf
+pyproject.toml text=auto eol=lf
+MANIFEST.in text=auto eol=lf
+
+# Jupyter Notebook（量化数据分析）
+*.ipynb text=auto eol=lf
+# CSV轻量行情数据（文本格式便于对比）
+*.csv text=auto eol=lf
+
+# 图片文件（K线图/回测可视化）
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.svg binary
+*.bmp binary
+
+# 量化核心二进制数据（大容量行情/序列化对象）
+*.pkl binary
+*.pickle binary
+*.h5 binary
+*.hdf5 binary
+*.sqlite3 binary
+*.db binary
+*.parquet binary
+
+# 机器学习模型文件（量化AI策略模型）
+*.pth binary
+*.pt binary
+*.onnx binary
+
+# 打包产物（发布/依赖包）
+*.whl binary
+*.egg binary
+*.zip binary
+*.tar.gz binary
+*.7z binary
+
+# 系统二进制文件（扩展库/执行文件）
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# GitHub语言统计优化（排除非代码文件）
+*.log linguist-vendored
+*.tmp linguist-vendored
+data/raw/** linguist-vendored
+data/tmp/** linguist-vendored
+backtest/results/** linguist-vendored

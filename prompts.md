@@ -1,0 +1,6 @@
+各模块提示词：
+1.baostock_wrapper.py
+请帮我重新实现baostock_wrapper.py模块，要求：1.实现对原有query_history_k_data_plus的无感知封装，即完全保留原有的参数的返回值，异常抛出。2.整个执行流程包含多次循环(次数可设定)，单次循环包括3个步骤：即设定全局超时，调用原生query_history_k_data_plus，以及重新登录(在原生query_history_k_data_plus发生超时或者其它异常的情况下)。3.整个执行流程需要复用已有登录并假定已经登录。4.所有日志信息需要打印当前函数名称。5.需要导入download_utils的日志依赖
+
+2.stock_basic_downloader.py
+请把init_stock_basic_table函数拆解成2个部分，第一个部分负责调用_fetch_stock_codes得到股票代码最基本的信息并写入数据库，这个部分不需要断点续传，每次都进行完整覆盖，允许用户指定排除市场类型列表。第二个部分负责下载其它字段，下载逻辑直接从init_stock_basic_table继承，需要支持断点续传，支持参数化分组方式。第二个部分下载的数据以第一个部分为基础，也就是说不超过第一个分部得到的股票代码的集合。请你把实现思路给我讲解一下，由我决定是否继续实现代码
