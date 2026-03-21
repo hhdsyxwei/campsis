@@ -2,7 +2,7 @@
 import pymysql
 from pymysql.err import OperationalError
 import pandas as pd
-from download_utils import logger, calculate_pre_close
+from KitchenBase.download_utils import logger, calculate_pre_close
 
 # ================= 配置区域 =================
 # 数据库连接配置，需要根据您的实际环境进行修改

@@ -2,11 +2,11 @@
 import pymysql
 import baostock as bs
 import time
-from KitchenBase.data_manager import create_database_and_tables
+from Ingredient.data_manager import create_database_and_tables
 from KitchenBase.download_utils import logger
-from KitchenBase.stock_basic_downloader import refresh_stock_code_list,download_stock_details
-from KitchenBase.daily_data_downloader import download_all_stocks_daily_data
-from KitchenBase.trade_date_map_downloader import download_trade_date_map
+from Ingredient.stock_basic_downloader import refresh_stock_code_list,download_stock_details
+from Ingredient.daily_data_downloader import download_all_stocks_daily_data
+from Ingredient.trade_date_map_downloader import download_trade_date_map
 
 def main():
 

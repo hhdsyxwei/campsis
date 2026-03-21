@@ -3,7 +3,7 @@ import socket
 from functools import wraps
 from typing import Any
 import baostock as bs
-from download_utils import logger  # 保留日志依赖
+from KitchenBase.download_utils import logger  # 保留日志依赖
 
 # ============================
 # 核心工具：带重试+自动重登的执行器

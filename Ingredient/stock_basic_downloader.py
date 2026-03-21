@@ -1,8 +1,8 @@
 import baostock as bs
 import pandas as pd
 import time
-from download_utils import MarketType, logger, convert_baostock_code, baostock_code_to_market
-from data_manager import BasicStockDataManager, get_existing_stock_codes_set
+from KitchenBase.download_utils import MarketType, logger, convert_baostock_code, baostock_code_to_market
+from Ingredient.data_manager import BasicStockDataManager, get_existing_stock_codes_set
 
 # ===================== 原有工具函数（保留不动） =====================
 def _fetch_stock_codes(trading_day: str, exclude_types: list = None) -> list:
