@@ -1,6 +1,6 @@
-/* ====================== 3. 股票分钟级行情表（核心回测数据） ====================== */
-DROP TABLE IF EXISTS stock_min_kline;
-CREATE TABLE stock_min_kline (
+/* ====================== 3. 股票分钟级行情表（核心回测数据）- 分区版 ====================== */
+DROP TABLE IF EXISTS kline_5min;
+CREATE TABLE kline_5min (
     -- 主键（自增，用于唯一标识每条记录）
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     -- 核心标识字段
@@ -24,9 +24,18 @@ CREATE TABLE stock_min_kline (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '数据入库时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '数据更新时间',
     -- 主键约束
-    PRIMARY KEY (id),
+    PRIMARY KEY (id, trade_date),  -- 分区字段必须包含在主键中（InnoDB分区表要求）
     -- 联合唯一索引：避免同一股票+同一频率+同一时间重复存储
-    UNIQUE KEY uk_code_freq_time (code, frequency, trade_time),
+    UNIQUE KEY uk_code_freq_time (code, frequency, trade_time, trade_date),  -- 补充trade_date减少锁冲突
     -- 核心查询索引：按股票+频率+日期范围查询（回测高频场景）
     KEY idx_code_freq_date (code, frequency, trade_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='A股分钟级K线数据表（5/15/30/60分钟）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
+COMMENT='A股分钟级K线数据表（5/15/30/60分钟）'
+-- 分区定义（按trade_date的季度范围分区，示例为2024年季度分区，可按需扩展）
+PARTITION BY RANGE (TO_DAYS(trade_date)) (
+    PARTITION p2024q1 VALUES LESS THAN (TO_DAYS('2024-04-01')),  -- 2024Q1（1-3月）
+    PARTITION p2024q2 VALUES LESS THAN (TO_DAYS('2024-07-01')),  -- 2024Q2（4-6月）
+    PARTITION p2024q3 VALUES LESS THAN (TO_DAYS('2024-10-01')),  -- 2024Q3（7-9月）
+    PARTITION p2024q4 VALUES LESS THAN (TO_DAYS('2025-01-01')),  -- 2024Q4（10-12月）
+    PARTITION p_default VALUES LESS THAN MAXVALUE  -- 兜底分区（后续可拆分）
+);

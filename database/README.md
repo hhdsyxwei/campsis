@@ -2,7 +2,7 @@
 ## 目录说明
 
 ### database/ - 数据库相关目录
-- **init/** - 初始化脚本（建库/建表/基础数据）
+- **init/** - 初始化脚本（建库/建表/基础数据）,仅保留 “一次性执行” 的基础结构初始化脚本（建库、建表），按数字前缀保证执行顺序
   - `00_create_database.sql` - 建库脚本（优先执行）
   - `01_create_table_stock_min_kline.sql` - 分钟级K线表（核心）
   - `02_create_table_stock_basic.sql` - 股票基础信息表
