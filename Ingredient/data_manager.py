@@ -494,3 +494,31 @@ def create_database_and_tables():
     except Exception as e:
         logger.error(f"[{current_func}] 创建数据库和表结构时出错: {e}")
         raise
+
+# Ingredient/data_manager.py
+# 在DataManager类中新增以下方法
+def save_kline_5min_data(self, df, stock_code):
+    """
+    保存5分钟K线数据到数据库/文件
+    
+    Args:
+        df (pd.DataFrame): 5分钟K线数据
+        stock_code (str): 股票代码
+    """
+    # 1. 保存到CSV文件（可选）
+    csv_path = f"./data/kline_5min/{stock_code.replace('.', '_')}_{datetime.now().strftime('%Y%m%d')}.csv"
+    self._ensure_dir(csv_path)
+    df.to_csv(csv_path, index=False, encoding="utf-8")
+    
+    # 2. 保存到数据库（根据实际数据库架构实现）
+    # 示例：使用SQLAlchemy保存到PostgreSQL/MySQL
+    if self.db_engine:
+        table_name = f"kline_5min_{stock_code.replace('.', '_')}"
+        df.to_sql(
+            name=table_name,
+            con=self.db_engine,
+            if_exists="append",
+            index=False,
+            chunksize=1000
+        )
+    print(f"[{stock_code}] 5分钟K线数据已保存")

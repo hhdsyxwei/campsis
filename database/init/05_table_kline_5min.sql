@@ -1,0 +1,41 @@
+/* ====================== 股票分钟级行情表（工业级最终版） ====================== */
+DROP TABLE IF EXISTS `kline_5min`;
+CREATE TABLE `kline_5min` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `stock_code` VARCHAR(20) NOT NULL COMMENT '证券代码：sh.600000 / sz.000001',
+    `frequency` TINYINT NOT NULL COMMENT 'K线频率：5=5分钟，15=15分钟，30=30分钟，60=60分钟',
+    `trade_date` DATE NOT NULL COMMENT '交易日期',
+    `trade_time` DATETIME NOT NULL COMMENT '交易时间：YYYY-MM-DD HH:MM:SS',
+    `raw_time` VARCHAR(17) NOT NULL COMMENT 'Baostock原生时间',
+    `open` DECIMAL(10,4) NOT NULL COMMENT '开盘价',
+    `high` DECIMAL(10,4) NOT NULL COMMENT '最高价',
+    `low` DECIMAL(10,4) NOT NULL COMMENT '最低价',
+    `close` DECIMAL(10,4) NOT NULL COMMENT '收盘价',
+    `volume` BIGINT UNSIGNED NOT NULL COMMENT '成交量（股）',
+    `amount` DECIMAL(16,4) NOT NULL COMMENT '成交额（元）',
+    `adjustflag` TINYINT NOT NULL COMMENT '复权状态：1=前复权，2=后复权，3=不复权',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '入库时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`, `trade_date`),
+    UNIQUE KEY `uk_stock_freq_time` (`stock_code`, `frequency`, `trade_time`),
+    KEY idx_stock_freq_date (`stock_code`, `frequency`, `trade_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='A股分钟级K线数据表（5/15/30/60分钟）'
+PARTITION BY RANGE (TO_DAYS(`trade_date`)) (
+    PARTITION p2024q1 VALUES LESS THAN (TO_DAYS('2024-04-01')),
+    PARTITION p2024q2 VALUES LESS THAN (TO_DAYS('2024-07-01')),
+    PARTITION p2024q3 VALUES LESS THAN (TO_DAYS('2024-10-01')),
+    PARTITION p2024q4 VALUES LESS THAN (TO_DAYS('2025-01-01')),
+
+    PARTITION p2025q1 VALUES LESS THAN (TO_DAYS('2025-04-01')),
+    PARTITION p2025q2 VALUES LESS THAN (TO_DAYS('2025-07-01')),
+    PARTITION p2025q3 VALUES LESS THAN (TO_DAYS('2025-10-01')),
+    PARTITION p2025q4 VALUES LESS THAN (TO_DAYS('2026-01-01')),
+
+    PARTITION p2026q1 VALUES LESS THAN (TO_DAYS('2026-04-01')),
+    PARTITION p2026q2 VALUES LESS THAN (TO_DAYS('2026-07-01')),
+    PARTITION p2026q3 VALUES LESS THAN (TO_DAYS('2026-10-01')),
+    PARTITION p2026q4 VALUES LESS THAN (TO_DAYS('2027-01-01')),
+
+    PARTITION p_default VALUES LESS THAN MAXVALUE
+);
