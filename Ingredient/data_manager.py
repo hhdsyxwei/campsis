@@ -506,9 +506,9 @@ def save_kline_5min_data(self, df, stock_code):
         stock_code (str): 股票代码
     """
     # 1. 保存到CSV文件（可选）
-    csv_path = f"./data/kline_5min/{stock_code.replace('.', '_')}_{datetime.now().strftime('%Y%m%d')}.csv"
-    self._ensure_dir(csv_path)
-    df.to_csv(csv_path, index=False, encoding="utf-8")
+    # csv_path = f"./data/kline_5min/{stock_code.replace('.', '_')}_{datetime.now().strftime('%Y%m%d')}.csv"
+    # self._ensure_dir(csv_path)
+    # df.to_csv(csv_path, index=False, encoding="utf-8")
     
     # 2. 保存到数据库（根据实际数据库架构实现）
     # 示例：使用SQLAlchemy保存到PostgreSQL/MySQL
