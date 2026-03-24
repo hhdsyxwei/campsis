@@ -223,6 +223,45 @@ class DailyDataManager:
         finally:
             cursor.close()
 
+# 补充示例：5分钟K线管理器（可加在data_manager.py中）
+class KLine5MinManager:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def save_kline_5min(self, df: pd.DataFrame) -> bool:
+        """保存5分钟K线数据（复用日线的批量插入+冲突更新逻辑）"""
+        if df.empty:
+            logger.warning("空的5分钟K线数据，无需保存")
+            return True
+        
+        records = []
+        for _, row in df.iterrows():
+            records.append((
+                row['stock_code'], row['frequency'], row['trade_date'],
+                row['trade_time'], row['raw_time'], row['open'], row['high'],
+                row['low'], row['close'], row['volume'], row['amount'], row['adjustflag']
+            ))
+        
+        cursor = self.conn.cursor()
+        sql = """
+        INSERT INTO kline_5min 
+        (stock_code, frequency, trade_date, trade_time, raw_time, open, high, low, close, volume, amount, adjustflag)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            open = VALUES(open), high = VALUES(high), low = VALUES(low), close = VALUES(close),
+            volume = VALUES(volume), amount = VALUES(amount), adjustflag = VALUES(adjustflag)
+        """
+        try:
+            cursor.executemany(sql, records)
+            self.conn.commit()
+            logger.info(f"成功保存{len(records)}条5分钟K线数据")
+            return True
+        except Exception as e:
+            logger.error(f"保存5分钟K线数据失败：{e}")
+            self.conn.rollback()
+            return False
+        finally:
+            cursor.close()
 
 class BasicStockDataManager:
     """股票基础信息数据管理器，封装对 stock_basic 表的操作"""
@@ -309,6 +348,46 @@ class BasicStockDataManager:
             logger.error(f"[{current_func}] 批量插入股票基础信息失败: {e}")
             self.conn.rollback()
             return False
+        finally:
+            cursor.close()
+
+
+# 补充进度管理（可加在DataManager统一入口）
+class DataManager:
+    @staticmethod
+    def save_kline_5min(db_conn, df):
+        return KLine5MinManager(db_conn).save_kline_5min(df)
+    
+    @staticmethod
+    def get_last_download_time(db_conn, stock_code, data_type):
+        """查询kline_download_progress表的最后下载时间"""
+        cursor = db_conn.cursor()
+        try:
+            sql = "SELECT last_time FROM kline_download_progress WHERE stock_code=%s AND data_type=%s"
+            cursor.execute(sql, (stock_code, data_type))
+            result = cursor.fetchone()
+            return pd.to_datetime(result[0]) if result else None
+        except Exception as e:
+            logger.error(f"查询下载进度失败：{e}")
+            return None
+        finally:
+            cursor.close()
+    
+    @staticmethod
+    def update_download_progress(db_conn, stock_code, data_type, last_time):
+        """更新kline_download_progress表"""
+        cursor = db_conn.cursor()
+        try:
+            sql = """
+            INSERT INTO kline_download_progress (stock_code, data_type, last_time)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE last_time = VALUES(last_time)
+            """
+            cursor.execute(sql, (stock_code, data_type, last_time))
+            db_conn.commit()
+        except Exception as e:
+            logger.error(f"更新下载进度失败：{e}")
+            db_conn.rollback()
         finally:
             cursor.close()
 
