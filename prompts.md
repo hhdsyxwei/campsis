@@ -50,4 +50,5 @@
 6. 下载进度保存在数据库表kline_download_progress中
 7. 下载数据保存在数据库表kline_5min中
 8. 下载过程拆分成3个步骤，即数据下载，数据清洗(输出pandas标准格式)，数据保存(调用data_manager接口完成)
-9. 网络异常，或者服务器异常时向上抛出异常
+9. 网络异常，或者服务器异常时向上抛出异常。
+10. 利用download_utils模块的日志功能，为kline_5min_downloader.py添加完整日志信息，以跟踪模块运行时可能出现的问题，异常。日志信息至少包含debug,info,error三个级别
