@@ -1,10 +1,13 @@
 # trade_date_map_downloader.py
-from KitchenBase.download_utils import logger
+from KitchenBase.logger_config import get_logger
 import baostock as bs
 import pandas as pd
 from datetime import datetime
 from typing import Optional
 from Ingredient.data_manager import TradeDateMapManager
+
+logger = get_logger(__name__)
+
 
 def _validate_date_range(start_date: str, end_date: str) -> bool:
     """

@@ -3,7 +3,10 @@ import pymysql
 from pymysql.err import OperationalError
 import pandas as pd
 from datetime import datetime
-from KitchenBase.download_utils import logger, calculate_pre_close
+from KitchenBase.download_utils import calculate_pre_close
+from KitchenBase.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 # ================= 配置区域 =================
 DB_CONFIG = {
@@ -22,9 +25,9 @@ class TradeDateMapManager:
         self.conn = conn
 
     def save_trade_date_map(self, df: pd.DataFrame) -> bool:
-        current_func = self.save_trade_date_map.__name__
+        func_name = "save_trade_date_map"
         if df.empty:
-            logger.warning(f"[{current_func}] 空的交易日数据，无需保存")
+            logger.warning(f"[{__name__}.{func_name}] 空的交易日数据，无需保存")
             return True
 
         records = [
@@ -42,10 +45,10 @@ class TradeDateMapManager:
             """
             cursor.executemany(sql, records)
             self.conn.commit()
-            logger.info(f"[{current_func}] 成功保存 {len(records)} 条交易日数据")
+            logger.info(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条交易日数据")
             return True
         except Exception as e:
-            logger.error(f"[{current_func}] 保存失败：{e}")
+            logger.error(f"[{__name__}.{func_name}] 保存失败：{str(e)}")
             self.conn.rollback()
             return False
         finally:
@@ -59,16 +62,17 @@ class DailyDataManager:
         self.conn = connection
 
     def save_daily_data(self, ts_code: str, baostock_rs) -> bool:
-        current_func = self.save_daily_data.__name__
+        func_name = "save_daily_data"
         if baostock_rs is None or baostock_rs.error_code != '0':
-            logger.error(f"[{current_func}] {ts_code} 查询失败，错误码：{baostock_rs.error_code if baostock_rs else 'None'}")
+            err_code = baostock_rs.error_code if baostock_rs else 'None'
+            logger.error(f"[{__name__}.{func_name}] {ts_code} 查询失败，错误码：{err_code}")
             return False
 
         data_list = []
         while baostock_rs.next():
             data_list.append(baostock_rs.get_row_data())
 
-        logger.info(f"[{current_func}] {ts_code} 获取到 {len(data_list)} 条日线数据")
+        logger.info(f"[{__name__}.{func_name}] {ts_code} 获取到 {len(data_list)} 条日线数据")
         if not data_list:
             return True
 
@@ -94,13 +98,13 @@ class DailyDataManager:
                     float(row['pbMRQ']) if row['pbMRQ'] else None,
                 ))
             except ValueError as e:
-                logger.warning(f"[{current_func}] 数据转换错误 {ts_code} {row['date']}: {e}")
+                logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {ts_code} {row['date']}: {str(e)}")
                 continue
 
         if not records:
             return True
 
-        cursor = self.conn.cursor()
+        cursor = None
         sql = """
         INSERT INTO stock_daily 
         (ts_code, trade_date, open, high, low, close, pre_close, change_rate, volume, amount, turnover_rate, pe, pb)
@@ -111,19 +115,21 @@ class DailyDataManager:
             amount = VALUES(amount), turnover_rate = VALUES(turnover_rate), pe = VALUES(pe), pb = VALUES(pb)
         """
         try:
+            cursor = self.conn.cursor()
             cursor.executemany(sql, records)
             self.conn.commit()
-            logger.debug(f"[{current_func}] {ts_code} 入库成功 {len(records)} 条")
+            logger.debug(f"[{__name__}.{func_name}] {ts_code} 入库成功 {len(records)} 条")
             return True
         except Exception as e:
-            logger.error(f"[{current_func}] {ts_code} 入库失败：{e}")
+            logger.error(f"[{__name__}.{func_name}] {ts_code} 入库失败：{str(e)}")
             self.conn.rollback()
             return False
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
 
     def check_date_range_exists(self, ts_code: str, start_date=None, end_date=None) -> bool:
-        current_func = self.check_date_range_exists.__name__
+        func_name = "check_date_range_exists"
         cursor = None
         try:
             cursor = self.conn.cursor()
@@ -131,45 +137,59 @@ class DailyDataManager:
             cursor.execute(sql, (ts_code,))
             return cursor.fetchone() is not None
         except Exception as e:
-            logger.error(f"[{current_func}] 查询失败 {ts_code}：{e}")
+            logger.error(f"[{__name__}.{func_name}] 查询失败 {ts_code}：{str(e)}")
             return False
         finally:
             if cursor:
                 cursor.close()
 
     def get_active_stocks(self) -> list:
-        cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+        func_name = "get_active_stocks"
+        cursor = None
         try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("""
                 SELECT ts_code FROM stock_basic 
                 WHERE market IN ('主板(深A)', '主板(沪A)', '科创板', '创业板', '北交所') 
                 AND is_active = 1
             """)
             return [stock['ts_code'] for stock in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询失败：{str(e)}")
+            return []
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
 
     def get_stock_listing_date(self, ts_code: str) -> str:
-        cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+        func_name = "get_stock_listing_date"
+        cursor = None
         try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("SELECT list_date FROM stock_basic WHERE ts_code = %s", (ts_code,))
             res = cursor.fetchone()
             return res['list_date'].strftime('%Y-%m-%d') if res and res['list_date'] else None
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询失败 {ts_code}：{str(e)}")
+            return None
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
 
     def get_latest_tradedate_for_stock(self, ts_code: str) -> str:
-        current_func = self.get_latest_tradedate_for_stock.__name__
-        cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+        func_name = "get_latest_tradedate_for_stock"
+        cursor = None
         try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("SELECT MAX(trade_date) AS latest FROM stock_daily WHERE ts_code = %s", (ts_code,))
             latest = cursor.fetchone()['latest']
             return latest.strftime('%Y-%m-%d') if latest else None
         except Exception as e:
-            logger.error(f"[{current_func}] 查询失败 {ts_code}：{e}")
+            logger.error(f"[{__name__}.{func_name}] 查询失败 {ts_code}：{str(e)}")
             return None
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
 
 
 # ================= 5分钟K线数据管理器 =================
@@ -178,9 +198,9 @@ class KLine5MinManager:
         self.conn = conn
 
     def save_kline_5min(self, stock_code: str, df: pd.DataFrame) -> bool:
-        current_func = self.save_kline_5min.__name__
+        func_name = "save_kline_5min"
         if df.empty:
-            logger.warning(f"[{current_func}] {stock_code} 空数据，无需保存")
+            logger.warning(f"[{__name__}.{func_name}] {stock_code} 空数据，无需保存")
             return True
 
         records = [
@@ -192,7 +212,7 @@ class KLine5MinManager:
             for _, row in df.iterrows()
         ]
 
-        cursor = self.conn.cursor()
+        cursor = None
         sql = """
         INSERT INTO kline_5min 
         (stock_code, frequency, trade_date, trade_time, raw_time, open, high, low, close, volume, amount, adjustflag)
@@ -202,53 +222,57 @@ class KLine5MinManager:
             volume = VALUES(volume), amount = VALUES(amount), adjustflag = VALUES(adjustflag)
         """
         try:
+            cursor = self.conn.cursor()
             cursor.executemany(sql, records)
             self.conn.commit()
-            logger.info(f"[{current_func}] {stock_code} 保存 {len(records)} 条5分钟K线成功")
+            logger.info(f"[{__name__}.{func_name}] {stock_code} 保存 {len(records)} 条5分钟K线成功")
             return True
         except Exception as e:
-            logger.error(f"[{current_func}] {stock_code} 保存失败：{e}")
+            logger.error(f"[{__name__}.{func_name}] {stock_code} 保存失败：{str(e)}")
             self.conn.rollback()
             return False
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
 
 
-# ================= 【新增】K线下载进度管理器（独立专用） =================
+# ================= K线下载进度管理器 =================
 class KlineDownloadProgressManager:
     def __init__(self, conn):
         self.conn = conn
-        self.table = "kline_download_progress"
+        self._table = "kline_download_progress"
 
     def get_last_download_time(self, stock_code: str, data_type: str) -> datetime | None:
+        func_name = "get_last_download_time"
         cursor = None
         try:
             cursor = self.conn.cursor()
-            sql = f"SELECT last_time FROM {self.table} WHERE stock_code = %s AND data_type = %s"
+            sql = f"SELECT last_time FROM {self._table} WHERE stock_code = %s AND data_type = %s"
             cursor.execute(sql, (stock_code, data_type))
             res = cursor.fetchone()
             return pd.to_datetime(res[0]) if res else None
         except Exception as e:
-            logger.error(f"[KlineProgress] 查询进度失败 {stock_code} {data_type}：{e}")
+            logger.error(f"[{__name__}.{func_name}] 查询进度失败 {stock_code} {data_type}：{str(e)}")
             raise
         finally:
             if cursor:
                 cursor.close()
 
     def update_download_progress(self, stock_code: str, data_type: str, last_time: datetime):
+        func_name = "update_download_progress"
         cursor = None
         try:
             cursor = self.conn.cursor()
             sql = f"""
-            INSERT INTO {self.table} (stock_code, data_type, last_time)
+            INSERT INTO {self._table} (stock_code, data_type, last_time)
             VALUES (%s, %s, %s)
             ON DUPLICATE KEY UPDATE last_time = VALUES(last_time)
             """
             cursor.execute(sql, (stock_code, data_type, last_time))
             self.conn.commit()
-            logger.debug(f"[KlineProgress] 更新进度 {stock_code} {data_type} -> {last_time}")
+            logger.debug(f"[{__name__}.{func_name}] 更新进度 {stock_code} {data_type} -> {last_time}")
         except Exception as e:
-            logger.error(f"[KlineProgress] 更新进度失败 {stock_code} {data_type}：{e}")
+            logger.error(f"[{__name__}.{func_name}] 更新进度失败 {stock_code} {data_type}：{str(e)}")
             self.conn.rollback()
             raise
         finally:
@@ -262,6 +286,7 @@ class BasicStockDataManager:
         self.conn = connection
 
     def get_need_fill_detail_codes(self) -> set:
+        func_name = "get_need_fill_detail_codes"
         codes = set()
         cursor = None
         try:
@@ -271,79 +296,108 @@ class BasicStockDataManager:
                 WHERE code_name IS NULL OR list_date IS NULL
             """)
             codes = {row[0] for row in cursor.fetchall()}
-            logger.info(f"需补全信息股票数量：{len(codes)}")
+            logger.info(f"[{__name__}.{func_name}] 需补全信息股票数量：{len(codes)}")
         except Exception as e:
-            logger.error(f"查询需补全股票失败：{e}")
+            logger.error(f"[{__name__}.{func_name}] 查询失败：{str(e)}")
         finally:
             if cursor:
                 cursor.close()
         return codes
 
     def get_existing_stock_codes_set(self) -> set:
-        current_func = self.get_existing_stock_codes_set.__name__
-        cursor = self.conn.cursor(pymysql.cursors.SSCursor)
+        func_name = "get_existing_stock_codes_set"
+        cursor = None
         try:
+            cursor = self.conn.cursor(pymysql.cursors.SSCursor)
             cursor.execute("SELECT DISTINCT ts_code FROM stock_basic")
             codes = {row[0] for row in cursor.fetchall()}
-            logger.debug(f"[{current_func}] 已加载 {len(codes)} 个股票代码")
+            logger.debug(f"[{__name__}.{func_name}] 已加载 {len(codes)} 个股票代码")
             return codes
         except Exception as e:
-            logger.error(f"[{current_func}] 查询失败：{e}")
+            logger.error(f"[{__name__}.{func_name}] 查询失败：{str(e)}")
             return set()
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
+
 
     def batch_insert_stock_basic(self, records: list) -> bool:
-        current_func = self.batch_insert_stock_basic.__name__
+        func_name = "batch_insert_stock_basic"
         if not records:
-            logger.warning(f"[{current_func}] 无数据可插入")
+            logger.warning(f"[{__name__}.{func_name}] 无数据可插入")
             return True
 
-        cursor = self.conn.cursor()
+        cursor = None
         sql = """
         INSERT INTO stock_basic 
         (ts_code, code_name, pure_symbol, industry, market, list_date, delist_date, is_active)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
-            code_name = VALUES(code_name), industry = VALUES(industry), market = VALUES(market),
-            list_date = VALUES(list_date), delist_date = VALUES(delist_date), is_active = VALUES(is_active)
+            -- 只更新代码、市场、状态，不覆盖已存在的名称/上市日/行业
+            pure_symbol = VALUES(pure_symbol),
+            market = VALUES(market),
+            is_active = VALUES(is_active)
         """
         try:
+            cursor = self.conn.cursor()
             cursor.executemany(sql, records)
             self.conn.commit()
-            logger.info(f"[{current_func}] 成功插入/更新 {len(records)} 条基础信息")
+            logger.info(f"[{__name__}.{func_name}] 成功插入/更新 {len(records)} 条基础信息")
             return True
         except Exception as e:
-            logger.error(f"[{current_func}] 插入失败：{e}")
+            logger.error(f"[{__name__}.{func_name}] 插入失败：{str(e)}")
             self.conn.rollback()
             return False
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
 
 
 # ================= 全局统一入口 DataManager =================
 class DataManager:
     @staticmethod
     def save_kline_5min(db_conn, stock_code: str, df: pd.DataFrame):
-        return KLine5MinManager(db_conn).save_kline_5min(stock_code, df)
+        func_name = "save_kline_5min"
+        try:
+            return KLine5MinManager(db_conn).save_kline_5min(stock_code, df)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
+            return False
 
     @staticmethod
     def get_kline_download_progress(db_conn, stock_code: str, data_type: str) -> datetime | None:
-        return KlineDownloadProgressManager(db_conn).get_last_download_time(stock_code, data_type)
+        func_name = "get_kline_download_progress"
+        try:
+            return KlineDownloadProgressManager(db_conn).get_last_download_time(stock_code, data_type)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
+            return None
 
     @staticmethod
     def update_kline_download_progress(db_conn, stock_code: str, data_type: str, last_time: datetime):
-        return KlineDownloadProgressManager(db_conn).update_download_progress(stock_code, data_type, last_time)
+        func_name = "update_kline_download_progress"
+        try:
+            return KlineDownloadProgressManager(db_conn).update_download_progress(stock_code, data_type, last_time)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
+            return None
 
 
 # ================= 工具函数 =================
 def get_existing_stock_codes_set(conn) -> set:
-    return BasicStockDataManager(conn).get_existing_stock_codes_set()
+    func_name = "get_existing_stock_codes_set"
+    try:
+        return BasicStockDataManager(conn).get_existing_stock_codes_set()
+    except Exception as e:
+        logger.error(f"[{__name__}.{func_name}] 失败：{str(e)}")
+        return set()
 
 
 def get_nearest_trade_date_before(conn, date_str: str) -> str:
-    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    func_name = "get_nearest_trade_date_before"
+    cursor = None
     try:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
         cursor.execute("""
             SELECT calendar_date FROM trade_date_map 
             WHERE calendar_date <= %s AND is_trading_day = 1
@@ -351,12 +405,17 @@ def get_nearest_trade_date_before(conn, date_str: str) -> str:
         """, (date_str,))
         res = cursor.fetchone()
         return res['calendar_date'].strftime('%Y-%m-%d') if res else date_str
+    except Exception as e:
+        logger.error(f"[{__name__}.{func_name}] 查询失败：{str(e)}")
+        return date_str
     finally:
-        cursor.close()
+        if cursor:
+            cursor.close()
 
-# ======================== 【升级】自动建表 + 季度分区 ========================
+
+# ================= 自动建表 =================
 def create_tables_if_not_exist(conn):
-    current_func = create_tables_if_not_exist.__name__
+    func_name = "create_tables_if_not_exist"
     cursor = None
     try:
         cursor = conn.cursor()
@@ -427,7 +486,7 @@ def create_tables_if_not_exist(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # 5. kline_5min 【季度分区 · 2023-2028 · 海量数据优化】
+        # 5. kline_5min
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS kline_5min (
           id bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -435,7 +494,7 @@ def create_tables_if_not_exist(conn):
           frequency int NOT NULL,
           trade_date date NOT NULL,
           trade_time datetime NOT NULL,
-          raw_time varchar(20) DEFAULT NULL,
+          raw_time varchar(64) DEFAULT NULL,
           open decimal(10,3) DEFAULT NULL,
           high decimal(10,3) DEFAULT NULL,
           low decimal(10,3) DEFAULT NULL,
@@ -477,10 +536,10 @@ def create_tables_if_not_exist(conn):
         """)
 
         conn.commit()
-        logger.info(f"[{current_func}] 所有表创建完成（kline_5min 已启用季度分区 2023~2028）")
+        logger.info(f"[{__name__}.{func_name}] 所有表创建完成（kline_5min 已启用季度分区）")
         return True
     except Exception as e:
-        logger.error(f"[{current_func}] 建表失败：{e}")
+        logger.error(f"[{__name__}.{func_name}] 建表失败：{str(e)}")
         conn.rollback()
         return False
     finally:
@@ -489,23 +548,30 @@ def create_tables_if_not_exist(conn):
 
 
 def create_database_if_not_exists():
+    func_name = "create_database_if_not_exists"
     config_no_db = {k: v for k, v in DB_CONFIG.items() if k != 'database'}
     try:
         conn = pymysql.connect(**config_no_db)
         with conn.cursor() as cur:
             cur.execute(f"CREATE DATABASE IF NOT EXISTS {DB_CONFIG['database']} DEFAULT CHARACTER SET utf8mb4")
         conn.close()
+        logger.info(f"[{__name__}.{func_name}] 数据库确认完成")
     except OperationalError as e:
-        logger.error(f"连接MySQL失败：{e}")
+        logger.error(f"[{__name__}.{func_name}] 连接MySQL失败：{str(e)}")
         raise
-
     return pymysql.connect(**DB_CONFIG)
 
 
 def create_database_and_tables():
-    conn = create_database_if_not_exists()
-    if create_tables_if_not_exist(conn):
-        return conn
-    else:
-        conn.close()
-        raise RuntimeError("数据库表初始化失败")
+    func_name = "create_database_and_tables"
+    try:
+        conn = create_database_if_not_exists()
+        if create_tables_if_not_exist(conn):
+            logger.info(f"[{__name__}.{func_name}] ✅ 数据库初始化全部完成")
+            return conn
+        else:
+            conn.close()
+            raise RuntimeError("数据库表初始化失败")
+    except Exception as e:
+        logger.error(f"[{__name__}.{func_name}] ❌ 数据库初始化失败：{str(e)}")
+        raise
