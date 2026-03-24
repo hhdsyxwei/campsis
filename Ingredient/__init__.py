@@ -1,14 +1,21 @@
 # Ingredient/__init__.py
-from .data_manager import DataManager
-from .daily_data_downloader import DailyDataDownloader
-from .stock_basic_downloader import StockBasicDownloader
-from .trade_date_map_downloader import TradeDateMapDownloader
-from .kline_5min_downloader import KLine5MinDownloader
+# Ingredient 包初始化文件
+# 只导出你项目里 **真实存在** 的类
+# 没有的一律不写！
 
-__all__ = [
-    "DailyDataDownloader",
-    "DataManager",
-    "StockBasicDownloader",
-    "TradeDateMapDownloader",
-    "KLine5MinDownloader"  # 新增
-]
+# 数据管理器（你有的）
+from .data_manager import (
+    TradeDateMapManager,
+    DailyDataManager,
+    KLine5MinManager,
+    BasicStockDataManager,
+    KlineDownloadProgressManager,
+    DataManager,
+    create_database_and_tables,
+    create_tables_if_not_exist,
+    get_existing_stock_codes_set,
+    get_nearest_trade_date_before
+)
+
+# 下载器（只导出你真实有的类）
+from .kline_5min_downloader import KLine5MinDownloader

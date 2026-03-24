@@ -3,6 +3,7 @@ import pymysql
 import baostock as bs
 import time
 from Ingredient.data_manager import create_database_and_tables
+from Ingredient.kline_5min_downloader import KLine5MinDownloader
 from KitchenBase.download_utils import logger
 from Ingredient.stock_basic_downloader import refresh_stock_code_list,download_stock_details
 from Ingredient.daily_data_downloader import download_all_stocks_daily_data
@@ -31,6 +32,12 @@ def main():
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
         #download_all_stocks_daily_data(conn, start_date="2023-01-01", end_date="2026-03-17") 
+
+        # 5. 第三步：下载5分钟K线数据（示例）
+        # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
+        #bs_client = bs  # 已登录的 Baostock 客户端
+        kline_downloader = KLine5MinDownloader()
+        kline_downloader.download(conn, "sh.600000", "2023-01-01", "2023-12-31", bs)
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 import pandas as pd
 from KitchenBase.download_utils import logger
-from data_manager import DataManager
+from Ingredient.data_manager import DataManager
 
 
 class KLine5MinDownloader:
