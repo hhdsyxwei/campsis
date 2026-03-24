@@ -2,10 +2,13 @@
 import baostock as bs
 import pandas as pd
 import time
-from KitchenBase.download_utils import MarketType, logger, convert_baostock_code, baostock_code_to_market
+from KitchenBase.download_utils import MarketType, convert_baostock_code, baostock_code_to_market
 from Ingredient.data_manager import BasicStockDataManager, get_existing_stock_codes_set
+from KitchenBase.logger_config import get_logger
 
-# ===================== 原有工具函数 =====================
+logger = get_logger(__name__)
+
+# ===================== 工具函数 =====================
 def _fetch_stock_codes(trading_day: str, exclude_types: list = None) -> list:
     func_name = "_fetch_stock_codes"
     start_time = time.time()  # 开始计时

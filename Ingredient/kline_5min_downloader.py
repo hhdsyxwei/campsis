@@ -2,10 +2,11 @@
 from datetime import datetime
 from typing import Optional, List
 import pandas as pd
-from KitchenBase.download_utils import logger
+from KitchenBase.logger_config import get_logger
 from Ingredient.data_manager import DataManager
 
 
+logger = get_logger(__name__)
 class KLine5MinDownloader:
     """
     5分钟K线数据下载器
@@ -134,15 +135,17 @@ class KLine5MinDownloader:
         return pd.DataFrame(data, columns=rs.fields)
 
     def _clean_data(self, raw_df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
+
+        logger.debug(f"第一条原始数据预览：{raw_df.iloc[0].to_dict() if not raw_df.empty else '无数据'}")
+        logger.debug(f"最后一条原始数据预览：{raw_df.iloc[-1].to_dict() if not raw_df.empty else '无数据'}")
+
         df = raw_df.copy()
         if df.empty:
             return pd.DataFrame(columns=self.TARGET_COLUMNS)
 
         # 时间清洗
         df["time"] = df["time"].str.zfill(4)
-        df["trade_time"] = pd.to_datetime(
-            df["date"] + " " + df["time"].str[:2] + ":" + df["time"].str[2:] + ":00"
-        )
+        df["trade_time"] = pd.to_datetime(df["time"], format="%Y%m%d%H%M%S%f")
         df["trade_date"] = df["trade_time"].dt.date
         df["raw_time"] = df["date"] + df["time"]
 

@@ -3,7 +3,10 @@ import pymysql
 from pymysql.err import OperationalError
 import pandas as pd
 from datetime import datetime
-from KitchenBase.download_utils import logger, calculate_pre_close
+from KitchenBase.download_utils import calculate_pre_close
+from KitchenBase.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 # ================= 配置区域 =================
 DB_CONFIG = {
@@ -491,7 +494,7 @@ def create_tables_if_not_exist(conn):
           frequency int NOT NULL,
           trade_date date NOT NULL,
           trade_time datetime NOT NULL,
-          raw_time varchar(20) DEFAULT NULL,
+          raw_time varchar(64) DEFAULT NULL,
           open decimal(10,3) DEFAULT NULL,
           high decimal(10,3) DEFAULT NULL,
           low decimal(10,3) DEFAULT NULL,

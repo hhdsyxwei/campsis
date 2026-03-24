@@ -1,13 +1,33 @@
 # main.py
+# ==============================================
+# 1. 必须放在所有其他导入 【最前面】
+# ==============================================
+from KitchenBase.logger_config import setup_logging,get_logger
+
+import os
 import pymysql
 import baostock as bs
 import time
 from Ingredient.data_manager import create_database_and_tables
 from Ingredient.kline_5min_downloader import KLine5MinDownloader
-from KitchenBase.download_utils import logger
 from Ingredient.stock_basic_downloader import refresh_stock_code_list,download_stock_details
 from Ingredient.daily_data_downloader import download_all_stocks_daily_data
 from Ingredient.trade_date_map_downloader import download_trade_date_map
+
+
+os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
+# os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
+
+
+setup_logging()
+
+logger = get_logger(__name__)
+
+logger.debug("这是调试信息（灰色）")
+logger.info("这是普通信息（蓝色）")
+logger.warning("这是警告（黄色）")
+logger.error("这是错误（红色）")
+logger.info("初始化成功！【会加粗】")
 
 def main():
 
