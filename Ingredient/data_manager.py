@@ -354,14 +354,14 @@ def get_nearest_trade_date_before(conn, date_str: str) -> str:
     finally:
         cursor.close()
 
-
+# ======================== 【升级】自动建表 + 季度分区 ========================
 def create_tables_if_not_exist(conn):
     current_func = create_tables_if_not_exist.__name__
     cursor = None
     try:
         cursor = conn.cursor()
 
-        # stock_basic
+        # 1. stock_basic
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS stock_basic (
           ts_code varchar(20) NOT NULL,
@@ -380,7 +380,7 @@ def create_tables_if_not_exist(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # stock_daily
+        # 2. stock_daily
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS stock_daily (
           id bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -399,12 +399,12 @@ def create_tables_if_not_exist(conn):
           pb decimal(10,2) DEFAULT NULL,
           create_time timestamp DEFAULT CURRENT_TIMESTAMP,
           update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (id),
+          PRIMARY KEY (id, trade_date),
           UNIQUE KEY uk_tscode_date (ts_code,trade_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # trade_date_map
+        # 3. trade_date_map
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS trade_date_map (
           calendar_date date NOT NULL,
@@ -415,7 +415,19 @@ def create_tables_if_not_exist(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # kline_5min
+        # 4. kline_download_progress
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS kline_download_progress (
+          stock_code varchar(20) NOT NULL,
+          data_type varchar(30) NOT NULL,
+          last_time datetime NOT NULL,
+          create_time timestamp DEFAULT CURRENT_TIMESTAMP,
+          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (stock_code, data_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """)
+
+        # 5. kline_5min 【季度分区 · 2023-2028 · 海量数据优化】
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS kline_5min (
           id bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -433,25 +445,39 @@ def create_tables_if_not_exist(conn):
           adjustflag int DEFAULT NULL,
           create_time timestamp DEFAULT CURRENT_TIMESTAMP,
           update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (id),
-          UNIQUE KEY uk_stock_time (stock_code, trade_time)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        """)
-
-        # kline_download_progress
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS kline_download_progress (
-          stock_code varchar(20) NOT NULL,
-          data_type varchar(30) NOT NULL,
-          last_time datetime NOT NULL,
-          create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (stock_code, data_type)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          PRIMARY KEY (id, trade_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        PARTITION BY RANGE (TO_DAYS(trade_date)) (
+            PARTITION p2023q1 VALUES LESS THAN (TO_DAYS('2023-04-01')),
+            PARTITION p2023q2 VALUES LESS THAN (TO_DAYS('2023-07-01')),
+            PARTITION p2023q3 VALUES LESS THAN (TO_DAYS('2023-10-01')),
+            PARTITION p2023q4 VALUES LESS THAN (TO_DAYS('2024-01-01')),
+            PARTITION p2024q1 VALUES LESS THAN (TO_DAYS('2024-04-01')),
+            PARTITION p2024q2 VALUES LESS THAN (TO_DAYS('2024-07-01')),
+            PARTITION p2024q3 VALUES LESS THAN (TO_DAYS('2024-10-01')),
+            PARTITION p2024q4 VALUES LESS THAN (TO_DAYS('2025-01-01')),
+            PARTITION p2025q1 VALUES LESS THAN (TO_DAYS('2025-04-01')),
+            PARTITION p2025q2 VALUES LESS THAN (TO_DAYS('2025-07-01')),
+            PARTITION p2025q3 VALUES LESS THAN (TO_DAYS('2025-10-01')),
+            PARTITION p2025q4 VALUES LESS THAN (TO_DAYS('2026-01-01')),
+            PARTITION p2026q1 VALUES LESS THAN (TO_DAYS('2026-04-01')),
+            PARTITION p2026q2 VALUES LESS THAN (TO_DAYS('2026-07-01')),
+            PARTITION p2026q3 VALUES LESS THAN (TO_DAYS('2026-10-01')),
+            PARTITION p2026q4 VALUES LESS THAN (TO_DAYS('2027-01-01')),
+            PARTITION p2027q1 VALUES LESS THAN (TO_DAYS('2027-04-01')),
+            PARTITION p2027q2 VALUES LESS THAN (TO_DAYS('2027-07-01')),
+            PARTITION p2027q3 VALUES LESS THAN (TO_DAYS('2027-10-01')),
+            PARTITION p2027q4 VALUES LESS THAN (TO_DAYS('2028-01-01')),
+            PARTITION p2028q1 VALUES LESS THAN (TO_DAYS('2028-04-01')),
+            PARTITION p2028q2 VALUES LESS THAN (TO_DAYS('2028-07-01')),
+            PARTITION p2028q3 VALUES LESS THAN (TO_DAYS('2028-10-01')),
+            PARTITION p2028q4 VALUES LESS THAN (TO_DAYS('2029-01-01')),
+            PARTITION p_max VALUES LESS THAN MAXVALUE
+        );
         """)
 
         conn.commit()
-        logger.info(f"[{current_func}] 所有表初始化完成")
+        logger.info(f"[{current_func}] 所有表创建完成（kline_5min 已启用季度分区 2023~2028）")
         return True
     except Exception as e:
         logger.error(f"[{current_func}] 建表失败：{e}")
