@@ -7,9 +7,8 @@
 from .data_manager import (
     TradeDateMapManager,
     DailyDataManager,
-    KLine5MinManager,
+    KLineUnifiedQuarterlyExtendedManager,
     BasicStockDataManager,
-    KlineDownloadProgressManager,
     DataManager,
     create_database_and_tables,
     create_tables_if_not_exist,
@@ -18,4 +17,4 @@ from .data_manager import (
 )
 
 # 下载器（只导出你真实有的类）
-from .kline_5min_downloader import KLine5MinDownloader
+from .kline_unified_downloader import KLineDownloader

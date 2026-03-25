@@ -18,6 +18,203 @@ DB_CONFIG = {
     'charset': 'utf8mb4'
 }
 
+# ================= K线统一表管理器 =================
+class KLineUnifiedQuarterlyExtendedManager:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def save_kline_data_unified(self, stock_code: str, df: pd.DataFrame) -> bool:
+        """
+        保存统一格式的K线数据
+        
+        Args:
+            stock_code: 股票代码
+            df: K线数据，包含time_frame, timestamp等字段
+        
+        Returns:
+            保存是否成功
+        """
+        func_name = "save_kline_data_unified"
+        logger.info(f"[{__name__}.{func_name}] 开始保存 {len(df)} 条统一格式K线数据 for {stock_code}")
+        
+        cursor = None
+        try:
+            # 准备数据
+            records = []
+            for _, row in df.iterrows():
+                records.append((
+                    stock_code,
+                    row['time_frame'],
+                    row['timestamp'],
+                    row['open_price'],
+                    row['high_price'],
+                    row['low_price'],
+                    row['close_price'],
+                    row['volume'],
+                    row['turnover']
+                ))
+            
+            # 执行批量插入
+            sql = """
+            INSERT INTO kline_unified_quarterly_extended 
+            (stock_code, time_frame, timestamp, open_price, high_price, low_price, close_price, volume, turnover)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                open_price = VALUES(open_price), 
+                high_price = VALUES(high_price), 
+                low_price = VALUES(low_price), 
+                close_price = VALUES(close_price),
+                volume = VALUES(volume),
+                turnover = VALUES(turnover),
+                updated_at = CURRENT_TIMESTAMP
+            """
+            cursor = self.conn.cursor()
+            cursor.executemany(sql, records)
+            self.conn.commit()
+            
+            logger.info(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {stock_code}")
+            return True
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 保存数据失败 for {stock_code}: {str(e)}")
+            self.conn.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_kline_download_status(self, stock_code: str, time_frame: str, quarter: str) -> str:
+        """
+        获取K线下载状态
+        
+        Args:
+            stock_code: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+        
+        Returns:
+            状态字符串: 'completed' 或 'not_completed'
+        """
+        func_name = "get_kline_download_status"
+        logger.debug(f"[{__name__}.{func_name}] 查询 {stock_code} {time_frame} {quarter} 的下载状态")
+        
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            query = """
+            SELECT status FROM kline_download_progress 
+            WHERE stock_code = %s AND time_frame = %s AND quarter = %s
+            """
+            cursor.execute(query, (stock_code, time_frame, quarter))
+            result = cursor.fetchone()
+            
+            if result:
+                return result[0]
+            else:
+                return None  # 表示记录不存在
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询状态失败: {str(e)}")
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+
+    def update_kline_download_progress_unified(self, stock_code: str, time_frame: str, quarter: str, status: str):
+        """
+        更新K线下载进度（统一格式）
+        
+        Args:
+            stock_code: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+            status: 状态，'completed' 或 'not_completed'
+        """
+        func_name = "update_kline_download_progress_unified"
+        logger.debug(f"[{__name__}.{func_name}] 更新 {stock_code} {time_frame} {quarter} 的状态为: {status}")
+        
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            # 使用INSERT ... ON DUPLICATE KEY UPDATE来处理记录存在与否的情况
+            query = """
+            INSERT INTO kline_download_progress (stock_code, time_frame, quarter, status, completed_at) 
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+            status = VALUES(status),
+            completed_at = CASE 
+                WHEN VALUES(status) = 'completed' THEN VALUES(completed_at) 
+                ELSE completed_at 
+            END
+            """
+
+            completed_at = datetime.now() if status == 'completed' else None
+            cursor.execute(query, (stock_code, time_frame, quarter, status, completed_at))
+            self.conn.commit()
+            
+            logger.debug(f"[{__name__}.{func_name}] {stock_code} {time_frame} {quarter} 的状态已更新为: {status}")
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 更新进度失败: {str(e)}")
+            self.conn.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_quarter_data_count(self, stock_code: str, time_frame: str, quarter: str) -> int:
+        """
+        获取指定股票、时间周期和季度的数据条数
+        
+        Args:
+            stock_code: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+        
+        Returns:
+            数据条数
+        """
+        func_name = "get_quarter_data_count"
+        logger.debug(f"[{__name__}.{func_name}] 查询 {stock_code} {time_frame} {quarter} 的数据条数")
+        
+        # 解析季度得到日期范围
+        year, q = quarter.split('-Q')
+        q = int(q)
+        
+        start_month = (q - 1) * 3 + 1
+        end_month = q * 3
+        
+        # 计算季度的第一天和最后一天
+        if q == 1:
+            start_date = f"{year}-01-01"
+            end_date = f"{year}-03-31"
+        elif q == 2:
+            start_date = f"{year}-04-01"
+            end_date = f"{year}-06-30"
+        elif q == 3:
+            start_date = f"{year}-07-01"
+            end_date = f"{year}-09-30"
+        else:  # q == 4
+            start_date = f"{year}-10-01"
+            end_date = f"{year}-12-31"
+        
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            sql = """
+            SELECT COUNT(*) FROM kline_unified_quarterly_extended 
+            WHERE stock_code = %s AND time_frame = %s 
+            AND timestamp >= %s AND timestamp <= %s
+            """
+            cursor.execute(sql, (stock_code, time_frame, start_date, end_date))
+            count = cursor.fetchone()[0]
+            
+            logger.debug(f"[{__name__}.{func_name}] {stock_code} {time_frame} {quarter} 的数据条数: {count}")
+            return count
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询数据条数失败: {str(e)}")
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+
 
 # ================= 交易日历管理器 =================
 class TradeDateMapManager:
@@ -192,94 +389,6 @@ class DailyDataManager:
                 cursor.close()
 
 
-# ================= 5分钟K线数据管理器 =================
-class KLine5MinManager:
-    def __init__(self, conn):
-        self.conn = conn
-
-    def save_kline_5min(self, stock_code: str, df: pd.DataFrame) -> bool:
-        func_name = "save_kline_5min"
-        if df.empty:
-            logger.warning(f"[{__name__}.{func_name}] {stock_code} 空数据，无需保存")
-            return True
-
-        records = [
-            (
-                row['stock_code'], row['frequency'], row['trade_date'],
-                row['trade_time'], row['raw_time'], row['open'], row['high'],
-                row['low'], row['close'], row['volume'], row['amount'], row['adjustflag']
-            )
-            for _, row in df.iterrows()
-        ]
-
-        cursor = None
-        sql = """
-        INSERT INTO kline_5min 
-        (stock_code, frequency, trade_date, trade_time, raw_time, open, high, low, close, volume, amount, adjustflag)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            open = VALUES(open), high = VALUES(high), low = VALUES(low), close = VALUES(close),
-            volume = VALUES(volume), amount = VALUES(amount), adjustflag = VALUES(adjustflag)
-        """
-        try:
-            cursor = self.conn.cursor()
-            cursor.executemany(sql, records)
-            self.conn.commit()
-            logger.info(f"[{__name__}.{func_name}] {stock_code} 保存 {len(records)} 条5分钟K线成功")
-            return True
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] {stock_code} 保存失败：{str(e)}")
-            self.conn.rollback()
-            return False
-        finally:
-            if cursor:
-                cursor.close()
-
-
-# ================= K线下载进度管理器 =================
-class KlineDownloadProgressManager:
-    def __init__(self, conn):
-        self.conn = conn
-        self._table = "kline_download_progress"
-
-    def get_last_download_time(self, stock_code: str, data_type: str) -> datetime | None:
-        func_name = "get_last_download_time"
-        cursor = None
-        try:
-            cursor = self.conn.cursor()
-            sql = f"SELECT last_time FROM {self._table} WHERE stock_code = %s AND data_type = %s"
-            cursor.execute(sql, (stock_code, data_type))
-            res = cursor.fetchone()
-            return pd.to_datetime(res[0]) if res else None
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询进度失败 {stock_code} {data_type}：{str(e)}")
-            raise
-        finally:
-            if cursor:
-                cursor.close()
-
-    def update_download_progress(self, stock_code: str, data_type: str, last_time: datetime):
-        func_name = "update_download_progress"
-        cursor = None
-        try:
-            cursor = self.conn.cursor()
-            sql = f"""
-            INSERT INTO {self._table} (stock_code, data_type, last_time)
-            VALUES (%s, %s, %s)
-            ON DUPLICATE KEY UPDATE last_time = VALUES(last_time)
-            """
-            cursor.execute(sql, (stock_code, data_type, last_time))
-            self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] 更新进度 {stock_code} {data_type} -> {last_time}")
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 更新进度失败 {stock_code} {data_type}：{str(e)}")
-            self.conn.rollback()
-            raise
-        finally:
-            if cursor:
-                cursor.close()
-
-
 # ================= 股票基础信息管理器 =================
 class BasicStockDataManager:
     def __init__(self, connection):
@@ -320,6 +429,32 @@ class BasicStockDataManager:
             if cursor:
                 cursor.close()
 
+    def get_all_active_stock_codes(self) -> list:
+        """
+        通过stock_basic表获取所有活跃股票代码
+        
+        Returns:
+            list: 所有活跃股票代码列表
+        """
+        func_name = "get_all_active_stock_codes"
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT ts_code 
+                FROM stock_basic 
+                WHERE is_active = 1
+                  AND market IN ('主板(深A)', '主板(沪A)', '科创板', '创业板', '北交所')
+            """)
+            active_codes = [row[0] for row in cursor.fetchall()]
+            logger.info(f"[{__name__}.{func_name}] 查询到 {len(active_codes)} 个活跃股票代码")
+            return active_codes
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询活跃股票代码失败：{str(e)}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
 
     def batch_insert_stock_basic(self, records: list) -> bool:
         func_name = "batch_insert_stock_basic"
@@ -356,31 +491,108 @@ class BasicStockDataManager:
 # ================= 全局统一入口 DataManager =================
 class DataManager:
     @staticmethod
-    def save_kline_5min(db_conn, stock_code: str, df: pd.DataFrame):
-        func_name = "save_kline_5min"
+    def save_kline_data_unified(db_conn, stock_code: str, df: pd.DataFrame) -> bool:
+        """
+        保存统一格式的K线数据
+        
+        Args:
+            db_conn: 数据库连接
+            stock_code: 股票代码
+            df: K线数据，包含time_frame, timestamp等字段
+        
+        Returns:
+            保存是否成功
+        """
+        func_name = "save_kline_data_unified"
         try:
-            return KLine5MinManager(db_conn).save_kline_5min(stock_code, df)
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.save_kline_data_unified(stock_code, df)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return False
 
     @staticmethod
-    def get_kline_download_progress(db_conn, stock_code: str, data_type: str) -> datetime | None:
-        func_name = "get_kline_download_progress"
+    def get_kline_download_status(db_conn, stock_code: str, time_frame: str, quarter: str) -> str:
+        """
+        获取K线下载状态
+        
+        Args:
+            db_conn: 数据库连接
+            stock_code: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+        
+        Returns:
+            状态字符串: 'completed' 或 'not_completed'
+        """
+        func_name = "get_kline_download_status"
         try:
-            return KlineDownloadProgressManager(db_conn).get_last_download_time(stock_code, data_type)
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.get_kline_download_status(stock_code, time_frame, quarter)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
+            return 'not_completed'
+
+    @staticmethod
+    def update_kline_download_progress_unified(db_conn, stock_code: str, time_frame: str, quarter: str, status: str):
+        """
+        更新K线下载进度（统一格式）
+        
+        Args:
+            db_conn: 数据库连接
+            stock_code: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+            status: 状态，'completed' 或 'not_completed'
+        """
+        func_name = "update_kline_download_progress_unified"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.update_kline_download_progress_unified(stock_code, time_frame, quarter, status)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return None
 
     @staticmethod
-    def update_kline_download_progress(db_conn, stock_code: str, data_type: str, last_time: datetime):
-        func_name = "update_kline_download_progress"
+    def get_quarter_data_count(db_conn, stock_code: str, time_frame: str, quarter: str) -> int:
+        """
+        获取指定股票、时间周期和季度的数据条数
+        
+        Args:
+            db_conn: 数据库连接
+            stock_code: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+        
+        Returns:
+            数据条数
+        """
+        func_name = "get_quarter_data_count"
         try:
-            return KlineDownloadProgressManager(db_conn).update_download_progress(stock_code, data_type, last_time)
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.get_quarter_data_count(stock_code, time_frame, quarter)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
-            return None
+            return 0
+
+    @staticmethod
+    def get_all_active_stock_codes(db_conn) -> list:
+        """
+        通过stock_basic表获取所有活跃股票代码
+        
+        Args:
+            db_conn: 数据库连接
+        
+        Returns:
+            list: 所有活跃股票代码列表
+        """
+        func_name = "get_all_active_stock_codes"
+        try:
+            manager = BasicStockDataManager(db_conn)
+            return manager.get_all_active_stock_codes()
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
+            return []
 
 
 # ================= 工具函数 =================
@@ -391,6 +603,24 @@ def get_existing_stock_codes_set(conn) -> set:
     except Exception as e:
         logger.error(f"[{__name__}.{func_name}] 失败：{str(e)}")
         return set()
+
+
+def get_all_active_stock_codes(conn) -> list:
+    """
+    通过stock_basic表获取所有活跃股票代码
+    
+    Args:
+        conn: 数据库连接
+    
+    Returns:
+        list: 所有活跃股票代码列表
+    """
+    func_name = "get_all_active_stock_codes"
+    try:
+        return BasicStockDataManager(conn).get_all_active_stock_codes()
+    except Exception as e:
+        logger.error(f"[{__name__}.{func_name}] 失败：{str(e)}")
+        return []
 
 
 def get_nearest_trade_date_before(conn, date_str: str) -> str:
@@ -474,39 +704,42 @@ def create_tables_if_not_exist(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # 4. kline_download_progress
+        # 4. kline_download_progress - 修正表结构
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS kline_download_progress (
           stock_code varchar(20) NOT NULL,
-          data_type varchar(30) NOT NULL,
-          last_time datetime NOT NULL,
+          time_frame varchar(30) NOT NULL,
+          quarter varchar(10) NOT NULL,
+          status varchar(20) DEFAULT 'not_completed',
+          completed_at datetime NULL,
           create_time timestamp DEFAULT CURRENT_TIMESTAMP,
           update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (stock_code, data_type)
+          PRIMARY KEY (stock_code, time_frame, quarter)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # 5. kline_5min
+        # 5. kline_unified_quarterly_extended - 新增表
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS kline_5min (
+        CREATE TABLE IF NOT EXISTS kline_unified_quarterly_extended (
           id bigint unsigned NOT NULL AUTO_INCREMENT,
           stock_code varchar(20) NOT NULL,
-          frequency int NOT NULL,
-          trade_date date NOT NULL,
-          trade_time datetime NOT NULL,
-          raw_time varchar(64) DEFAULT NULL,
-          open decimal(10,3) DEFAULT NULL,
-          high decimal(10,3) DEFAULT NULL,
-          low decimal(10,3) DEFAULT NULL,
-          close decimal(10,3) DEFAULT NULL,
+          time_frame varchar(30) NOT NULL,
+          timestamp datetime NOT NULL,
+          open_price decimal(10,3) DEFAULT NULL,
+          high_price decimal(10,3) DEFAULT NULL,
+          low_price decimal(10,3) DEFAULT NULL,
+          close_price decimal(10,3) DEFAULT NULL,
           volume bigint DEFAULT NULL,
-          amount decimal(15,2) DEFAULT NULL,
-          adjustflag int DEFAULT NULL,
+          turnover decimal(15,2) DEFAULT NULL,
           create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (id, trade_date)
+          updated_at timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (id, timestamp),
+          UNIQUE KEY uk_stock_timeframe_timestamp (stock_code, time_frame, timestamp),
+          INDEX idx_stock_code (stock_code),
+          INDEX idx_time_frame (time_frame),
+          INDEX idx_timestamp (timestamp)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        PARTITION BY RANGE (TO_DAYS(trade_date)) (
+        PARTITION BY RANGE (TO_DAYS(timestamp)) (
             PARTITION p2023q1 VALUES LESS THAN (TO_DAYS('2023-04-01')),
             PARTITION p2023q2 VALUES LESS THAN (TO_DAYS('2023-07-01')),
             PARTITION p2023q3 VALUES LESS THAN (TO_DAYS('2023-10-01')),
@@ -536,7 +769,7 @@ def create_tables_if_not_exist(conn):
         """)
 
         conn.commit()
-        logger.info(f"[{__name__}.{func_name}] 所有表创建完成（kline_5min 已启用季度分区）")
+        logger.info(f"[{__name__}.{func_name}] 所有表创建完成（kline_unified_quarterly_extended 已启用季度分区）")
         return True
     except Exception as e:
         logger.error(f"[{__name__}.{func_name}] 建表失败：{str(e)}")
@@ -574,4 +807,4 @@ def create_database_and_tables():
             raise RuntimeError("数据库表初始化失败")
     except Exception as e:
         logger.error(f"[{__name__}.{func_name}] ❌ 数据库初始化失败：{str(e)}")
-        raise
+        raise 

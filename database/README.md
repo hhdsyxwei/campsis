@@ -8,6 +8,9 @@
   - `02_create_table_stock_basic.sql` - 股票基础信息表
   - `03_insert_base_data.sql` - 可选：插入交易日历/基础参数等静态数据
 
+- **init/** - 按业务域（如stock/）或通用型（common/）拆分，每个存储过程单独一个 SQL 文件，便于修改和版本追踪；
+
+
 - **migration/** - 表结构迭代脚本（按版本命名）
   - `v1.1_add_column_min_kline.sql` - 示例：新增字段
   - `v1.2_alter_index_min_kline.sql` - 示例：调整索引

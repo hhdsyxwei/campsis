@@ -40,15 +40,31 @@
 ---
 
 ## 3. kline_5min_downloader.py模块：
-重新实现kline_5min_downloader.py模块
-### 核心功能要求
-1. 本模块需要实现5分钟K线数据的完整下载，对外提供下载download接口
-2. download接口参数包括db_conn(数据库连接)，股票代码，开始日期，结束日期。
-3. 本模块的使用者调用download前保证已经登录baostock，本模块可复用已有的登录状态
-4. 下载前，本模块的使用者自己连接数据库，并提供连接句柄作为参数
-5. 下载完成后，本模块通过调用data_manager模块的数据操作接口完成数据的保存
-6. 下载进度保存在数据库表kline_download_progress中
-7. 下载数据保存在数据库表kline_5min中
-8. 下载过程拆分成3个步骤，即数据下载，数据清洗(输出pandas标准格式)，数据保存(调用data_manager接口完成)
-9. 网络异常，或者服务器异常时向上抛出异常。
-10. 利用download_utils模块的日志功能，为kline_5min_downloader.py添加完整日志信息，以跟踪模块运行时可能出现的问题，异常。日志信息至少包含debug,info,error三个级别
+统一K线数据下载器
+### 统一K线数据的下载器的设计思路：
+请为我设计K线数据下载器模块，设计思路如下：
+1.下载前，本模块的使用者自己连接数据库，并提供连接句柄作为参数
+2.下载前，本模块的使用者自行完成baostock登录，本模块假定登录已经完成，复用已有的登录状态。
+3.数据库表kline_download_progress记录每个下载单元的状态，为了简化实现，只记录2个状态，未完成和完成
+4.数据库表kline_unified_quarterly_extended记录实际的K线数据
+5.一个下载单元是某只股票的某种时间类型(1分钟，5分钟，15分钟等)在指定的季度的所有数据。
+6.本模块提供的唯一对外接口是download_kline，接口参数仅start_year，end_year，time_frame。下载年份范围包括start_year,不包括end_year。
+7.download_kline函数将下载任务拆分成多个季度(可以指定time_frame即时间类型)，内部函数_download_quarter_kline实现单个季度所有股票的下载。
+8.内部接口_fetch_quarterly_kline实现某个季度所有股票的下载功能(可以指定time_frame即时间类型)，所有股票列表通过data_manager模块的接口查询，不要在本模块实现。
+9.内部接口_fetch_stock_quarterly_kline实现指定股票指定某个季度k线数据下载(可以指定time_frame即时间类型)，即实现最小单元的下载任务
+10.最小单元的下载任务包括以下步骤：参数校验，获取最小单元状态，下载原始数据，清洗数据，保存数据，保存进度.
+11.数据保存由外部模块data_manager实现
+12.网络异常，或者服务器异常时向上抛出异常。
+13.利用外部模块logger_config输出日志，每条日志都需要包含当前模块，当前函数信息
+14.利用外部模块baostock_wrapper.py查询baostock提供的k线数据
+
+
+数据库设计思路：
+请你基于下载器的设计思路先告诉我kline_download_progress表的设计思路和方案，我再决定是否输出相应的数据库DDL
+根据我的下载器设计思路，请生成kline_unified_quarterly_extended表的设计思路，由我决定是否生成数据库表的DDL
+
+kline_unified_quarterly_extended表设计要求：
+1.以(stock_code, time_frame, timestamp)为主键
+2.去除当前需求不涉及的字段，简化表设计
+3.预建2024-2028年所有季度分区，便于按季度查询和管理数据生命周期
+4.与kline_download_progress表配合，确保下载单元的完整性
