@@ -76,7 +76,9 @@ class BaostockWrapper:
                 socket.setdefaulttimeout(None)
                 logger.info(f"[{current_func}] 第 {retry_count+1} 次尝试成功，函数 {func.__name__} 执行完成")
                 return result
-
+            except UnicodeDecodeError as e:
+                # 捕获编码异常，封装为自定义异常抛出
+                raise RuntimeError(f"Baostock数据编码异常: {str(e)}") from e
             except Exception as e:
                 retry_count += 1
                 logger.error(f"[{current_func}] 第 {retry_count} 次尝试失败 - 异常类型: {type(e).__name__}, 异常信息: {str(e)}")

@@ -1,8 +1,10 @@
 # data_manager.py
+from typing import Optional, Tuple
 import pymysql
 from pymysql.err import OperationalError
 import pandas as pd
 from datetime import datetime
+
 from KitchenBase.download_utils import calculate_pre_close
 from KitchenBase.logger_config import get_logger
 
@@ -358,21 +360,6 @@ class DailyDataManager:
             if cursor:
                 cursor.close()
 
-    def get_stock_listing_date(self, ts_code: str) -> str:
-        func_name = "get_stock_listing_date"
-        cursor = None
-        try:
-            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT list_date FROM stock_basic WHERE ts_code = %s", (ts_code,))
-            res = cursor.fetchone()
-            return res['list_date'].strftime('%Y-%m-%d') if res and res['list_date'] else None
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询失败 {ts_code}：{str(e)}")
-            return None
-        finally:
-            if cursor:
-                cursor.close()
-
     def get_latest_tradedate_for_stock(self, ts_code: str) -> str:
         func_name = "get_latest_tradedate_for_stock"
         cursor = None
@@ -487,6 +474,41 @@ class BasicStockDataManager:
             if cursor:
                 cursor.close()
 
+    def get_stock_listing_date(self, ts_code: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        查询指定股票代码的 上市日期 和 退市日期
+        Args:
+            ts_code: 股票代码（如 600000.SH）
+        Returns:
+            tuple: (上市日期, 退市日期) 格式 YYYY-MM-DD，无则返回 None
+        """
+        func_name = "get_stock_listing_date"
+        cursor = None
+        try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("""
+                SELECT list_date, delist_date FROM stock_basic 
+                WHERE ts_code = %s
+            """, (ts_code,))
+            result = cursor.fetchone()
+    
+            if result:
+                # 处理上市日期
+                listing_date = result['list_date'].strftime('%Y-%m-%d') if result['list_date'] else None
+                # 处理退市日期（新增）
+                delist_date = result['delist_date'].strftime('%Y-%m-%d') if result['delist_date'] else None
+                
+                logger.debug(f"[{__name__}.{func_name}] 股票 {ts_code} 上市:{listing_date} 退市:{delist_date}")
+                return listing_date, delist_date
+            else:
+                logger.warning(f"[{__name__}.{func_name}] 股票 {ts_code} 未查询到基础信息")
+                return None, None
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询股票 {ts_code} 失败：{str(e)}")
+            return None, None
+        finally:
+            if cursor:
+                cursor.close()
 
 # ================= 全局统一入口 DataManager =================
 class DataManager:
@@ -594,6 +616,13 @@ class DataManager:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return []
 
+    @staticmethod
+    def get_stock_listing_date(db_conn, stock_code: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        便捷调用BasicStockDataManager的get_stock_listing_date方法
+        返回：(上市日期，退市日期)
+        """
+        return BasicStockDataManager(db_conn).get_stock_listing_date(stock_code)
 
 # ================= 工具函数 =================
 def get_existing_stock_codes_set(conn) -> set:
