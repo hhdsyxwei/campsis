@@ -85,39 +85,105 @@ class KLineDownloader:
                 logger.error(f"[{__name__}.{func_name}] 季度 {quarter} 下载失败: {str(e)}")
                 raise e  # 向上传播异常
 
+    # 新增：封装时间段与上市/退市期间交集判断的内部函数
+    def _is_time_range_overlap_with_listing_period(self, stock_code: str, start_date: str, end_date: str) -> tuple[bool, str, str]:
+        """
+        判断请求的时间段与股票上市/退市期间是否有交集，兼容退市场景
+        :param stock_code: 股票代码
+        :param start_date: 请求时间段起始日期（YYYY-MM-DD）
+        :param end_date: 请求时间段结束日期（YYYY-MM-DD）
+        :return: (是否有交集, 实际下载起始日期, 实际下载结束日期)
+        """
+        func_name = "_is_time_range_overlap_with_listing_period"
+        # 1. 获取股票上市/退市日期
+        listing_date, delist_date = dm.get_stock_listing_date(self.db_conn, stock_code)
+
+        # 2. 转换日期为datetime对象（方便比较）
+        req_start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        req_end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        list_dt = datetime.strptime(listing_date, "%Y-%m-%d") if listing_date else None
+        delist_dt = datetime.strptime(delist_date, "%Y-%m-%d") if delist_date else None
+
+        # 3. 核心交集判断逻辑
+        # 无上市日期 → 无交集（跳过）
+        if not list_dt:
+            logger.debug(f"[{__name__}.{func_name}] 股票 {stock_code} 无上市日期，跳过下载")
+            return False, None, None
+        
+        # 已退市且退市日期早于请求起始日期 → 无交集（跳过）
+        if delist_dt and delist_dt < req_start_dt:
+            logger.debug(f"[{__name__}.{func_name}] 股票 {stock_code} 退市日期 {delist_date} 早于请求起始日期 {start_date}，跳过下载")
+            return False, None, None
+        
+        # 上市日期晚于请求结束日期 → 无交集（跳过）
+        if list_dt > req_end_dt:
+            logger.debug(f"[{__name__}.{func_name}] 股票 {stock_code} 上市日期 {listing_date} 晚于请求结束日期 {end_date}，跳过下载")
+            return False, None, None
+        
+        # 4. 计算实际下载的起止日期（取交集）
+        actual_start_dt = max(list_dt, req_start_dt)
+        # 未退市则取请求结束日期，已退市则取退市日期
+        actual_end_dt = min(delist_dt, req_end_dt) if delist_dt else req_end_dt
+        
+        actual_start_date = actual_start_dt.strftime("%Y-%m-%d")
+        actual_end_date = actual_end_dt.strftime("%Y-%m-%d")
+        
+        logger.debug(
+            f"[{__name__}.{func_name}] 股票 {stock_code} 实际下载范围：{actual_start_date} ~ {actual_end_date} "
+            f"(请求范围：{start_date} ~ {end_date} | 上市/退市：{listing_date} ~ {delist_date or '未退市'})"
+        )
+        return True, actual_start_date, actual_end_date
+
     def _fetch_quarterly_kline(self, quarter: str, time_frame: KLinePeriod) -> None:
         """
         下载单个季度所有股票的K线数据
-        
+
         Args:
             quarter: 季度，格式如 '2024-Q1'
             time_frame: 时间周期，使用KLinePeriod枚举类型
         """
         func_name = "_fetch_quarterly_kline"
         logger.debug(f"[{__name__}.{func_name}] 开始下载季度 {quarter} 的 {time_frame.value} K线数据")
-        
+
         # 获取所有股票列表
         all_stocks = get_existing_stock_codes_set(self.db_conn)
-        logger.info(f"[{__name__}.{func_name}] 获取到 {len(all_stocks)} 只股票")
-        
+        all_stocks_sorted = sorted(all_stocks)
+        logger.info(f"[{__name__}.{func_name}] 获取到 {len(all_stocks_sorted)} 只股票")
+        if all_stocks_sorted and len(all_stocks_sorted) > 2:
+            logger.info(f"前3条股票代码示例: {list(all_stocks_sorted)[:3]} ...")
+
         # 计算季度开始和结束日期 (调用内部封装函数)
         start_date, end_date = self._quarter_to_date_range(quarter)
-        
+        # 转换为datetime对象，方便日期比较
+        quarter_start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        quarter_end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+
         # 遍历所有股票，下载每只股票的数据
         success_count = 0
         fail_count = 0
-        for stock_code in all_stocks:
+        skip_count = 0  # 新增：记录因未上市跳过的股票数量
+        for stock_code in all_stocks_sorted:
             try:
+                # 调用封装的交集判断函数
+                is_overlap, actual_start, actual_end = self._is_time_range_overlap_with_listing_period(
+                    stock_code, start_date, end_date
+                )
+                if not is_overlap:
+                    skip_count += 1
+                    continue  # 无交集，跳过下载
+
                 logger.debug(f"[{__name__}.{func_name}] 开始下载股票 {stock_code} 在季度 {quarter} 的 {time_frame.value} 数据")
-                self._fetch_stock_quarterly_kline(stock_code, time_frame, quarter, start_date, end_date)
+                # 传入调整后的起始日期
+                self._fetch_stock_quarterly_kline(stock_code, time_frame, quarter, actual_start, actual_end)
                 success_count += 1
                 logger.debug(f"[{__name__}.{func_name}] 股票 {stock_code} 在季度 {quarter} 的 {time_frame.value} 数据下载完成")
             except Exception as e:
                 fail_count += 1
                 logger.error(f"[{__name__}.{func_name}] 股票 {stock_code} 在季度 {quarter} 的 {time_frame.value} 数据下载失败: {str(e)}")
                 # 不中断整个季度下载，继续处理下一个股票
-        
-        logger.info(f"[{__name__}.{func_name}] 季度 {quarter} 下载完成，成功: {success_count}，失败: {fail_count}")
+    
+        # 新增：打印跳过数量日志
+        logger.info(f"[{__name__}.{func_name}] 季度 {quarter} 下载完成，成功: {success_count}，失败: {fail_count}，因未上市跳过: {skip_count}")
 
     def _quarter_to_date_range(self, quarter: str):
         """
