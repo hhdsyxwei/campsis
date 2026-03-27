@@ -1,5 +1,5 @@
 -- 精简版K线下载进度跟踪表 - 仅记录完成/未完成两种状态（复合主键）
-CREATE TABLE `kline_download_progress` (
+CREATE TABLE `kline_block_download_status` (
   `stock_code` VARCHAR(20) NOT NULL COMMENT '股票代码',
   `time_frame` ENUM('1min', '5min', '15min', '30min', '60min', 'daily', 'weekly', 'monthly') NOT NULL DEFAULT '5min' COMMENT '时间周期',
   `quarter` VARCHAR(7) NOT NULL COMMENT '季度 YYYY-Qn格式，如2024-Q1',
@@ -17,7 +17,7 @@ CREATE TABLE `kline_download_progress` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='K线下载进度跟踪表 - 双状态设计，复合主键';
 
 -- 插入测试数据
-INSERT INTO `kline_download_progress` (
+INSERT INTO `kline_block_download_status` (
     `stock_code`, `time_frame`, `quarter`, `status`
 ) VALUES 
 ('AAPL', '5min', '2024-Q1', 'not_completed'),
@@ -27,4 +27,4 @@ INSERT INTO `kline_download_progress` (
 ('NVDA', '5min', '2024-Q1', 'not_completed');
 
 -- 查看表结构
-DESCRIBE `kline_download_progress`;
+DESCRIBE `kline_block_download_status`;

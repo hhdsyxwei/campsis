@@ -103,7 +103,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         try:
             cursor = self.conn.cursor()
             query = """
-            SELECT status FROM kline_download_progress 
+            SELECT status FROM kline_block_download_status 
             WHERE stock_code = %s AND time_frame = %s AND quarter = %s
             """
             cursor.execute(query, (stock_code, time_frame, quarter))
@@ -138,7 +138,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor = self.conn.cursor()
             # 使用INSERT ... ON DUPLICATE KEY UPDATE来处理记录存在与否的情况
             query = """
-            INSERT INTO kline_download_progress (stock_code, time_frame, quarter, status, completed_at) 
+            INSERT INTO kline_block_download_status (stock_code, time_frame, quarter, status, completed_at) 
             VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE 
             status = VALUES(status),
@@ -733,9 +733,9 @@ def create_tables_if_not_exist(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # 4. kline_download_progress - 修正表结构
+        # 4. kline_block_download_status - 修正表结构
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS kline_download_progress (
+        CREATE TABLE IF NOT EXISTS kline_block_download_status (
           stock_code varchar(20) NOT NULL,
           time_frame varchar(30) NOT NULL,
           quarter varchar(10) NOT NULL,
