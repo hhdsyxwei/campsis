@@ -1,5 +1,6 @@
 # data_manager.py
-from typing import Optional, Tuple
+import os
+from typing import List, Optional, Tuple, Dict
 import pymysql
 from pymysql.err import OperationalError
 import pandas as pd
@@ -7,6 +8,8 @@ from datetime import datetime
 
 from KitchenBase.download_utils import calculate_pre_close
 from KitchenBase.logger_config import get_logger
+from KitchenBase.download_utils import get_project_root
+from KitchenBase.stock_enums import KLinePeriod
 
 logger = get_logger(__name__)
 
@@ -24,6 +27,118 @@ DB_CONFIG = {
 class KLineUnifiedQuarterlyExtendedManager:
     def __init__(self, conn):
         self.conn = conn
+
+    def set_downloading_block(self, stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
+        """
+        设置当前下载的区块信息（更新kline_download_progress表）
+        Args:
+            stock_code: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+        
+        Returns:
+            设置是否成功
+        """
+        func_name = "set_downloading_block"
+        logger.debug(f"[{__name__}.{func_name}] 开始设置下载区块: {stock_code} {time_frame.value} {quarter}")
+        
+        cursor = None
+        try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            # 使用 INSERT ... ON DUPLICATE KEY UPDATE 处理记录存在/不存在的情况
+            cursor.execute("""
+                INSERT INTO kline_download_progress 
+                (id, downloading_stock_code, downloading_time_frame, downloading_quarter, update_time)
+                VALUES (1, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE
+                    downloading_stock_code = VALUES(downloading_stock_code),
+                    downloading_time_frame = VALUES(downloading_time_frame),
+                    downloading_quarter = VALUES(downloading_quarter),
+                    update_time = CURRENT_TIMESTAMP
+            """, (stock_code, time_frame.value, quarter))
+            
+            self.conn.commit()
+            logger.info(f"[{__name__}.{func_name}] 成功设置下载区块: {stock_code} {time_frame.value} {quarter}")
+            return True
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 设置下载区块失败: {str(e)}")
+            self.conn.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+    # 通过kline_download_progress表获取当前下载的区块信息（股票代码、时间周期、季度）
+    def get_downloading_block(self) -> Optional[Tuple[str, str, KLinePeriod]]:
+        func_name = "get_downloading_block"
+        cursor = None
+        try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("""
+                SELECT downloading_stock_code, downloading_time_frame, downloading_quarter 
+                FROM kline_download_progress 
+                WHERE id = 1 
+                LIMIT 1
+            """)
+            result = cursor.fetchone()
+            if result:
+                logger.debug(f"[{__name__}.{func_name}] 当前下载区块: {result}")
+                return result['downloading_stock_code'], result['downloading_time_frame'], KLinePeriod.value_of(result['downloading_quarter'])
+            else:
+                logger.debug(f"[{__name__}.{func_name}] 无正在下载的区块")
+                return None
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询下载区块失败: {str(e)}")
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_next_stock_in_fixed_seq(self, current_stock_code: Optional[str]) -> Optional[str]:
+        """
+        获取固定序列中的下一只股票代码（按stock_fixed_seq表自增id排序）
+        Args:
+            current_stock_code: 当前股票代码，None表示获取第一只
+
+        Returns:
+            下一只股票代码 | None（无数据/已是最后一只）
+        """
+        func_name = "get_next_stock_in_fixed_seq"
+        cursor = None
+        try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+
+            # ==============================================
+            # 🔥 一条 SQL 搞定所有场景：性能最优
+            # ==============================================
+            sql = """
+                SELECT stock_code
+                FROM stock_fixed_seq
+                WHERE
+                    -- 传入 None：取所有数据
+                    (%s IS NULL)
+                    OR
+                    -- 传入股票代码：取 id 比当前大的
+                    id > (SELECT id FROM stock_fixed_seq WHERE stock_code = %s)
+                ORDER BY id ASC
+                LIMIT 1
+            """
+            cursor.execute(sql, (current_stock_code, current_stock_code))
+            result = cursor.fetchone()
+
+            if result:
+                logger.debug(f"[{__name__}.{func_name}] 获取到下一只股票: {result['stock_code']}")
+                return result['stock_code']
+            else:
+                logger.debug(f"[{__name__}.{func_name}] 无下一只股票 / 表为空，返回None")
+                return None
+
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 获取下一只股票失败: {str(e)}")
+            return None
+        finally:
+            if cursor:
+                cursor.close()
 
     def save_kline_data_unified(self, stock_code: str, df: pd.DataFrame) -> bool:
         """
@@ -55,6 +170,11 @@ class KLineUnifiedQuarterlyExtendedManager:
                     row['volume'],
                     row['turnover']
                 ))
+
+            if records and len(records) > 2:
+                logger.debug(f"第1条记录示例: {records[0] if records else '无数据'}")
+                logger.debug(f"第2条记录示例: {records[1] if len(records) > 1 else '无数据'}")
+                logger.debug(f"第3条记录示例: {records[2] if len(records) > 2 else '无数据'}")
             
             # 执行批量插入
             sql = """
@@ -68,7 +188,7 @@ class KLineUnifiedQuarterlyExtendedManager:
                 close_price = VALUES(close_price),
                 volume = VALUES(volume),
                 turnover = VALUES(turnover),
-                updated_at = CURRENT_TIMESTAMP
+                update_time = CURRENT_TIMESTAMP
             """
             cursor = self.conn.cursor()
             cursor.executemany(sql, records)
@@ -84,7 +204,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_kline_download_status(self, stock_code: str, time_frame: str, quarter: str) -> str:
+    def get_kline_block_status(self, stock_code: str, time_frame: str, quarter: str) -> str:
         """
         获取K线下载状态
         
@@ -96,14 +216,14 @@ class KLineUnifiedQuarterlyExtendedManager:
         Returns:
             状态字符串: 'completed' 或 'not_completed'
         """
-        func_name = "get_kline_download_status"
+        func_name = "get_kline_block_status"
         logger.debug(f"[{__name__}.{func_name}] 查询 {stock_code} {time_frame} {quarter} 的下载状态")
         
         cursor = None
         try:
             cursor = self.conn.cursor()
             query = """
-            SELECT status FROM kline_block_download_status 
+            SELECT status FROM kline_block_status 
             WHERE stock_code = %s AND time_frame = %s AND quarter = %s
             """
             cursor.execute(query, (stock_code, time_frame, quarter))
@@ -120,7 +240,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def update_kline_download_progress_unified(self, stock_code: str, time_frame: str, quarter: str, status: str):
+    def update_kline_block_status(self, stock_code: str, time_frame: str, quarter: str, status: str):
         """
         更新K线下载进度（统一格式）
         
@@ -130,7 +250,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             quarter: 季度，格式如 '2024-Q1'
             status: 状态，'completed' 或 'not_completed'
         """
-        func_name = "update_kline_download_progress_unified"
+        func_name = "update_kline_block_status"
         logger.debug(f"[{__name__}.{func_name}] 更新 {stock_code} {time_frame} {quarter} 的状态为: {status}")
         
         cursor = None
@@ -138,7 +258,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor = self.conn.cursor()
             # 使用INSERT ... ON DUPLICATE KEY UPDATE来处理记录存在与否的情况
             query = """
-            INSERT INTO kline_block_download_status (stock_code, time_frame, quarter, status, completed_at) 
+            INSERT INTO kline_block_status (stock_code, time_frame, quarter, status, completed_at) 
             VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE 
             status = VALUES(status),
@@ -217,6 +337,85 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
+    def truncate_table_stock_fixed_seq(self) -> bool:
+        """
+        清空 stock_fixed_seq 表并批量插入新的股票代码数据
+        Returns:
+            操作是否成功
+        """
+        func_name = "truncate_table_stock_fixed_seq"
+        logger.info(f"[{__name__}.{func_name}] 开始清空 stock_fixed_seq 表")
+
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+
+            # 步骤1：清空表
+            truncate_sql = "TRUNCATE TABLE stock_fixed_seq"
+            cursor.execute(truncate_sql)
+            logger.debug(f"[{__name__}.{func_name}] 已清空 stock_fixed_seq 表")
+            return True
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 操作失败: {str(e)}")
+            self.conn.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+    def save_stock_fixed_seq(self, stock_data: list) -> bool:
+        """
+        批量插入股票代码到 stock_fixed_seq 表（仅插入股票代码，无股票名称，ID 由数据库自增生成）
+        不清空表、仅执行批量插入，提升数据库操作效率
+
+        Args:
+            stock_data: 股票代码列表，格式示例 ['000001', '000002', '600000', ...]
+
+        Returns:
+            操作是否成功
+        """
+        func_name = "save_stock_fixed_seq"
+        logger.info(f"[{__name__}.{func_name}] 开始批量写入 {len(stock_data)} 条股票代码数据")
+
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+
+            # 空列表校验
+            if not stock_data:
+                logger.warning(f"[{__name__}.{func_name}] 股票代码列表为空，无数据写入")
+                return True
+
+            # 格式标准化：确保每个元素都是字符串类型的股票代码
+            standardized_data = []
+            for code in stock_data:
+                if isinstance(code, str) and code.strip():
+                    standardized_data.append((code.strip(),))  # 转成元组格式适配 executemany
+                else:
+                    logger.warning(f"[{__name__}.{func_name}] 无效股票代码，跳过：{code}")
+
+            if not standardized_data:
+                logger.warning(f"[{__name__}.{func_name}] 无有效股票代码，终止插入")
+                return True
+
+            # 批量插入 SQL（仅插入 stock_code，ID 由数据库自增）
+            insert_sql = """
+            INSERT INTO stock_fixed_seq (stock_code)
+            VALUES (%s)
+            """
+            cursor.executemany(insert_sql, standardized_data)
+            self.conn.commit()
+
+            logger.info(f"[{__name__}.{func_name}] 成功写入 {len(standardized_data)} 条有效股票代码数据")
+            return True
+
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 批量插入股票代码失败: {str(e)}")
+            self.conn.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
 
 # ================= 交易日历管理器 =================
 class TradeDateMapManager:
@@ -513,6 +712,47 @@ class BasicStockDataManager:
 # ================= 全局统一入口 DataManager =================
 class DataManager:
     @staticmethod
+    def save_stock_fixed_seq(db_conn, records: list) -> bool:
+        """
+        向stock_fixed_seq表中插入股票代码记录
+
+        Args:
+            db_conn: 数据库连接
+            records: 股票代码记录列表，例如 [('000001',), ('000002',), ...]
+
+        Returns:
+            操作是否成功
+        """
+        func_name = "insert_single_stock_code_for_seq"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.save_stock_fixed_seq(records)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return False
+
+    @staticmethod
+    def truncate_table_stock_fixed_seq(db_conn) -> bool:
+        """
+        清空stock_fixed_seq表，然后写入新的股票代码和名称列表
+
+        Args:
+            db_conn: 数据库连接
+            stock_data: 股票数据列表，每个元素为元组(stock_code, stock_name)，例如 [('000001', '平安银行'), ...]
+
+        Returns:
+            操作是否成功
+        """
+        func_name = "truncate_table_stock_fixed_seq"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.truncate_table_stock_fixed_seq()
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return False
+
+
+    @staticmethod
     def save_kline_data_unified(db_conn, stock_code: str, df: pd.DataFrame) -> bool:
         """
         保存统一格式的K线数据
@@ -534,7 +774,7 @@ class DataManager:
             return False
 
     @staticmethod
-    def get_kline_download_status(db_conn, stock_code: str, time_frame: str, quarter: str) -> str:
+    def get_kline_block_status(db_conn, stock_code: str, time_frame: str, quarter: str) -> str:
         """
         获取K线下载状态
         
@@ -547,16 +787,16 @@ class DataManager:
         Returns:
             状态字符串: 'completed' 或 'not_completed'
         """
-        func_name = "get_kline_download_status"
+        func_name = "get_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_kline_download_status(stock_code, time_frame, quarter)
+            return manager.get_kline_block_status(stock_code, time_frame, quarter)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return 'not_completed'
 
     @staticmethod
-    def update_kline_download_progress_unified(db_conn, stock_code: str, time_frame: str, quarter: str, status: str):
+    def update_kline_block_status(db_conn, stock_code: str, time_frame: str, quarter: str, status: str):
         """
         更新K线下载进度（统一格式）
         
@@ -567,10 +807,10 @@ class DataManager:
             quarter: 季度，格式如 '2024-Q1'
             status: 状态，'completed' 或 'not_completed'
         """
-        func_name = "update_kline_download_progress_unified"
+        func_name = "update_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.update_kline_download_progress_unified(stock_code, time_frame, quarter, status)
+            return manager.update_kline_block_status(stock_code, time_frame, quarter, status)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return None
@@ -596,6 +836,61 @@ class DataManager:
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return 0
+
+    @staticmethod
+    def next_fixed_stock(db_conn, current_stock: Optional[str] = None) -> Optional[str]:
+        """
+        【对外标准接口】获取固定序列中的下一只股票
+        :param current_stock: 当前股票代码，不传/传None → 返回序列第一只
+        :return: 下一只股票代码 | None
+        """
+
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.get_next_stock_in_fixed_seq(current_stock)
+        except Exception as e:
+            logger.error(f"[{__name__}.next_fixed_stock] 调用失败: {str(e)}")
+            return None
+
+    @staticmethod
+    def set_downloading_block(db_conn, stock_id: str, time_frame: KLinePeriod, quarter: str) -> bool:
+        """
+        【对外标准接口】设置当前下载的区块信息（股票代码、时间周期、季度）
+        Args:
+            db_conn: 数据库连接
+            stock_id: 股票代码
+            time_frame: 时间周期
+            quarter: 季度，格式如 '2024-Q1'
+        
+        Returns:
+            设置是否成功
+        """
+        func_name = "set_downloading_block"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            result = manager.set_downloading_block(stock_id, time_frame, quarter)
+            logger.debug(f"[{__name__}.{func_name}] 对外接口调用完成，返回结果: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 对外接口调用失败: {str(e)}")
+            return False
+
+    @staticmethod
+    def get_downloading_block(db_conn) -> Optional[Tuple[str, str, KLinePeriod]]:
+        """
+        【对外标准接口】获取当前下载的区块信息（股票代码、时间周期、季度）
+        :param db_conn: 数据库连接
+        :return: 元组(downloading_stock_code, downloading_time_frame, downloading_quarter) | None
+        """
+        func_name = "get_downloading_block"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            result = manager.get_downloading_block()
+            logger.debug(f"[{__name__}.{func_name}] 对外接口调用完成，返回结果: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 对外接口调用失败: {str(e)}")
+            return None
 
     @staticmethod
     def get_all_active_stock_codes(db_conn) -> list:
@@ -671,9 +966,7 @@ def get_nearest_trade_date_before(conn, date_str: str) -> str:
         if cursor:
             cursor.close()
 
-
-# ================= 自动建表 =================
-def create_tables_if_not_exist(conn):
+def create_tables_if_not_exist2(conn):
     func_name = "create_tables_if_not_exist"
     cursor = None
     try:
@@ -733,21 +1026,7 @@ def create_tables_if_not_exist(conn):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """)
 
-        # 4. kline_block_download_status - 修正表结构
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS kline_block_download_status (
-          stock_code varchar(20) NOT NULL,
-          time_frame varchar(30) NOT NULL,
-          quarter varchar(10) NOT NULL,
-          status varchar(20) DEFAULT 'not_completed',
-          completed_at datetime NULL,
-          create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (stock_code, time_frame, quarter)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        """)
-
-        # 5. kline_unified_quarterly_extended - 新增表
+        # 4. kline_unified_quarterly_extended - 新增表
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS kline_unified_quarterly_extended (
           id bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -761,7 +1040,7 @@ def create_tables_if_not_exist(conn):
           volume bigint DEFAULT NULL,
           turnover decimal(15,2) DEFAULT NULL,
           create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          updated_at timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           PRIMARY KEY (id, timestamp),
           UNIQUE KEY uk_stock_timeframe_timestamp (stock_code, time_frame, timestamp),
           INDEX idx_stock_code (stock_code),
@@ -797,6 +1076,47 @@ def create_tables_if_not_exist(conn):
         );
         """)
 
+        # 5. stock_fixed_seq
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stock_fixed_seq (
+            id INT AUTO_INCREMENT COMMENT '自增ID',
+            stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
+            create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+            update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uk_stock_code (stock_code),
+            INDEX idx_seq_num (id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票固定下载顺序表';
+        """)
+
+        # 6. kline_download_progress
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS kline_download_progress (
+            id TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '固定为1，单条记录',
+            downloading_quarter VARCHAR(20) VARCHAR(10) NOT NULL DEFAULT '' COMMENT '当前下载的季度标识，格式：YYYY-QN',
+            downloading_stock_code VARCHAR(20) NOT NULL COMMENT '当前下载的股票代码',
+            current_quarter VARCHAR(10) COMMENT '当前下载季度',
+            last_update DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uk_stock_timeframe (stock_code, time_frame)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='K线下载进度表';
+        """)
+
+        # 7. download_task_config
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS download_task_config (
+            id INT AUTO_INCREMENT COMMENT '自增ID',
+            time_frame VARCHAR(10) NOT NULL COMMENT '时间周期：1min/5min/daily等',
+            start_year INT NOT NULL COMMENT '起始年份',
+            end_year INT NOT NULL COMMENT '结束年份',
+            is_enabled TINYINT(1) DEFAULT 1 COMMENT '是否启用：1-是 0-否',
+            create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+            update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uk_time_frame (time_frame)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='下载任务配置表';
+        """)
+
         conn.commit()
         logger.info(f"[{__name__}.{func_name}] 所有表创建完成（kline_unified_quarterly_extended 已启用季度分区）")
         return True
@@ -807,6 +1127,175 @@ def create_tables_if_not_exist(conn):
     finally:
         if cursor:
             cursor.close()
+
+# ================= 通用工具函数（新增） =================
+def load_table_create_sql(table_name: str) -> str:
+    """
+    根据表名自动加载对应的SQL文件
+    规则：table_name -> database/Ingredient/{table_name}.sql
+    
+    Args:
+        table_name: 数据库表名
+    
+    Returns:
+        表创建SQL语句
+    
+    Raises:
+        FileNotFoundError: SQL文件不存在时抛出
+        ValueError: SQL文件内容为空时抛出
+    """
+    sql_file_path = SQL_DIR / f"{table_name}.sql"
+    if not sql_file_path.exists():
+        raise FileNotFoundError(f"表 {table_name} 的SQL文件不存在：{sql_file_path}")
+    
+    with open(sql_file_path, "r", encoding="utf8") as f:
+        sql = f.read().strip()
+    
+    if not sql:
+        raise ValueError(f"表 {table_name} 的SQL文件内容为空：{sql_file_path}")
+    
+    return sql
+
+
+# ================= 批量创建所有表的入口函数（修改版） =================
+import re
+from typing import List
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+def _get_sql_statements_from_file(sql_file_path: str) -> List[str]:
+    """
+    增强版：从 .sql 文件读取内容，拆分并清洗为可执行的 SQL 语句列表
+    修复：处理/* */注释、编码兼容、分号在字符串/注释内的问题
+    :param sql_file_path: SQL 文件路径
+    :return: 清洗后的 SQL 语句列表
+    """
+    if not os.path.exists(sql_file_path):
+        logger.error(f"SQL 文件不存在：{sql_file_path}")
+        return []
+
+    # 尝试多种编码读取
+    encodings = ['utf-8', 'gbk', 'gb2312']
+    sql_content = ""
+    for encoding in encodings:
+        try:
+            with open(sql_file_path, 'r', encoding=encoding) as f:
+                sql_content = f.read().strip()
+            break  # 读取成功则退出编码循环
+        except (UnicodeDecodeError, PermissionError) as e:
+            logger.warning(f"编码 {encoding} 读取失败：{str(e)}")
+            continue
+    if not sql_content:
+        logger.warning(f"SQL 文件内容为空/读取失败：{sql_file_path}")
+        return []
+
+    # 步骤1：移除 /* ... */ 多行注释
+    sql_content = re.sub(r'/\*[\s\S]*?\*/', '', sql_content)
+    # 步骤2：移除 -- 行内注释（保留行内非开头的语句）
+    sql_content = re.sub(r'--.*?$', '', sql_content, flags=re.MULTILINE)
+    # 步骤3：按分号拆分，过滤空语句（处理末尾无分号的情况）
+    statements = []
+    for stmt in sql_content.split(';'):
+        stmt_clean = stmt.strip()
+        if stmt_clean:  # 仅过滤空语句，不再过滤--开头（已提前移除注释）
+            statements.append(stmt_clean)
+    
+    logger.info(f"从 {sql_file_path} 解析出 {len(statements)} 条 SQL 语句")
+    return statements
+
+
+def _execute_sql_statements(conn, cursor, statements: List[str], action_name: str) -> bool:
+    """
+    批量执行 SQL 语句，自带事务提交/回滚
+    :param conn: 数据库连接
+    :param cursor: 游标
+    :param statements: SQL 语句列表
+    :param action_name: 操作名称
+    :return: 执行成功 True / 失败 False
+    """
+    if not statements:
+        return True
+
+    try:
+        for stmt in statements:
+            cursor.execute(stmt)
+        conn.commit()
+        logger.info(f"执行 {action_name} SQL 成功，共 {len(statements)} 条语句")
+        return True
+
+    except pymysql.MySQLError as e:
+        logger.error(f"执行{action_name} SQL 失败：{str(e)}")
+        conn.rollback()
+        return False
+
+
+def create_all_tables_if_not_exist(conn) -> bool:
+    """
+    遍历内部字典（表名→路径），依次执行所有 SQL 脚本创建库表
+    :param conn: 数据库连接
+    :return: 全部成功返回 True
+    """
+    func_name = "create_all_tables_if_not_exist"
+
+    prj_dir = get_project_root()
+    database_dir = os.path.join(prj_dir, "database")
+
+    # ===================== 【字典类型】SQL 路径常量 =====================
+    SQL_FILE_MAP: Dict[str, str] = {
+        # 库
+        # "database": "./init/00_database.sql",
+        # 基础表
+        "trade_date_map": f"{database_dir}/init/01_table_trade_date_map.sql",
+        "stock_basic": f"{database_dir}/init/02_table_stock_basic.sql",
+        "stock_daily": f"{database_dir}/init/03_table_stock_daily.sql",
+        # "kline_1min": "./init/04_table_kline_1min.sql",
+        # 统一K线表
+        "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql",
+        "kline_block_status": f"{database_dir}/init/UnifiedKLine/02_table_kline_block_status.sql",
+        "stock_fixed_seq": f"{database_dir}/init/UnifiedKLine/03_stock_fixed_seq.sql",
+        "kline_download_progress": f"{database_dir}/init/UnifiedKLine/04_kline_download_progress.sql",
+        "download_task_config": f"{database_dir}/init/UnifiedKLine/05_download_task_config.sql",
+    }
+
+    cursor = None
+    overall_success = True
+
+    try:
+        cursor = conn.cursor()
+        logger.info(f"[{func_name}] 开始执行 {len(SQL_FILE_MAP)} 个库表初始化脚本")
+
+        # 遍历字典（表名 → 路径）
+        for action_name, sql_path in SQL_FILE_MAP.items():
+            logger.info(f"[{func_name}] 正在初始化：{action_name}")
+
+            # 1. 从文件获取 SQL 语句
+            statements = _get_sql_statements_from_file(sql_path)
+            if not statements:
+                logger.error(f"[{func_name}] 获取 {action_name} SQL 语句失败，跳过该表")
+                overall_success = False
+                continue
+
+            # 2. 执行 SQL 语句
+            success = _execute_sql_statements(conn, cursor, statements, action_name)
+            if not success:
+                overall_success = False
+            else:
+                logger.info(f"[{func_name}] 初始化完成：{action_name}")
+
+    except Exception as e:
+        logger.error(f"[{func_name}] 整体异常：{str(e)}")
+        overall_success = False
+        if conn:
+            conn.rollback()
+
+    finally:
+        if cursor:
+            cursor.close()
+
+    logger.info(f"[{func_name}] 全部执行完毕，结果：{'成功' if overall_success else '失败'}")
+    return overall_success
 
 
 def create_database_if_not_exists():
@@ -828,7 +1317,7 @@ def create_database_and_tables():
     func_name = "create_database_and_tables"
     try:
         conn = create_database_if_not_exists()
-        if create_tables_if_not_exist(conn):
+        if create_all_tables_if_not_exist(conn):
             logger.info(f"[{__name__}.{func_name}] ✅ 数据库初始化全部完成")
             return conn
         else:

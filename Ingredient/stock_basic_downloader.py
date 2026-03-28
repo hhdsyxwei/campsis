@@ -4,6 +4,7 @@ import pandas as pd
 import time
 from KitchenBase.download_utils import MarketType, convert_baostock_code, baostock_code_to_market
 from Ingredient.data_manager import BasicStockDataManager, get_existing_stock_codes_set
+from Ingredient.data_manager import DataManager as dm
 from KitchenBase.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -29,8 +30,8 @@ def _fetch_stock_codes(trading_day: str, exclude_types: list = None) -> list:
             logger.warning(f"[{__name__}.{func_name}] 发现空代码: {row}")
             continue
 
-        current_code = row[0]
-        current_type = baostock_code_to_market(current_code)
+        current_code = convert_baostock_code(row[0])
+        current_type = baostock_code_to_market(row[0])
         
         if current_type not in exclude_types_set:
             filtered_code_list.append(current_code)
@@ -51,8 +52,8 @@ def _map_row_list_to_dict(row_list: list, fields_list: list) -> dict:
 def _process_code_only_record(code: str) -> tuple:
     func_name = "_process_code_only_record"
     try:
-        converted_code = convert_baostock_code(code)
-        pure_symbol = code.split('.')[-1]
+        converted_code = code
+        pure_symbol = code.split('.')[0] if '.' in code else code
         market_type = baostock_code_to_market(code)
         market_display = market_type.value
 
@@ -125,6 +126,10 @@ def refresh_stock_code_list(
         logger.error(f"[{__name__}.{func_name}] 未获取到任何有效股票代码，退出")
         return
     logger.info(f"[{__name__}.{func_name}][性能] 获取股票代码耗时：{time.time() - step1_start:.2f}s")
+
+    if valid_codes:
+        dm.truncate_table_stock_fixed_seq(conn)  # 清空自增序列表，准备全量覆盖
+        dm.save_stock_fixed_seq(conn, valid_codes)  # 先保存到自增序列表，后续接口调用时会关联使用
 
     step2_start = time.time()
     logger.info(f"[{__name__}.{func_name}] 开始转换股票代码为数据库格式")

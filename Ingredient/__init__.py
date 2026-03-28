@@ -11,7 +11,6 @@ from .data_manager import (
     BasicStockDataManager,
     DataManager,
     create_database_and_tables,
-    create_tables_if_not_exist,
     get_existing_stock_codes_set,
     get_nearest_trade_date_before
 )
