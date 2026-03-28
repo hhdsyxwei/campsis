@@ -1,8 +1,13 @@
 # download_utils.py
+import os
+
 import pymysql
 from pymysql.err import OperationalError
 from datetime import datetime, timedelta
 from KitchenBase.stock_enums import MarketType
+
+
+print("=== download_utils 正在加载 ===")  # 看是否执行到
 
 # ================= 配置区域 =================
 # 数据库连接配置，需要根据您的实际环境进行修改
@@ -16,6 +21,16 @@ DB_CONFIG = {
 }
 
 # ================= 工具函数 =================
+
+def get_project_root() -> str:
+    """
+    获取项目根目录的绝对路径。
+    这个函数假设 download_utils.py 位于项目的某个子目录下，通过向上遍历目录来找到根目录。
+    """
+    current_file_path = os.path.abspath(__file__)
+    project_root = os.path.dirname(os.path.dirname(current_file_path))
+    return project_root
+
 def convert_baostock_code(bs_code: str) -> str:
     """
     将 Baostock 代码格式 (sh.600000) 转换为 数据库格式 (600000.SH)

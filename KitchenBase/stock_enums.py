@@ -19,7 +19,7 @@ class KLinePeriod(Enum):
     # 日级别
     DAILY = "1d"
     WEEKLY = "1w"
-    MONTHLY = "1M"
+    MONTHLY = "1Month"
 
     # 季度 / 年度
     QUARTERLY = "1q"

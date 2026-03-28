@@ -1,10 +1,10 @@
 -- 统一K线数据表 - 按季度分区设计（精简版含索引及详细注释）
 -- 设计目的：存储多种时间周期的K线数据，支持按季度查询和管理
 -- 配合kline_download_progress表实现断点续传和防重复下载
-CREATE TABLE `kline_unified_quarterly_extended` (
+CREATE TABLE IF NOT EXISTS `kline_unified_quarterly_extended` (
     -- 核心标识字段
     `stock_code` VARCHAR(20) NOT NULL COMMENT '股票代码，如AAPL、MSFT等',
-    `time_frame` ENUM('1min', '5min', '15min', '30min', '60min', 'daily', 'weekly', 'monthly') NOT NULL COMMENT '时间周期，定义K线的时间间隔',
+    `time_frame` VARCHAR(20) NOT NULL COMMENT '时间周期，定义K线的时间间隔',
     `timestamp` DATETIME NOT NULL COMMENT 'K线时间戳，精确到秒，用于确定K线的时间点',
     
     -- OHLCV数据字段
@@ -16,8 +16,8 @@ CREATE TABLE `kline_unified_quarterly_extended` (
     `turnover` DECIMAL(20, 4) NOT NULL DEFAULT 0.0000 COMMENT '成交额，单位元，精确到万分位',
     
     -- 时间戳字段
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间，自动填充',
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间，自动维护',
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间，自动填充',
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间，自动维护',
     
     -- 主键：股票代码+时间周期+时间戳的三元组，确保数据唯一性
     -- 此设计与kline_download_progress表配合，实现按季度单元的精确控制
@@ -67,35 +67,3 @@ PARTITION BY RANGE COLUMNS(`timestamp`) (
     -- 未来数据分区，处理超出预设范围的数据
     PARTITION `p_future` VALUES LESS THAN MAXVALUE COMMENT '未来数据分区，处理超出预设范围的数据'
 );
-
--- 插入测试数据，验证表结构和分区功能
-INSERT INTO `kline_unified_quarterly_extended` (
-    `stock_code`, `time_frame`, `timestamp`, 
-    `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`
-) VALUES 
-('AAPL', '5min', '2024-03-15 10:30:00', 150.0000, 150.1000, 149.9000, 150.0500, 10000, 1500500.0000),
-('AAPL', '5min', '2024-03-15 10:35:00', 150.0500, 150.2000, 150.0000, 150.1500, 12000, 1801800.0000),
-('MSFT', '1min', '2025-06-15 14:30:00', 300.0000, 301.5000, 299.8000, 301.2000, 8000, 2409600.0000),
-('GOOGL', 'daily', '2026-09-20 00:00:00', 2800.0000, 2820.5000, 2795.0000, 2815.2000, 200000, 563040000.0000),
-('TSLA', '5min', '2027-02-10 11:15:00', 200.0000, 205.0000, 198.5000, 203.2000, 50000, 10160000.0000);
-
--- 查看表结构，确认字段定义和注释
-DESCRIBE `kline_unified_quarterly_extended`;
-
--- 查看表创建语句，确认分区和索引设置
-SHOW CREATE TABLE `kline_unified_quarterly_extended`;
-
--- 查看分区统计信息，验证分区是否正常工作
-SELECT 
-    `PARTITION_NAME`,
-    `PARTITION_DESCRIPTION`,
-    `TABLE_ROWS`,
-    `DATA_LENGTH`,
-    `INDEX_LENGTH`
-FROM information_schema.PARTITIONS 
-WHERE TABLE_NAME = 'kline_unified_quarterly_extended'
-ORDER BY `PARTITION_NAME`;
-
--- 测试按季度查询（分区裁剪），验证分区是否有效提升查询性能
-SELECT COUNT(*) FROM `kline_unified_quarterly_extended` 
-WHERE `timestamp` >= '2024-01-01 00:00:00' AND `timestamp` < '2024-04-01 00:00:00';

@@ -43,21 +43,26 @@
 统一K线数据下载器
 
 ### 统一K线数据的下载器的设计思路：
-请为我设计K线数据下载器模块，设计思路如下：
+download_kline函数的要求如下：
 1. 下载前，本模块的使用者自己连接数据库，并提供连接句柄作为参数
 2. 下载前，本模块的使用者自行完成baostock登录，本模块假定登录已经完成，复用已有的登录状态。
-3. 数据库表kline_download_progress记录每个下载单元的状态，为了简化实现，只记录2个状态，未完成和完成
+3. 数据库表kline_block_status记录每个下载单元的状态，为了简化实现，只记录2个状态，未完成和完成
 4. 数据库表kline_unified_quarterly_extended记录实际的K线数据
-5. 一个下载单元是某只股票的某种时间类型(1分钟，5分钟，15分钟等)在指定的季度的所有数据。
-6. 本模块提供的唯一对外接口是download_kline，接口参数仅start_year，end_year，time_frame。下载年份范围包括start_year,不包括end_year。
-7. download_kline函数将下载任务拆分成多个季度(可以指定time_frame即时间类型)，内部函数_download_quarter_kline实现单个季度所有股票的下载。
-8. 内部接口_fetch_quarterly_kline实现某个季度所有股票的下载功能(可以指定time_frame即时间类型)，所有股票列表通过data_manager模块的接口查询，不要在本模块实现。
-9. 内部接口_fetch_stock_quarterly_kline实现指定股票指定某个季度k线数据下载(可以指定time_frame即时间类型)，即实现最小单元的下载任务
-10. 最小单元的下载任务包括以下步骤：参数校验，获取最小单元状态，下载原始数据，清洗数据，保存数据，保存进度.
-11. 数据保存由外部模块data_manager实现
-12. 网络异常，或者服务器异常时向上抛出异常。
-13. 利用外部模块logger_config输出日志，每条日志都需要包含当前模块，当前函数信息
-14. 利用外部模块baostock_wrapper.py查询baostock提供的k线数据
+5. 数据库表stock_fixed_seq记录预设的股票代码下载顺序
+6. 数据库表download_task_config记录用户请求的下载参数，下载范围
+7. 数据库表kline_download_progress记录当前下载指针，也就是当前正常下载的区块的信息
+8. 一个下载单元是某只股票的某种时间周期time_frame(1分钟，5分钟，15分钟等)在指定的季度的所有数据。
+9. 本模块提供的唯一对外接口是download_kline，接口参数仅start_year，end_year，time_frame。下载年份范围包括start_year,不包括end_year。
+10. download_kline函数按照固定的顺序下载区块，循环处理每个区块。初始化时指向第1个区块，单次循环首先获得下一个区块，再下载一个区块，直到最后一个区块
+11. 区块排序包含2个字段，季度(比如2025-Q1)，股票代码
+12. download_kline函数不要生成下载区块列表，而是依照规则，以数据信息为支撑，找到下一个区块
+13. 内部接口_fetch_kline_block实现指定股票指定某个季度k线数据下载(可以指定time_frame即时间周期)，即实现最小单元的下载任务
+14. 最小单元的下载任务包括以下步骤：参数校验，上市时间检验，获取最小单元状态，下载原始数据，清洗数据，保存数据，保存进度.
+15. 上市时间检验通过_is_time_range_overlap_with_listing_period完成
+16. 数据保存由外部模块data_manager实现
+17. 网络异常，或者服务器异常时向上抛出异常。
+18. 利用外部模块logger_config输出日志，每条日志都需要包含当前模块，当前函数信息
+19. 利用外部模块baostock_wrapper.py查询baostock提供的k线数据
 
 ### 数据库设计思路：
 1. 请基于下载器的设计思路先告诉我kline_download_progress表的设计思路和方案，我再决定是否输出相应的数据库DDL
