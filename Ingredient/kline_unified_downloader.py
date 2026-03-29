@@ -224,12 +224,12 @@ class KLineDownloader:
         s_date, e_date = self._quarter_to_date_range(quarter)
         is_ok, real_s, real_e = self._is_time_range_overlap_with_listing_period(stock_code, s_date, e_date)
         if not is_ok:
-            dm.update_kline_block_status(self.db_conn, stock_code, time_frame, quarter, BLOCK_COMPLETED)
+            dm.update_kline_block_status(self.db_conn, quarter, stock_code, time_frame, BLOCK_COMPLETED)
             logger.info(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {stock_code} {quarter}")
             return
 
         # ========== 3. 检查是否已完成 ==========
-        status = dm.get_kline_block_status(self.db_conn, stock_code, time_frame, quarter)
+        status = dm.get_kline_block_status(self.db_conn, quarter, stock_code, time_frame)
         if status == BLOCK_COMPLETED:
             logger.info(f"[{__name__}.{self.func_name}] 已完成，跳过: {stock_code} {quarter}")
             return
