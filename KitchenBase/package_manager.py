@@ -3,7 +3,7 @@ import subprocess
 import sys
 import pkgutil
 from typing import List, Set
-from logger_config import get_logger
+from KitchenBase.logger_config import get_logger
 from KitchenBase.download_utils import get_project_root
 
 logger = get_logger(__name__)
@@ -63,44 +63,65 @@ class PackageManager:
         """
         【不生成文件！】
         扫描项目代码 import，返回【缺失/未安装】的依赖包列表
+        修复：包含 tests 目录，不排除 test_ 开头的文件
         """
         imported_packages = set()
+        # 获取当前环境已安装的所有包（转小写避免大小写问题）
         installed_packages = {pkg.name.lower() for pkg in pkgutil.iter_modules()}
 
-        # 扫描项目所有 .py 文件
+        # 扫描项目所有 .py 文件（包含 tests 目录，不排除 test_ 开头的文件）
         for root, _, files in os.walk(project_path):
+            # 保留所有目录（包括 tests），仅排除无用的编译目录
+            if "__pycache__" in root:
+                continue
             for file in files:
-                if file.endswith(".py") and not file.startswith("test_"):
+                # 只过滤 .pyc 等非源码文件，不再排除 test_ 开头的文件
+                if file.endswith(".py"):
+                    file_path = os.path.join(root, file)
                     try:
-                        with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                        with open(file_path, "r", encoding="utf-8") as f:
                             for line in f:
                                 line = line.strip()
+                                # 匹配 import/from 语句，提取顶层包名
                                 if line.startswith("import ") or line.startswith("from "):
+                                    # 处理多行导入（如 from xxx import yyy as zzz）
+                                    line = line.split("#")[0]  # 去掉注释
                                     parts = line.split()
                                     if len(parts) >= 2:
+                                        # 提取顶层包名（如 from pandas.core import xxx → pandas）
                                         pkg = parts[1].split(".")[0]
                                         if pkg.isidentifier() and not pkg.startswith("_"):
                                             imported_packages.add(pkg.lower())
+                    except UnicodeDecodeError:
+                        logger.warning(f"文件编码错误 {file_path}: 跳过（非UTF-8编码）")
                     except Exception as e:
-                        logger.warning(f"读取文件失败 {file}: {str(e)}")
+                        logger.warning(f"读取文件失败 {file_path}: {str(e)}")
                         continue
 
-        # ====================== 【完整版】内置标准库过滤 ======================
+        logger.debug(f"扫描到的导入包: {imported_packages}")
+        logger.debug(f"已安装的包: {installed_packages}")
+
+        # ====================== 精简版内置标准库过滤（仅保留Python官方内置库） ======================
+        # 移除自定义模块（如 utils/config），避免误过滤
         BUILTIN_MODULES = {
             "sys", "os", "time", "datetime", "json", "re", "math",
             "typing", "logging", "configparser", "subprocess", "pkgutil",
             "importlib", "abc", "enum", "pathlib", "shutil", "random",
             "threading", "queue", "io", "base64", "hashlib", "functools",
-            "__main__", "utils", "config", "logger_config", "builtins",
-            "traceback", "warnings", "string", "collections", "argparse"
+            "builtins", "traceback", "warnings", "string", "collections",
+            "argparse", "socket", "csv", "tempfile", "enum", "datetime",
+            "unittest"  # 加入unittest（Python内置测试库），避免被误判为缺失
         }
 
-        # 过滤：只保留未安装的第三方包
+        # 过滤逻辑：只保留「非内置库 + 未安装」的第三方包
         missing = [
             pkg for pkg in imported_packages
             if pkg not in installed_packages
             and pkg not in BUILTIN_MODULES
+            # 排除项目内部模块（根据你的项目结构调整，如 kitchenbase/ingredient）
+            and pkg not in {"kitchenbase", "ingredient"}
         ]
+        # 去重并排序，保证结果稳定
         return sorted(list(set(missing)))
 
     @staticmethod
@@ -112,7 +133,7 @@ class PackageManager:
         project_path = get_project_root()
         logger.debug(f"🔍 项目根目录: {project_path}")
 
-        logger.info("🔍 正在扫描项目缺失依赖...")
+        logger.info("🔍 正在扫描项目缺失依赖（包含tests目录）...")
         missing = PackageManager.generate_requirements(project_path)
         logger.debug(f"🔍 扫描完成，缺失依赖列表: {missing}")
 

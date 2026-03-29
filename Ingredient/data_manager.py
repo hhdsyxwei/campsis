@@ -83,7 +83,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             result = cursor.fetchone()
             if result:
                 logger.debug(f"[{__name__}.{func_name}] 当前下载区块: {result}")
-                return result['downloading_stock_code'], result['downloading_time_frame'], KLinePeriod.value_of(result['downloading_quarter'])
+                return result['downloading_quarter'], result['downloading_stock_code'], KLinePeriod(result['downloading_time_frame'])
             else:
                 logger.debug(f"[{__name__}.{func_name}] 无正在下载的区块")
                 return None
@@ -204,7 +204,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_kline_block_status(self, stock_code: str, time_frame: str, quarter: str) -> str:
+    def get_kline_block_status(self, stock_code: str, time_frame: KLinePeriod, quarter: str) -> str:
         """
         获取K线下载状态
         
@@ -224,9 +224,9 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor = self.conn.cursor()
             query = """
             SELECT status FROM kline_block_status 
-            WHERE stock_code = %s AND time_frame = %s AND quarter = %s
+            WHERE quarter = %s AND stock_code = %s AND time_frame = %s
             """
-            cursor.execute(query, (stock_code, time_frame, quarter))
+            cursor.execute(query, (quarter, stock_code, time_frame.value))
             result = cursor.fetchone()
             
             if result:
@@ -240,7 +240,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def update_kline_block_status(self, stock_code: str, time_frame: str, quarter: str, status: str):
+    def update_kline_block_status(self, quarter: str, stock_code: str, time_frame: KLinePeriod, status: str):
         """
         更新K线下载进度（统一格式）
         
@@ -251,14 +251,14 @@ class KLineUnifiedQuarterlyExtendedManager:
             status: 状态，'completed' 或 'not_completed'
         """
         func_name = "update_kline_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 更新 {stock_code} {time_frame} {quarter} 的状态为: {status}")
+        logger.debug(f"[{__name__}.{func_name}] 更新 {quarter} {stock_code} {time_frame.value}  的状态为: {status}")
         
         cursor = None
         try:
             cursor = self.conn.cursor()
             # 使用INSERT ... ON DUPLICATE KEY UPDATE来处理记录存在与否的情况
             query = """
-            INSERT INTO kline_block_status (stock_code, time_frame, quarter, status, completed_at) 
+            INSERT INTO kline_block_status (quarter, stock_code, time_frame,  status, completed_at) 
             VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE 
             status = VALUES(status),
@@ -269,10 +269,10 @@ class KLineUnifiedQuarterlyExtendedManager:
             """
 
             completed_at = datetime.now() if status == 'completed' else None
-            cursor.execute(query, (stock_code, time_frame, quarter, status, completed_at))
+            cursor.execute(query, (quarter, stock_code, time_frame.value, status, completed_at))
             self.conn.commit()
             
-            logger.debug(f"[{__name__}.{func_name}] {stock_code} {time_frame} {quarter} 的状态已更新为: {status}")
+            logger.debug(f"[{__name__}.{func_name}] {quarter} {stock_code} {time_frame.value}  的状态已更新为: {status}")
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 更新进度失败: {str(e)}")
             self.conn.rollback()
@@ -281,7 +281,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_quarter_data_count(self, stock_code: str, time_frame: str, quarter: str) -> int:
+    def get_quarter_data_count(self, stock_code: str, time_frame: KLinePeriod, quarter: str) -> int:
         """
         获取指定股票、时间周期和季度的数据条数
         
@@ -294,7 +294,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             数据条数
         """
         func_name = "get_quarter_data_count"
-        logger.debug(f"[{__name__}.{func_name}] 查询 {stock_code} {time_frame} {quarter} 的数据条数")
+        logger.debug(f"[{__name__}.{func_name}] 查询 {stock_code} {time_frame.value} {quarter} 的数据条数")
         
         # 解析季度得到日期范围
         year, q = quarter.split('-Q')
@@ -325,10 +325,10 @@ class KLineUnifiedQuarterlyExtendedManager:
             WHERE stock_code = %s AND time_frame = %s 
             AND timestamp >= %s AND timestamp <= %s
             """
-            cursor.execute(sql, (stock_code, time_frame, start_date, end_date))
+            cursor.execute(sql, (stock_code, time_frame.value, start_date, end_date))
             count = cursor.fetchone()[0]
             
-            logger.debug(f"[{__name__}.{func_name}] {stock_code} {time_frame} {quarter} 的数据条数: {count}")
+            logger.debug(f"[{__name__}.{func_name}] {stock_code} {time_frame.value} {quarter} 的数据条数: {count}")
             return count
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询数据条数失败: {str(e)}")
@@ -774,7 +774,7 @@ class DataManager:
             return False
 
     @staticmethod
-    def get_kline_block_status(db_conn, stock_code: str, time_frame: str, quarter: str) -> str:
+    def get_kline_block_status(db_conn, quarter: str, stock_code: str, time_frame: KLinePeriod) -> str:
         """
         获取K线下载状态
         
@@ -790,13 +790,13 @@ class DataManager:
         func_name = "get_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_kline_block_status(stock_code, time_frame, quarter)
+            return manager.get_kline_block_status(quarter, stock_code, time_frame)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return 'not_completed'
 
     @staticmethod
-    def update_kline_block_status(db_conn, stock_code: str, time_frame: str, quarter: str, status: str):
+    def update_kline_block_status(db_conn, quarter: str, stock_code: str, time_frame: KLinePeriod, status: str):
         """
         更新K线下载进度（统一格式）
         
@@ -810,13 +810,13 @@ class DataManager:
         func_name = "update_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.update_kline_block_status(stock_code, time_frame, quarter, status)
+            return manager.update_kline_block_status(quarter, stock_code, time_frame, status)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return None
 
     @staticmethod
-    def get_quarter_data_count(db_conn, stock_code: str, time_frame: str, quarter: str) -> int:
+    def get_quarter_data_count(db_conn, stock_code: str, time_frame: KLinePeriod, quarter: str) -> int:
         """
         获取指定股票、时间周期和季度的数据条数
         

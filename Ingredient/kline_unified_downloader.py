@@ -162,7 +162,7 @@ class KLineDownloader:
         current_quarter: Optional[str] = None, 
         current_stock: Optional[str] = None,
         time_frame: KLinePeriod = KLinePeriod.MIN_5
-    ) -> Optional[Tuple[str, str, str]]:
+    ) -> Optional[Tuple[str, str, KLinePeriod]]:
         """
         仅推动区块指针向前，找到下一个待处理区块（不判断下载状态）
         迭代规则：季度升序 → 股票固定顺序（stock_fixed_seq表）
@@ -212,8 +212,7 @@ class KLineDownloader:
     # -------------------------------------------------------------------------
     def _fetch_kline_block(self, quarter: str, stock_code: str, time_frame: KLinePeriod):
         self.func_name = "_fetch_kline_block"
-        tf_val = time_frame.value
-        logger.info(f"[{__name__}.{self.func_name}] 处理: {quarter} | {stock_code} | {tf_val}")
+        logger.info(f"[{__name__}.{self.func_name}] 处理: {quarter} | {stock_code} | {time_frame}")
 
         # ========== 1. 参数校验 ==========
         if not isinstance(quarter, str) or "-Q" not in quarter:
@@ -225,12 +224,12 @@ class KLineDownloader:
         s_date, e_date = self._quarter_to_date_range(quarter)
         is_ok, real_s, real_e = self._is_time_range_overlap_with_listing_period(stock_code, s_date, e_date)
         if not is_ok:
-            dm.update_kline_block_status(self.db_conn, stock_code, tf_val, quarter, BLOCK_COMPLETED)
+            dm.update_kline_block_status(self.db_conn, stock_code, time_frame, quarter, BLOCK_COMPLETED)
             logger.info(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {stock_code} {quarter}")
             return
 
         # ========== 3. 检查是否已完成 ==========
-        status = dm.get_kline_block_status(self.db_conn, stock_code, tf_val, quarter)
+        status = dm.get_kline_block_status(self.db_conn, stock_code, time_frame, quarter)
         if status == BLOCK_COMPLETED:
             logger.info(f"[{__name__}.{self.func_name}] 已完成，跳过: {stock_code} {quarter}")
             return
@@ -263,7 +262,7 @@ class KLineDownloader:
                 raise Exception(f"数据保存失败: {stock_code} {quarter}")
 
         # ========== 7. 更新状态为完成 ==========
-        dm.update_kline_block_status(self.db_conn, stock_code, tf_val, quarter, BLOCK_COMPLETED)
+        dm.update_kline_block_status(self.db_conn, quarter, stock_code, time_frame, BLOCK_COMPLETED)
         logger.info(f"[{__name__}.{self.func_name}] 完成: {stock_code} {quarter}")
 
     # -------------------------------------------------------------------------
