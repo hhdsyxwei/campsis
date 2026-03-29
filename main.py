@@ -2,7 +2,10 @@
 # ==============================================
 # 1. 必须放在所有其他导入 【最前面】
 # ==============================================
+from KitchenBase.package_manager import PackageManager
 from KitchenBase.logger_config import setup_logging,get_logger
+setup_logging()
+PackageManager.install_missing_requirements()
 
 import os
 import pymysql
@@ -20,7 +23,7 @@ os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 # os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
 
 
-setup_logging()
+
 
 logger = get_logger(__name__)
 

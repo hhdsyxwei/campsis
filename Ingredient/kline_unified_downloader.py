@@ -162,7 +162,7 @@ class KLineDownloader:
         current_quarter: Optional[str] = None, 
         current_stock: Optional[str] = None,
         time_frame: KLinePeriod = KLinePeriod.MIN_5
-    ) -> Optional[Tuple[str, str, str]]:
+    ) -> Optional[Tuple[str, str, KLinePeriod]]:
         """
         仅推动区块指针向前，找到下一个待处理区块（不判断下载状态）
         迭代规则：季度升序 → 股票固定顺序（stock_fixed_seq表）
@@ -192,7 +192,7 @@ class KLineDownloader:
                 next_quarter = self._get_next_quarter(start_year, end_year, current_quarter)
                 if not next_quarter:
                     # 无下一季度 → 迭代结束
-                    logger.info(f"[{__name__}.{self.func_name}] 无更多区块（季度范围：{start_year}-{end_year}）")
+                    logger.debug(f"[{__name__}.{self.func_name}] 无更多区块（季度范围：{start_year}-{end_year}）")
                     return None
                 # 切换到下一季度，重置为第一个股票
                 current_quarter = next_quarter
@@ -212,8 +212,7 @@ class KLineDownloader:
     # -------------------------------------------------------------------------
     def _fetch_kline_block(self, quarter: str, stock_code: str, time_frame: KLinePeriod):
         self.func_name = "_fetch_kline_block"
-        tf_val = time_frame.value
-        logger.info(f"[{__name__}.{self.func_name}] 处理: {quarter} | {stock_code} | {tf_val}")
+        logger.debug(f"[{__name__}.{self.func_name}] 处理: {quarter} | {stock_code} | {time_frame}")
 
         # ========== 1. 参数校验 ==========
         if not isinstance(quarter, str) or "-Q" not in quarter:
@@ -225,14 +224,14 @@ class KLineDownloader:
         s_date, e_date = self._quarter_to_date_range(quarter)
         is_ok, real_s, real_e = self._is_time_range_overlap_with_listing_period(stock_code, s_date, e_date)
         if not is_ok:
-            dm.update_kline_block_status(self.db_conn, stock_code, tf_val, quarter, BLOCK_COMPLETED)
-            logger.info(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {stock_code} {quarter}")
+            dm.update_kline_block_status(self.db_conn, quarter, stock_code, time_frame, BLOCK_COMPLETED)
+            logger.debug(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {stock_code} {quarter}")
             return
 
         # ========== 3. 检查是否已完成 ==========
-        status = dm.get_kline_block_status(self.db_conn, stock_code, tf_val, quarter)
+        status = dm.get_kline_block_status(self.db_conn, quarter, stock_code, time_frame)
         if status == BLOCK_COMPLETED:
-            logger.info(f"[{__name__}.{self.func_name}] 已完成，跳过: {stock_code} {quarter}")
+            logger.debug(f"[{__name__}.{self.func_name}] 已完成，跳过: {stock_code} {quarter}")
             return
 
         # ========== 4. 下载数据（假定已登录baostock） ==========
@@ -263,8 +262,8 @@ class KLineDownloader:
                 raise Exception(f"数据保存失败: {stock_code} {quarter}")
 
         # ========== 7. 更新状态为完成 ==========
-        dm.update_kline_block_status(self.db_conn, stock_code, tf_val, quarter, BLOCK_COMPLETED)
-        logger.info(f"[{__name__}.{self.func_name}] 完成: {stock_code} {quarter}")
+        dm.update_kline_block_status(self.db_conn, quarter, stock_code, time_frame, BLOCK_COMPLETED)
+        logger.debug(f"[{__name__}.{self.func_name}] 完成: {stock_code} {quarter}")
 
     # -------------------------------------------------------------------------
     # 【类内唯一对外入口】主下载流程
@@ -274,7 +273,7 @@ class KLineDownloader:
         类内核心下载接口：无列表、动态查找、断点续传
         """
         func_name = "download_kline"
-        logger.info(f"[{__name__}.{func_name}] 启动下载: {start_year}-{end_year} {time_frame.value}")
+        logger.debug(f"[{__name__}.{func_name}] 启动下载: {start_year}-{end_year} {time_frame.value}")
 
         # 步骤1：优先恢复中断的下载区块
         next_block = self._get_downloading_block()
@@ -296,7 +295,7 @@ class KLineDownloader:
                 logger.error(f"[{__name__}.{func_name}] 下载失败: {quarter} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出
 
-        logger.info(f"[{__name__}.{func_name}] 全部下载完成")
+        logger.debug(f"[{__name__}.{func_name}] 全部下载完成")
 
 # ===================== 全局唯一对外接口函数 =====================
 def download_kline(db_conn, start_year: int, end_year: int, time_frame: KLinePeriod):
