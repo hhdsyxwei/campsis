@@ -5,7 +5,8 @@ import pymysql
 from pymysql.err import OperationalError
 import pandas as pd
 from datetime import datetime
-
+import re
+import logging
 from KitchenBase.download_utils import calculate_pre_close
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_utils import get_project_root
@@ -204,14 +205,14 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_kline_block_status(self, stock_code: str, time_frame: KLinePeriod, quarter: str) -> str:
+    def get_kline_block_status(self, quarter: str, stock_code: str, time_frame: KLinePeriod) -> str:
         """
         获取K线下载状态
         
         Args:
+            quarter: 季度，格式如 '2024-Q1'
             stock_code: 股票代码
             time_frame: 时间周期
-            quarter: 季度，格式如 '2024-Q1'
         
         Returns:
             状态字符串: 'completed' 或 'not_completed'
@@ -966,205 +967,8 @@ def get_nearest_trade_date_before(conn, date_str: str) -> str:
         if cursor:
             cursor.close()
 
-def create_tables_if_not_exist2(conn):
-    func_name = "create_tables_if_not_exist"
-    cursor = None
-    try:
-        cursor = conn.cursor()
 
-        # 1. stock_basic
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS stock_basic (
-          ts_code varchar(20) NOT NULL,
-          code_name varchar(100) DEFAULT NULL,
-          pure_symbol varchar(10) DEFAULT NULL,
-          industry varchar(50) DEFAULT NULL,
-          market varchar(20) DEFAULT NULL,
-          list_date date DEFAULT NULL,
-          delist_date date DEFAULT NULL,
-          is_active tinyint(1) DEFAULT 1,
-          create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (ts_code),
-          INDEX idx_market (market),
-          INDEX idx_list_date (list_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        """)
-
-        # 2. stock_daily
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS stock_daily (
-          id bigint unsigned NOT NULL AUTO_INCREMENT,
-          ts_code varchar(20) NOT NULL,
-          trade_date date NOT NULL,
-          open decimal(10,3) DEFAULT NULL,
-          high decimal(10,3) DEFAULT NULL,
-          low decimal(10,3) DEFAULT NULL,
-          close decimal(10,3) DEFAULT NULL,
-          pre_close decimal(10,3) DEFAULT NULL,
-          change_rate decimal(10,4) DEFAULT NULL,
-          volume bigint DEFAULT NULL,
-          amount decimal(15,2) DEFAULT NULL,
-          turnover_rate decimal(10,4) DEFAULT NULL,
-          pe decimal(12,2) DEFAULT NULL,
-          pb decimal(10,2) DEFAULT NULL,
-          create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (id, trade_date),
-          UNIQUE KEY uk_tscode_date (ts_code,trade_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        """)
-
-        # 3. trade_date_map
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS trade_date_map (
-          calendar_date date NOT NULL,
-          is_trading_day tinyint(1) DEFAULT 0,
-          create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (calendar_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        """)
-
-        # 4. kline_unified_quarterly_extended - 新增表
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS kline_unified_quarterly_extended (
-          id bigint unsigned NOT NULL AUTO_INCREMENT,
-          stock_code varchar(20) NOT NULL,
-          time_frame varchar(30) NOT NULL,
-          timestamp datetime NOT NULL,
-          open_price decimal(10,3) DEFAULT NULL,
-          high_price decimal(10,3) DEFAULT NULL,
-          low_price decimal(10,3) DEFAULT NULL,
-          close_price decimal(10,3) DEFAULT NULL,
-          volume bigint DEFAULT NULL,
-          turnover decimal(15,2) DEFAULT NULL,
-          create_time timestamp DEFAULT CURRENT_TIMESTAMP,
-          update_time timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (id, timestamp),
-          UNIQUE KEY uk_stock_timeframe_timestamp (stock_code, time_frame, timestamp),
-          INDEX idx_stock_code (stock_code),
-          INDEX idx_time_frame (time_frame),
-          INDEX idx_timestamp (timestamp)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        PARTITION BY RANGE (TO_DAYS(timestamp)) (
-            PARTITION p2023q1 VALUES LESS THAN (TO_DAYS('2023-04-01')),
-            PARTITION p2023q2 VALUES LESS THAN (TO_DAYS('2023-07-01')),
-            PARTITION p2023q3 VALUES LESS THAN (TO_DAYS('2023-10-01')),
-            PARTITION p2023q4 VALUES LESS THAN (TO_DAYS('2024-01-01')),
-            PARTITION p2024q1 VALUES LESS THAN (TO_DAYS('2024-04-01')),
-            PARTITION p2024q2 VALUES LESS THAN (TO_DAYS('2024-07-01')),
-            PARTITION p2024q3 VALUES LESS THAN (TO_DAYS('2024-10-01')),
-            PARTITION p2024q4 VALUES LESS THAN (TO_DAYS('2025-01-01')),
-            PARTITION p2025q1 VALUES LESS THAN (TO_DAYS('2025-04-01')),
-            PARTITION p2025q2 VALUES LESS THAN (TO_DAYS('2025-07-01')),
-            PARTITION p2025q3 VALUES LESS THAN (TO_DAYS('2025-10-01')),
-            PARTITION p2025q4 VALUES LESS THAN (TO_DAYS('2026-01-01')),
-            PARTITION p2026q1 VALUES LESS THAN (TO_DAYS('2026-04-01')),
-            PARTITION p2026q2 VALUES LESS THAN (TO_DAYS('2026-07-01')),
-            PARTITION p2026q3 VALUES LESS THAN (TO_DAYS('2026-10-01')),
-            PARTITION p2026q4 VALUES LESS THAN (TO_DAYS('2027-01-01')),
-            PARTITION p2027q1 VALUES LESS THAN (TO_DAYS('2027-04-01')),
-            PARTITION p2027q2 VALUES LESS THAN (TO_DAYS('2027-07-01')),
-            PARTITION p2027q3 VALUES LESS THAN (TO_DAYS('2027-10-01')),
-            PARTITION p2027q4 VALUES LESS THAN (TO_DAYS('2028-01-01')),
-            PARTITION p2028q1 VALUES LESS THAN (TO_DAYS('2028-04-01')),
-            PARTITION p2028q2 VALUES LESS THAN (TO_DAYS('2028-07-01')),
-            PARTITION p2028q3 VALUES LESS THAN (TO_DAYS('2028-10-01')),
-            PARTITION p2028q4 VALUES LESS THAN (TO_DAYS('2029-01-01')),
-            PARTITION p_max VALUES LESS THAN MAXVALUE
-        );
-        """)
-
-        # 5. stock_fixed_seq
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS stock_fixed_seq (
-            id INT AUTO_INCREMENT COMMENT '自增ID',
-            stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
-            create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-            update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY uk_stock_code (stock_code),
-            INDEX idx_seq_num (id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票固定下载顺序表';
-        """)
-
-        # 6. kline_download_progress
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS kline_download_progress (
-            id TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '固定为1，单条记录',
-            downloading_quarter VARCHAR(20) VARCHAR(10) NOT NULL DEFAULT '' COMMENT '当前下载的季度标识，格式：YYYY-QN',
-            downloading_stock_code VARCHAR(20) NOT NULL COMMENT '当前下载的股票代码',
-            current_quarter VARCHAR(10) COMMENT '当前下载季度',
-            last_update DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY uk_stock_timeframe (stock_code, time_frame)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='K线下载进度表';
-        """)
-
-        # 7. download_task_config
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS download_task_config (
-            id INT AUTO_INCREMENT COMMENT '自增ID',
-            time_frame VARCHAR(10) NOT NULL COMMENT '时间周期：1min/5min/daily等',
-            start_year INT NOT NULL COMMENT '起始年份',
-            end_year INT NOT NULL COMMENT '结束年份',
-            is_enabled TINYINT(1) DEFAULT 1 COMMENT '是否启用：1-是 0-否',
-            create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-            update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY uk_time_frame (time_frame)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='下载任务配置表';
-        """)
-
-        conn.commit()
-        logger.info(f"[{__name__}.{func_name}] 所有表创建完成（kline_unified_quarterly_extended 已启用季度分区）")
-        return True
-    except Exception as e:
-        logger.error(f"[{__name__}.{func_name}] 建表失败：{str(e)}")
-        conn.rollback()
-        return False
-    finally:
-        if cursor:
-            cursor.close()
-
-# ================= 通用工具函数（新增） =================
-def load_table_create_sql(table_name: str) -> str:
-    """
-    根据表名自动加载对应的SQL文件
-    规则：table_name -> database/Ingredient/{table_name}.sql
-    
-    Args:
-        table_name: 数据库表名
-    
-    Returns:
-        表创建SQL语句
-    
-    Raises:
-        FileNotFoundError: SQL文件不存在时抛出
-        ValueError: SQL文件内容为空时抛出
-    """
-    sql_file_path = SQL_DIR / f"{table_name}.sql"
-    if not sql_file_path.exists():
-        raise FileNotFoundError(f"表 {table_name} 的SQL文件不存在：{sql_file_path}")
-    
-    with open(sql_file_path, "r", encoding="utf8") as f:
-        sql = f.read().strip()
-    
-    if not sql:
-        raise ValueError(f"表 {table_name} 的SQL文件内容为空：{sql_file_path}")
-    
-    return sql
-
-
-# ================= 批量创建所有表的入口函数（修改版） =================
-import re
-from typing import List
-import os
-import logging
-
-logger = logging.getLogger(__name__)
-
+# ================= 通用工具函数 =================
 def _get_sql_statements_from_file(sql_file_path: str) -> List[str]:
     """
     增强版：从 .sql 文件读取内容，拆分并清洗为可执行的 SQL 语句列表
