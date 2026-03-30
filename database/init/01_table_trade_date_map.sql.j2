@@ -1,0 +1,12 @@
+/* ====================== 1. 交易日历（核心回测数据） ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('trade_date_map') | safe }}` (
+  `{{ col_calendar_date | default('calendar_date') | safe }}` date NOT NULL COMMENT '日历日期',
+  `{{ col_is_trading_day | default('is_trading_day') | safe }}` tinyint(1) DEFAULT 0 COMMENT '是否为交易日(1-是,0-否)',
+  `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `{{ col_update_time | default('update_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`{{ pk_col | default('calendar_date') | safe }}`),
+  INDEX `{{ idx_name | default('idx_is_trading_day') | safe }}` (`{{ idx_col | default('is_trading_day') | safe }}`)
+) ENGINE={{ engine | default('InnoDB') | safe }}
+DEFAULT CHARSET={{ charset | default('utf8mb4') | safe }}
+COLLATE={{ collate | default('utf8mb4_unicode_ci') | safe }}
+COMMENT '{{ table_comment | default('交易日历映射表') | safe }}';

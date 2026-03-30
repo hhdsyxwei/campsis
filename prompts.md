@@ -18,21 +18,16 @@
 
 ---
 
-## 2. stock_basic_downloader.py 函数拆解要求
-将 `init_stock_basic_table` 函数拆分为两个独立部分，具体要求如下：
-
-### 第一部分：基础股票代码写入
-- 核心职责：调用 `_fetch_stock_codes` 获取股票代码基础信息并写入数据库
-- 数据处理：无需断点续传，每次执行完整覆盖原有数据
-- 扩展能力：允许用户指定「排除市场类型列表」参数
-
-### 第二部分：其他字段下载
-- 核心职责：下载除基础代码外的其他字段数据
-- 逻辑继承：直接继承原 `init_stock_basic_table` 的下载逻辑
-- 核心能力：
-  - 支持断点续传
-  - 支持参数化分组下载方式
-- 数据范围：下载的股票代码集合不超过第一部分获取的代码集合
+## 2. stock_basic_downloader.py 模块要求
+实现核心接口 `download_stock_basic` 函数，具体要求如下：
+1. 下载前，本模块的使用者调用download_stock_basic前需自行完成数据库连接，完成baostock登录，本模块直接利用已有连接下载数据
+2. download_stock_basic的参数列表：数据库连接conn，market_type_list(需要下载的市场类型清单)
+3. market_type_list采用MarketType类型列表，MarketType由stock.enums.py定义
+4. download_stock_basic的下载流程分4个部分，参数检验，通过baostock的query_stock_basic接口下载原生数据，数据清洗，数据保存，分别封装成内部函数
+5. 下载数据保存在stock_basic表中
+6. 数据保存或者其它操纵数据的过程统一通过data_manager.py模块进行，本模块不可直接访问数据库，不可直接执行sql语句
+7. 数据下载后统一转成pandas的DataFrame格式，提升数据的标准化
+8. 需要依赖其它模块实现的函数直接设置为空函数，定义好参数列表，返回值，准备好详细的注释即可
 
 ### 协作方式
 先讲解实现思路，确认后再进行代码实现。

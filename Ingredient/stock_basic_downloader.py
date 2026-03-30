@@ -1,253 +1,284 @@
 # stock_basic_downloader.py
-import baostock as bs
+import logging
+from typing import List
 import pandas as pd
-import time
-from KitchenBase.download_utils import MarketType, convert_baostock_code, baostock_code_to_market
-from Ingredient.data_manager import BasicStockDataManager, get_existing_stock_codes_set
-from Ingredient.data_manager import DataManager as dm
+import baostock as bs
 from KitchenBase.logger_config import get_logger
+from KitchenBase.stock_enums import MarketType
+from KitchenBase.download_utils import baostock_code_to_market, convert_baostock_code  # 导入工具函数
+from Ingredient.data_manager import BasicStockDataManager  # 确保导入
 
+# 初始化日志
 logger = get_logger(__name__)
 
-# ===================== 工具函数 =====================
-def _fetch_stock_codes(trading_day: str, exclude_types: list = None) -> list:
-    func_name = "_fetch_stock_codes"
-    start_time = time.time()  # 开始计时
-    logger.debug(f"[{__name__}.{func_name}] 开始调用 bs.query_all_stock 查询 {trading_day} 的股票列表")
+# ==================== 核心接口 ====================
+def download_stock_basic(
+    conn,
+    market_type_list: List[MarketType] = [MarketType.SH_MAIN_BOARD, MarketType.SZ_MAIN_BOARD]
+) -> bool:
+    """
+    下载指定市场类型的股票基础信息，并保存到stock_basic表
     
-    rs = bs.query_all_stock(day=trading_day)
+    Args:
+        conn: 数据库连接对象（使用者已提前建立）
+        market_type_list: 市场类型列表，元素为MarketType枚举值
     
-    if rs.error_code != '0':
-        logger.error(f"[{__name__}.{func_name}] 获取股票列表失败: {rs.error_msg}")
-        return []
-
-    exclude_types_set = set(exclude_types) if exclude_types else set()
-    filtered_code_list = []
+    Returns:
+        下载及保存是否成功（True/False）
+    """
+    func_name = "download_stock_basic"
+    logger.info(f"[{func_name}] 开始执行股票基础信息下载流程 | 市场类型: {[mt.value for mt in market_type_list]}")
     
-    while rs.error_code == '0' and rs.next():
-        row = rs.get_row_data()
-        if not row[0]:
-            logger.warning(f"[{__name__}.{func_name}] 发现空代码: {row}")
-            continue
-
-        current_code = convert_baostock_code(row[0])
-        current_type = baostock_code_to_market(row[0])
+    try:
+        # 步骤1: 参数检验
+        _validate_params(market_type_list)
         
-        if current_type not in exclude_types_set:
-            filtered_code_list.append(current_code)
-
-    # 统计耗时
-    cost_time = time.time() - start_time
-    logger.info(f"[{__name__}.{func_name}] 成功获取 {len(filtered_code_list)} 个有效股票代码，总耗时：{cost_time:.2f}s")
-    return filtered_code_list
-
-
-def _map_row_list_to_dict(row_list: list, fields_list: list) -> dict:
-    func_name = "_map_row_list_to_dict"
-    if len(row_list) != len(fields_list):
-        logger.warning(f"[{__name__}.{func_name}] 数据列表长度与字段列表长度不匹配")
-        return {}
-    return dict(zip(fields_list, row_list))
-
-def _process_code_only_record(code: str) -> tuple:
-    func_name = "_process_code_only_record"
-    try:
-        converted_code = code
-        pure_symbol = code.split('.')[0] if '.' in code else code
-        market_type = baostock_code_to_market(code)
-        market_display = market_type.value
-
-        return (
-            converted_code,
-            None,    # 改为 None，语义更清晰
-            pure_symbol,
-            None,    # 改为 None
-            market_display,
-            None,
-            None,
-            1
-        )
+        # 步骤2: 下载原生数据
+        raw_df = _download_raw_data(market_type_list)
+        if raw_df.empty:
+            logger.warning(f"[{func_name}] 未下载到任何原生股票基础数据")
+            return False
+        
+        # 步骤3: 数据清洗
+        cleaned_df = _clean_data(raw_df)
+        if cleaned_df.empty:
+            logger.warning(f"[{func_name}] 数据清洗后无有效数据")
+            return False
+        
+        # 步骤4: 数据保存
+        save_result = _save_data(conn, cleaned_df)
+        
+        if save_result:
+            logger.info(f"[{func_name}] 股票基础信息下载&保存全流程完成 | 有效数据量: {len(cleaned_df)}")
+            return True
+        else:
+            logger.error(f"[{func_name}] 数据保存失败")
+            return False
+    
     except Exception as e:
-        logger.error(f"[{__name__}.{func_name}] 处理代码 {code} 出错: {str(e)}")
-        return None
+        logger.error(f"[{func_name}] 下载流程执行失败: {str(e)}", exc_info=True)
+        return False
 
+# ==================== 内部函数 - 步骤1: 参数检验 ====================
+def _validate_params(market_type_list: List[MarketType]) -> None:
+    """
+    校验输入参数的合法性，不合法则抛出异常
+    
+    Args:
+        market_type_list: 市场类型列表
+    
+    Raises:
+        ValueError: 参数不合法时抛出
+    """
+    func_name = "_validate_params"
+    logger.debug(f"[{func_name}] 开始校验参数")
+    
+    # 校验市场类型列表
+    if not isinstance(market_type_list, list) or len(market_type_list) == 0:
+        raise ValueError(f"[{func_name}] market_type_list必须为非空列表")
+    
+    for mt in market_type_list:
+        if not isinstance(mt, MarketType):
+            raise ValueError(f"[{func_name}] 元素必须为MarketType枚举 | 非法元素: {mt}")
+    
+    logger.debug(f"[{func_name}] 参数校验通过")
 
-def _process_and_prepare_db_record(row: dict) -> tuple:
-    func_name = "_process_and_prepare_db_record"
-    try:
-        market_type = baostock_code_to_market(row.get('code', ''))
-        market_display = market_type.value
+# ==================== 内部函数 - 步骤2: 下载原生数据 ====================
+def _download_raw_data(market_type_list: List[MarketType]) -> pd.DataFrame:
+    """
+    通过baostock query_stock_basic接口下载全量股票基础信息
+    【新版逻辑】：
+    1. 下载全量数据
+    2. 提取股票代码
+    3. 使用 baostock_code_to_market 转换市场类型
+    4. 根据 market_type_list 过滤
+    5. 构造最终DF返回
 
-        list_date = row.get('ipoDate', '') or None
-        delist_date = row.get('outDate', '') or None
+    Args:
+        market_type_list: 市场类型列表（枚举）
 
-        is_active = 1 if row.get('status', '') == '1' else 0
-        converted_code = convert_baostock_code(row.get('code', ''))
-        pure_symbol = row.get('code', '').split('.')[-1]
+    Returns:
+        原生数据DataFrame
+    """
+    
+    func_name = "_download_raw_data"
+    logger.debug(f"[{func_name}] 开始全量下载股票基础数据")
 
-        return (
-            converted_code,
-            row.get('code_name', ''),
-            pure_symbol,
-            row.get('industry', ''),
-            market_display,
-            list_date,
-            delist_date,
-            is_active
+    # 1. 调用接口获取全市场数据
+    rs = bs.query_stock_basic()
+
+    if rs.error_code != '0':
+        logger.error(f"[{func_name}] baostock接口调用失败 | {rs.error_code} {rs.error_msg}")
+        return pd.DataFrame()
+
+    # 2. 获取字段 & 定位 code 列（必须通过code识别市场）
+    fields = rs.fields
+    if "code" not in fields:
+        logger.error(f"[{func_name}] baostock返回数据不包含code字段，无法识别市场")
+        return pd.DataFrame()
+
+    code_index = fields.index("code")  # 股票代码列索引（如 sh.600000）
+    data_list = []
+
+    # 3. 逐行读取 → 提取code → 识别市场 → 过滤
+    while rs.next() and rs.error_code == '0':
+        row = rs.get_row_data()
+
+        # ===================== 核心新逻辑 =====================
+        # 步骤A：提取股票代码（baostock格式：sh.600000）
+        bs_code = row[code_index].strip() if row[code_index] else ""
+        if not bs_code:
+            continue  # 无代码直接跳过
+
+        # 步骤B：调用工具函数识别市场类型
+        stock_market = baostock_code_to_market(bs_code)
+
+        # 步骤C：判断是否在目标市场列表中
+        if stock_market not in market_type_list:
+            continue  # 不在目标列表 → 跳过
+        # ======================================================
+
+        # 符合条件 → 加入结果集
+        data_list.append(row)
+
+    # 无数据处理
+    if not data_list:
+        logger.warning(f"[{func_name}] 未获取到任何符合市场条件的股票数据")
+        return pd.DataFrame()
+
+    # 构建最终DF
+    raw_df = pd.DataFrame(data_list, columns=fields)
+    logger.info(f"[{func_name}] 原生数据处理完成 | 最终数据量: {len(raw_df)}")
+
+    return raw_df
+
+# ==================== 内部函数 - 步骤3: 数据清洗 ====================
+def _clean_data(raw_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    清洗原生股票基础数据，严格匹配 stock_basic 表结构
+    适配 baostock query_stock_basic 接口 + 数据库表定义
+    
+    数据库表字段：
+    std_stock_code, stock_name, pure_symbol, industry, market,
+    list_date, delist_date, is_active
+
+    Args:
+        raw_df: 原生数据DataFrame
+
+    Returns:
+        清洗后的DataFrame（可直接入库）
+    """
+    func_name = "_clean_data"
+    logger.debug(f"[{func_name}] 开始清洗股票基础数据")
+
+    if raw_df.empty:
+        return pd.DataFrame()
+
+    cleaned_df = raw_df.copy()
+
+    # -------------------- 1. 字段映射（官方接口 → 数据库字段） --------------------
+    field_mapping = {
+        "code": "std_stock_code",    # 股票代码（主键）
+        "code_name": "stock_name",   # 股票名称
+        "ipoDate": "list_date",      # 上市日期
+        "outDate": "delist_date",    # 退市日期
+        "status": "is_active"       # 是否上市
+    }
+
+    # 安全保留存在的字段，避免 KeyError
+    valid_keys = [k for k in field_mapping.keys() if k in cleaned_df.columns]
+    cleaned_df = cleaned_df[valid_keys]
+    cleaned_df.rename(columns=field_mapping, inplace=True)
+
+    # -------------------- 2. 生成纯股票代码 pure_symbol --------------------
+    # 从 sh.600000 → 提取 600000
+    if "std_stock_code" in cleaned_df.columns:
+        cleaned_df["pure_symbol"] = cleaned_df["std_stock_code"].apply(
+            lambda x: x.split(".")[1] if isinstance(x, str) and "." in x else None
         )
-    except Exception as e:
-        code = row.get('code', 'UNKNOWN')
-        logger.error(f"[{__name__}.{func_name}] 处理股票 {code} 数据时出错: {str(e)}")
-        return None
 
-# ===================== 核心函数 =====================
-def refresh_stock_code_list(
-    conn,
-    trading_day: str = "2026-03-17",
-    exclude_types=[
-        MarketType.INDEX,
-        MarketType.ETF,
-        MarketType.LOF,
-        MarketType.REIT,
-        MarketType.CONVERTIBLE_BOND,
-        MarketType.SH_B_STOCK,
-        MarketType.SZ_B_STOCK,
-        MarketType.UNKNOWN
+    # -------------------- 3. 生成市场字段 market --------------------
+    if "std_stock_code" in cleaned_df.columns:
+        cleaned_df["market"] = cleaned_df["std_stock_code"].apply(
+            lambda x: baostock_code_to_market(x).value  # 调用工具函数转换市场类型
+        )
+        cleaned_df["std_stock_code"] = cleaned_df["std_stock_code"].apply(convert_baostock_code) # 去除可能的空格
+    # -------------------- 4. 行业字段（接口不提供，填空） --------------------
+    cleaned_df["industry"] = ""
+
+    # -------------------- 5. 日期格式化（DATE 类型） --------------------
+    for col in ["list_date", "delist_date"]:
+        if col in cleaned_df.columns:
+            cleaned_df[col] = pd.to_datetime(
+                cleaned_df[col],
+                errors="coerce"
+            ).dt.date  # 直接转 Python date 类型，完美匹配 MySQL date
+            cleaned_df[col] = cleaned_df[col].where(cleaned_df[col].notna(), None)
+
+    # -------------------- 6. 状态字段标准化（tinyint 1/0） --------------------
+    if "is_active" in cleaned_df.columns:
+        cleaned_df["is_active"] = cleaned_df["is_active"].map({
+            "1": 1,   # 上市
+            "0": 0    # 退市
+        }).fillna(0).astype(int)
+
+    # -------------------- 7. 去重 + 去空（主键必须非空） --------------------
+    core_fields = ["std_stock_code", "stock_name", "pure_symbol", "market"]
+    cleaned_df = cleaned_df.dropna(subset=core_fields)
+    cleaned_df = cleaned_df.drop_duplicates(subset=["std_stock_code"], keep="last")
+
+    # -------------------- 8. 只保留数据库表需要的字段 --------------------
+    final_columns = [
+        "std_stock_code",
+        "stock_name",
+        "pure_symbol",
+        "industry",
+        "market",
+        "list_date",
+        "delist_date",
+        "is_active"
     ]
-):
-    func_name = "refresh_stock_code_list"
-    func_start = time.time()
-    logger.info(f"[{__name__}.{func_name}] ===== 开始刷新股票代码列表（全量覆盖） =====")
-    basic_manager = BasicStockDataManager(conn)
+    cleaned_df = cleaned_df[final_columns]
 
-    step1_start = time.time()
-    valid_codes = _fetch_stock_codes(trading_day, exclude_types)
-    if not valid_codes:
-        logger.error(f"[{__name__}.{func_name}] 未获取到任何有效股票代码，退出")
-        return
-    logger.info(f"[{__name__}.{func_name}][性能] 获取股票代码耗时：{time.time() - step1_start:.2f}s")
+    logger.info(f"[{func_name}] 数据清洗完成 | 清洗后数据量: {len(cleaned_df)}")
+    return cleaned_df
 
-    if valid_codes:
-        dm.truncate_table_stock_fixed_seq(conn)  # 清空自增序列表，准备全量覆盖
-        dm.save_stock_fixed_seq(conn, valid_codes)  # 先保存到自增序列表，后续接口调用时会关联使用
+# ==================== 内部函数 - 步骤4: 数据保存 ====================
+def _save_data(conn, cleaned_df: pd.DataFrame) -> bool:
+    """
+    通过 data_manager 保存数据到 stock_basic 表，不直接执行 SQL
+    【重构版】直接传入 DataFrame，不做数据处理，仅调用 DB 接口
 
-    step2_start = time.time()
-    logger.info(f"[{__name__}.{func_name}] 开始转换股票代码为数据库格式")
-    batch_records = []
-    for code in valid_codes:
-        record = _process_code_only_record(code)
-        if record:
-            batch_records.append(record)
-    logger.info(f"[{__name__}.{func_name}][性能] 代码格式转换耗时：{time.time() - step2_start:.2f}s，总计 {len(batch_records)} 条")
+    Args:
+        conn: 数据库连接
+        cleaned_df: 清洗后数据（已完全符合入库要求）
 
-    if batch_records:
-        step3_start = time.time()
-        logger.info(f"[{__name__}.{func_name}] 准备写入 {len(batch_records)} 条股票代码到数据库")
-        success = basic_manager.batch_insert_stock_basic(batch_records)
-        write_cost = time.time() - step3_start
-        speed = len(batch_records) / write_cost if write_cost > 0 else 0
+    Returns:
+        保存结果
+    """
 
-        if success:
-            logger.info(f"[{__name__}.{func_name}] 股票代码刷新完成，共写入 {len(batch_records)} 条")
-            logger.info(f"[{__name__}.{func_name}][性能] 数据库写入耗时：{write_cost:.2f}s，速度：{speed:.0f} 条/秒")
-        else:
-            logger.error(f"[{__name__}.{func_name}] 股票代码写入数据库失败")
-    else:
-        logger.warning(f"[{__name__}.{func_name}] 无有效代码可写入")
+    func_name = "_save_data"
+    logger.debug(f"[{func_name}] 开始保存数据 | 待入库条数：{len(cleaned_df)}")
 
-    total_cost = time.time() - func_start
-    logger.info(f"[{__name__}.{func_name}][性能] 函数总耗时：{total_cost:.2f}s")
-    logger.info(f"[{__name__}.{func_name}] ===== 股票代码列表刷新完成 =====")
+    # 空数据直接返回
+    if cleaned_df.empty:
+        logger.warning(f"[{func_name}] 数据为空，无需保存")
+        return False
 
-# ===================== 下载详情 =====================
-def download_stock_details(
-    conn,
-    download_groups: list[str] = ["all"]
-):
-    func_name = "download_stock_details"
-    func_start = time.time()
-    logger.info(f"[{__name__}.{func_name}] ===== 开始下载股票详细信息（断点续传+分组模式） =====")
-    basic_manager = BasicStockDataManager(conn)
+    try:
+        # 直接创建管理器并传入 DataFrame
+        data_manager = BasicStockDataManager(conn)
+        return data_manager.batch_insert_stock_basic(cleaned_df)
 
-    step1_start = time.time()
-    valid_stock_codes = basic_manager.get_existing_stock_codes_set()
-    if not valid_stock_codes:
-        logger.error(f"[{__name__}.{func_name}] 数据库中无股票代码，请先运行 refresh_stock_code_list")
-        return
-    logger.info(f"[{__name__}.{func_name}] 读取到白名单股票：{len(valid_stock_codes)} 只")
-    logger.info(f"[{__name__}.{func_name}][性能] 读取白名单耗时：{time.time() - step1_start:.2f}s")
+    except Exception as e:
+        logger.error(f"[{func_name}] 保存异常: {str(e)}", exc_info=True)
+        return False
 
-    step2_start = time.time()
-    need_fill_codes = basic_manager.get_need_fill_detail_codes()
-    if not need_fill_codes:
-        logger.info(f"[{__name__}.{func_name}] 所有股票详情已下载完成，无需操作")
-        return
-    logger.info(f"[{__name__}.{func_name}] 待补全详情股票：{len(need_fill_codes)} 只")
-    logger.info(f"[{__name__}.{func_name}][性能] 筛选待补全股票耗时：{time.time() - step2_start:.2f}s")
 
-    target_groups = []
-    if "all" in download_groups:
-        target_groups = [("all", None)]
-    else:
-        valid_market = ["sh", "sz", "bj"]
-        target_groups = [(m, m) for m in download_groups if m in valid_market]
+# ==================== 预留函数 ====================
+def calculate_stock_code_purity(ts_code: str) -> str:
+    logger.debug(f"预留函数调用: {ts_code}")
+    return ts_code.split(".")[0] if "." in ts_code else ts_code
 
-    if not target_groups:
-        logger.error(f"[{__name__}.{func_name}] 无效分组，退出")
-        return
-
-    total_update = 0
-    for group_name, query_param in target_groups:
-        group_start = time.time()
-        logger.info(f"\n[{__name__}.{func_name}] === 处理分组：{group_name.upper()} ===")
-
-        api_start = time.time()
-        try:
-            if query_param is None:
-                logger.info(f"[{__name__}.{func_name}] 查询全市场股票详情")
-                rs = bs.query_stock_basic()
-            else:
-                logger.info(f"[{__name__}.{func_name}] 查询 {group_name} 市场股票详情")
-                rs = bs.query_stock_basic(code=query_param)
-
-            if rs.error_code != "0":
-                logger.error(f"[{__name__}.{func_name}] 查询失败：{rs.error_msg}")
-                continue
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 接口异常：{str(e)}")
-            continue
-        logger.info(f"[{__name__}.{func_name}][性能] {group_name} API 请求耗时：{time.time() - api_start:.2f}s")
-
-        parse_start = time.time()
-        update_records = []
-        while rs.next():
-            row = _map_row_list_to_dict(rs.get_row_data(), rs.fields)
-            raw_code = row.get("code", "")
-            std_code = convert_baostock_code(raw_code)
-
-            if std_code not in valid_stock_codes:
-                continue
-            if std_code not in need_fill_codes:
-                continue
-
-            record = _process_and_prepare_db_record(row)
-            if record:
-                update_records.append(record)
-        logger.info(f"[{__name__}.{func_name}][性能] {group_name} 数据解析耗时：{time.time() - parse_start:.2f}s")
-
-        if update_records:
-            db_start = time.time()
-            logger.info(f"[{__name__}.{func_name}] 分组 {group_name} 准备更新 {len(update_records)} 条记录")
-            basic_manager.batch_insert_stock_basic(update_records)
-            db_cost = time.time() - db_start
-            speed = len(update_records) / db_cost if db_cost > 0 else 0
-            logger.info(f"[{__name__}.{func_name}][性能] {group_name} 数据库写入耗时：{db_cost:.2f}s，速度：{speed:.0f} 条/秒")
-
-            total_update += len(update_records)
-            logger.info(f"[{__name__}.{func_name}] 分组 {group_name} 处理完成，耗时：{time.time() - group_start:.2f}s")
-        else:
-            logger.info(f"[{__name__}.{func_name}] 分组 {group_name} 无需要更新的数据")
-
-    logger.info(f"\n[{__name__}.{func_name}][性能] 本次共更新 {total_update} 条详情记录")
-    logger.info(f"[{__name__}.{func_name}][性能] 函数总耗时：{time.time() - func_start:.2f}s")
-    logger.info(f"\n[{__name__}.{func_name}] ===== 🎉 股票详细信息全部下载完成 =====")
+def convert_market_type_to_baostock_format(market_type: MarketType) -> str:
+    return market_type.value

@@ -1,0 +1,28 @@
+/* ====================== 3. 股票日线行情表（核心回测数据） ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('stock_daily') | safe }}` (
+  `{{ col_id | default('id') | safe }}` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `{{ col_std_stock_code | default('std_stock_code') | safe }}` varchar(20) NOT NULL COMMENT '股票代码',
+  `{{ col_trade_date | default('trade_date') | safe }}` date NOT NULL COMMENT '交易日期',
+  `{{ col_open | default('open') | safe }}` decimal(10,3) DEFAULT NULL COMMENT '开盘价',
+  `{{ col_high | default('high') | safe }}` decimal(10,3) DEFAULT NULL COMMENT '最高价',
+  `{{ col_low | default('low') | safe }}` decimal(10,3) DEFAULT NULL COMMENT '最低价',
+  `{{ col_close | default('close') | safe }}` decimal(10,3) DEFAULT NULL COMMENT '收盘价',
+  `{{ col_pre_close | default('pre_close') | safe }}` decimal(10,3) DEFAULT NULL COMMENT '前收盘价',
+  `{{ col_change_rate | default('change_rate') | safe }}` decimal(10,4) DEFAULT NULL COMMENT '涨跌幅(%)',
+  `{{ col_volume | default('volume') | safe }}` bigint(20) DEFAULT NULL COMMENT '成交量(手)',
+  `{{ col_amount | default('amount') | safe }}` decimal(15,2) DEFAULT NULL COMMENT '成交额(千元)',
+  `{{ col_turnover_rate | default('turnover_rate') | safe }}` decimal(10,4) DEFAULT NULL COMMENT '换手率(%)',
+  `{{ col_pe | default('pe') | safe }}` decimal(12,2) DEFAULT NULL COMMENT '市盈率(TTM)',
+  `{{ col_pb | default('pb') | safe }}` decimal(10,2) DEFAULT NULL COMMENT '市净率',
+  `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `{{ col_update_time | default('update_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+  PRIMARY KEY (`{{ pk_id | default('id') | safe }}`),
+  UNIQUE KEY `{{ uk_name | default('uk_std_stock_date') | safe }}` (`{{ uk_col1 | default('std_stock_code') | safe }}`, `{{ uk_col2 | default('trade_date') | safe }}`),
+  INDEX `{{ idx1_name | default('idx_std_stock_code') | safe }}` (`{{ idx1_col | default('std_stock_code') | safe }}`),
+  INDEX `{{ idx2_name | default('idx_trade_date') | safe }}` (`{{ idx2_col | default('trade_date') | safe }}`),
+  INDEX `{{ idx3_name | default('idx_date_range') | safe }}` (`{{ idx3_col1 | default('std_stock_code') | safe }}`, `{{ idx3_col2 | default('trade_date') | safe }}`)
+) ENGINE={{ engine | default('InnoDB') | safe }}
+DEFAULT CHARSET={{ charset | default('utf8mb4') | safe }}
+COLLATE={{ collate | default('utf8mb4_unicode_ci') | safe }}
+COMMENT '{{ table_comment | default('股票日线数据表') | safe }}';
