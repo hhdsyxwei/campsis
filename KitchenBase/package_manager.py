@@ -7,6 +7,7 @@ import pkgutil
 import tokenize
 import importlib.util
 from typing import List, Set, Dict, Iterable
+import re  # 新增：导入正则模块
 
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_utils import get_project_root
@@ -27,13 +28,13 @@ class PackageManager:
     IMPORT_TO_PIP_MAP: Dict[str, str] = {
         "cv2": "opencv-python",
         "yaml": "pyyaml",
-        "PIL".lower(): "pillow",
+        "pil": "pillow",  # 修复：直接写小写键名，删除无效lower()
         "bs4": "beautifulsoup4",
         "sklearn": "scikit-learn",
-        "Crypto".lower(): "pycryptodome",
+        "crypto": "pycryptodome",  # 修复：直接写小写键名
         "dateutil": "python-dateutil",
         "fitz": "pymupdf",
-        "OpenSSL".lower(): "pyopenssl",
+        "openssl": "pyopenssl",  # 修复：直接写小写键名
         "lxml": "lxml",
         "dns": "dnspython",
         "setuptools": "setuptools",
@@ -80,19 +81,32 @@ class PackageManager:
             logger.info("✅ 无需要安装的包")
             return True
 
-        # 去重+排序，保证稳定输出
-        packages = sorted(set(packages))
+        # 修复：过滤非法包名（仅允许字母/数字/-/_）+ 处理首尾空格
+        valid_packages = []
+        for pkg in packages:
+            pkg_clean = pkg.strip()
+            if re.match(r"^[a-zA-Z0-9_\-]+$", pkg_clean):
+                valid_packages.append(pkg_clean)
+            else:
+                logger.error(f"非法包名，跳过: {pkg}")
+        if not valid_packages:
+            logger.error("❌ 无合法包名可安装")
+            return False
+
+        # 去重+排序
+        valid_packages = sorted(set(valid_packages))
 
         cmd = [sys.executable, "-m", "pip", "install"]
         if upgrade:
             cmd.append("--upgrade")
         if quiet:
             cmd.append("-q")
-        cmd.extend(packages)
+        cmd.extend(valid_packages)  # 仅拼接合法包名
 
-        logger.info(f"📦 准备安装依赖: {', '.join(packages)}")
+        logger.info(f"📦 准备安装依赖: {', '.join(valid_packages)}")
         logger.debug(f"执行命令: {' '.join(cmd)}")
 
+        # 补全：原遗漏的subprocess执行逻辑
         try:
             result = subprocess.run(
                 cmd,
@@ -117,8 +131,13 @@ class PackageManager:
 
     @staticmethod
     def _read_source_with_fallback(file_path: str) -> str:
-        with tokenize.open(file_path) as f:
-            return f.read()
+        """修复：补充文件读取异常捕获"""
+        try:
+            with tokenize.open(file_path) as f:
+                return f.read()
+        except (PermissionError, FileNotFoundError, UnicodeDecodeError) as e:
+            logger.warning(f"读取文件失败 {file_path}: {str(e)}")
+            return ""
 
     @staticmethod
     def _extract_imports_from_ast(source: str, file_path: str = "") -> Set[str]:
@@ -129,104 +148,129 @@ class PackageManager:
             logger.warning(f"语法解析失败 {file_path}: {e}")
             return imported
 
+        def _add_import(name: str):
+            """递归添加所有父级包（如 a.b.c → a、a.b、a.b.c），保证分级判定"""
+            parts = name.split(".")
+            for i in range(1, len(parts)+1):
+                full_pkg = ".".join(parts[:i]).strip().lower()
+                if full_pkg and full_pkg.isidentifier() and not full_pkg.startswith("_"):
+                    imported.add(full_pkg)
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    top_pkg = alias.name.split(".")[0].strip().lower()
-                    if top_pkg and top_pkg.isidentifier() and not top_pkg.startswith("_"):
-                        imported.add(top_pkg)
+                    _add_import(alias.name)  # 完整导入名（如 baostock、pymysql）
 
             elif isinstance(node, ast.ImportFrom):
-                # 相对导入一般是项目内部模块
-                if getattr(node, "level", 0) and node.level > 0:
+                # 相对导入（如 from . import xxx）直接判定为内部模块，跳过
+                if getattr(node, "level", 0) > 0:
                     continue
                 if node.module:
-                    top_pkg = node.module.split(".")[0].strip().lower()
-                    if top_pkg and top_pkg.isidentifier() and not top_pkg.startswith("_"):
-                        imported.add(top_pkg)
+                    _add_import(node.module)  # 完整模块路径（如 KitchenBase.stock_enums）
 
         return imported
 
     @staticmethod
     def _get_installed_distributions() -> Set[str]:
         """
-        获取已安装分发包名（pip层面的发行名），优先 importlib.metadata。
+        修复：仅使用 importlib.metadata（强制 Python 3.8+），或兼容旧版本的 pip list 解析
         """
         dist_names: Set[str] = set()
         try:
-            from importlib.metadata import distributions  # py3.8+
+            # 方案1：Python 3.8+ 推荐
+            from importlib.metadata import distributions
             for d in distributions():
-                name = (d.metadata.get("Name") or "").strip().lower()
+                name = d.name.lower().strip()
                 if name:
                     dist_names.add(name)
-        except Exception:
-            # 回退方案（兼容旧环境）
-            dist_names = {pkg.name.lower() for pkg in pkgutil.iter_modules()}
+        except Exception:  # 修复：恢复兜底捕获，避免非ImportError中断
+            # 方案2：兼容 Python 3.7-，通过 pip list 解析（更可靠）
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "list", "--format=freeze"],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                for line in result.stdout.splitlines():
+                    if "==" in line:
+                        pkg_name = line.split("==")[0].lower().strip()
+                        dist_names.add(pkg_name)
+            except Exception as e:
+                logger.error(f"获取已安装包失败: {e}")
+                # 修复：改为返回空集而非raise，避免整个流程崩溃
+                logger.warning("降级使用pkgutil.iter_modules()获取模块名（精度降低）")
+                dist_names = {pkg.name.lower() for pkg in pkgutil.iter_modules()}
         return dist_names
 
     @staticmethod
     def _is_importable(module_name: str) -> bool:
         """
-        不执行导入，仅用 find_spec 判断是否可解析，降低副作用。
+        修复：捕获全量异常，避免流程中断
         """
+        if module_name in PackageManager.BUILTIN_MODULES:
+            return True  # 标准库直接返回True，避免检查
+    
         try:
-            return importlib.util.find_spec(module_name) is not None
-        except Exception:
+            # 使用 sys.path 仅检查存在性，不加载模块
+            spec = importlib.util.find_spec(module_name)
+            return spec is not None and spec.origin is not None
+        except Exception as e:  # 修复：捕获所有异常
+            # 仅捕获已知的“模块不存在/语法错误/系统错误”
+            logger.warning(f"检查模块 {module_name} 可导入性失败: {str(e)}")
             return False
 
     @classmethod
     def _to_pip_name(cls, import_name: str) -> str:
         return cls.IMPORT_TO_PIP_MAP.get(import_name.lower(), import_name.lower())
 
-    @classmethod
+    @staticmethod
     def _is_satisfied(
-        cls,
         import_name: str,
         installed_dists: Set[str],
     ) -> bool:
         name = import_name.lower()
 
         # 1) 标准库/内部模块直接视为满足
-        if name in cls.BUILTIN_MODULES or name in cls.INTERNAL_MODULES:
+        if name in PackageManager.BUILTIN_MODULES or name in PackageManager.INTERNAL_MODULES:
             return True
 
         # 2) import 名可直接解析，也视为满足（本地包/editable 安装等场景）
-        if cls._is_importable(name):
+        if PackageManager._is_importable(name):
             return True
 
         # 3) 分发名直接匹配
-        pip_name = cls._to_pip_name(name)
+        pip_name = PackageManager._to_pip_name(name)
         if pip_name in installed_dists:
             return True
 
         # 4) 兜底映射匹配
-        alias_dists = cls.IMPORT_SATISFY_BY_DIST.get(name, set())
+        alias_dists = PackageManager.IMPORT_SATISFY_BY_DIST.get(name, set())
         if any(d in installed_dists for d in alias_dists):
             return True
 
         return False
 
-    @classmethod
-    def _collect_imports_from_project(cls, project_path: str) -> Set[str]:
+    @staticmethod
+    def _collect_imports_from_project(project_path: str) -> Set[str]:
         imports: Set[str] = set()
-
-        for root, _, files in os.walk(project_path):
-            if "__pycache__" in root:
-                continue
-
-            for file in files:
-                if not file.endswith(".py"):
-                    continue
-
+        # 新增：定义需要排除的目录（可配置化）
+        EXCLUDE_DIRS = {"__pycache__", "venv", "env", "build", "dist", "logs", "tests/.pytest_cache"}
+        
+        for root, dirs, files in os.walk(project_path):
+            # 过滤排除目录（修改dirs原地生效，os.walk会跳过子目录）
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+            
+            # 过滤非.py文件
+            py_files = [f for f in files if f.endswith(".py") and not f.startswith(".")]
+            for file in py_files:
                 file_path = os.path.join(root, file)
                 try:
-                    source = cls._read_source_with_fallback(file_path)
-                    imports.update(cls._extract_imports_from_ast(source, file_path))
-                except UnicodeDecodeError:
-                    logger.warning(f"文件编码错误 {file_path}: 跳过")
+                    source = PackageManager._read_source_with_fallback(file_path)
+                    imports.update(PackageManager._extract_imports_from_ast(source, file_path))
                 except Exception as e:
                     logger.warning(f"读取/解析失败 {file_path}: {str(e)}")
-
+    
         return imports
 
     @staticmethod
@@ -234,7 +278,7 @@ class PackageManager:
         """
         扫描项目 import，返回“缺失依赖对应的 pip 包名列表”
         """
-        imported_modules = cls_imports = PackageManager._collect_imports_from_project(project_path)
+        imported_modules = PackageManager._collect_imports_from_project(project_path)
         installed_dists = PackageManager._get_installed_distributions()
 
         logger.debug(f"扫描到的导入模块: {sorted(imported_modules)}")
