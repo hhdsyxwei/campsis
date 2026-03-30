@@ -59,7 +59,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             """, (stock_code, time_frame.value, quarter))
             
             self.conn.commit()
-            logger.info(f"[{__name__}.{func_name}] 成功设置下载区块: {stock_code} {time_frame.value} {quarter}")
+            logger.debug(f"[{__name__}.{func_name}] 成功设置下载区块: {stock_code} {time_frame.value} {quarter}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 设置下载区块失败: {str(e)}")
@@ -153,8 +153,8 @@ class KLineUnifiedQuarterlyExtendedManager:
             保存是否成功
         """
         func_name = "save_kline_data_unified"
-        logger.info(f"[{__name__}.{func_name}] 开始保存 {len(df)} 条统一格式K线数据 for {stock_code}")
-        
+        logger.debug(f"[{__name__}.{func_name}] 开始保存 {len(df)} 条统一格式K线数据 for {stock_code}")
+
         cursor = None
         try:
             # 准备数据
@@ -195,7 +195,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor.executemany(sql, records)
             self.conn.commit()
             
-            logger.info(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {stock_code}")
+            logger.debug(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {stock_code}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 保存数据失败 for {stock_code}: {str(e)}")
@@ -338,6 +338,62 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
+    def get_completed_block_total_count(self, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+        """
+        查询kline_block_status表中状态为completed的区块总数
+        支持按年份范围过滤（仅匹配quarter字段中的年份部分）
+
+        Args:
+            start_year: 可选，起始年份（如2024），不传则不限制起始年份
+            end_year: 可选，结束年份（如2025），不传则不限制结束年份
+
+        Returns:
+            状态为completed的区块总数
+        """
+        func_name = "get_completed_block_total_count"
+        logger.debug(
+            f"[{__name__}.{func_name}] 查询completed状态区块总数，年份范围："
+            f"start_year={start_year}, end_year={end_year}"
+        )
+
+        cursor = None
+        try:
+            # 基础SQL：查询completed状态的总数
+            sql = """
+            SELECT COUNT(*) FROM kline_block_status 
+            WHERE status = 'completed'
+            """
+            params = []
+
+            # 动态添加年份范围过滤条件（解析quarter字段的年份部分）
+            year_conditions = []
+            if start_year is not None:
+                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) >= %s")
+                params.append(start_year)
+            if end_year is not None:
+                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) <= %s")
+                params.append(end_year)
+
+            if year_conditions:
+                sql += " AND " + " AND ".join(year_conditions)
+
+            # 执行查询
+            cursor = self.conn.cursor()
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+
+            logger.debug(
+                f"[{__name__}.{func_name}] 查询完成，completed状态区块总数：{count} "
+                f"(年份范围：{start_year or '不限'} - {end_year or '不限'})"
+            )
+            return count
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询completed状态区块总数失败: {str(e)}")
+            raise  # 保持和其他函数一致的异常抛出逻辑
+        finally:
+            if cursor:
+                cursor.close()
+
     def truncate_table_stock_fixed_seq(self) -> bool:
         """
         清空 stock_fixed_seq 表并批量插入新的股票代码数据
@@ -417,6 +473,34 @@ class KLineUnifiedQuarterlyExtendedManager:
         finally:
             if cursor:
                 cursor.close()
+
+    def count_stocks_in_fixed_seq(self) -> int:
+        """
+        内部辅助函数：统计stock_fixed_seq表中的股票总数
+        :return: 股票总数
+        """
+        self.func_name = "count_stocks_in_fixed_seq"
+        
+        # 实际场景中需根据数据库表结构实现查询逻辑
+        # 示例：查询stock_fixed_seq表的总行数
+        try:
+            # 替换为真实的数据库查询逻辑（适配你的db_conn类型）
+            # 以下是通用示例（需根据实际ORM/数据库驱动调整）
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM stock_fixed_seq")
+            stock_count = cursor.fetchone()[0]
+            cursor.close()
+            
+            if stock_count <= 0:
+                logger.warning(f"[{__name__}.{self.func_name}] stock_fixed_seq表无股票数据")
+            return stock_count
+        
+        except Exception as e:
+            logger.error(
+                f"[{__name__}.{self.func_name}] 查询股票总数失败: {str(e)}",
+                exc_info=True
+            )
+            return 0
 
 # ================= 交易日历管理器 =================
 class TradeDateMapManager:
@@ -752,6 +836,24 @@ class DataManager:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return False
 
+    @staticmethod
+    def count_stocks_in_fixed_seq(db_conn) -> int:
+        """
+        统计stock_fixed_seq表中的股票总数
+
+        Args:
+            db_conn: 数据库连接
+
+        Returns:
+            股票总数
+        """
+        func_name = "count_stocks_in_fixed_seq"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.count_stocks_in_fixed_seq()
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return 0
 
     @staticmethod
     def save_kline_data_unified(db_conn, stock_code: str, df: pd.DataFrame) -> bool:
@@ -836,6 +938,25 @@ class DataManager:
             return manager.get_quarter_data_count(stock_code, time_frame, quarter)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
+            return 0
+
+    @staticmethod
+    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+        """查询kline_block_status表中状态为completed的区块总数
+        支持按年份范围过滤（仅匹配quarter字段中的年份部分）
+        Args:
+            db_conn: 数据库连接
+            start_year: 可选，起始年份（如2024），不传则不限制起始年份
+            end_year: 可选，结束年份（如2025），不传则不限制结束年份
+        Returns:
+            状态为completed的区块总数
+        """
+        func_name = "get_completed_block_total_count"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.get_completed_block_total_count(start_year, end_year)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return 0
 
     @staticmethod

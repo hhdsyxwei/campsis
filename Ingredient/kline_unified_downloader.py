@@ -23,6 +23,57 @@ class KLineDownloader:
         self.db_conn = db_conn
         self.func_name = ""
 
+    def _calc_total_blocks(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
+        """
+        内部函数：计算指定时间范围和周期下需要下载的block总数
+        计算逻辑：季度总数 × 股票总数 = 总区块数
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
+        :param time_frame: K线周期（单个周期，非列表）
+        :return: 需要下载的区块总数
+        """
+        self.func_name = "_calc_total_blocks"
+        
+        # 步骤1：统计指定时间范围内的季度总数
+        quarter_count = self._count_quarters_in_range(start_year, end_year)
+        
+        # 步骤2：统计stock_fixed_seq表中的股票总数
+        stock_count = dm.count_stocks_in_fixed_seq(self.db_conn)
+        
+        # 步骤3：计算总区块数（季度数 × 股票数，单个时间周期）
+        total_blocks = quarter_count * stock_count
+        
+        logger.debug(
+            f"[{__name__}.{self.func_name}] 统计结果："
+            f"年份范围[{start_year}-{end_year}) | 季度数={quarter_count} "
+            f"| 股票数={stock_count} | 周期={time_frame.value} | 总区块数={total_blocks}"
+        )
+        return total_blocks
+
+    def _count_quarters_in_range(self, start_year: int, end_year: int) -> int:
+        """
+        内部辅助函数：计算[start_year, end_year)范围内的季度总数
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
+        :return: 季度总数
+        """
+        self.func_name = "_count_quarters_in_range"
+        
+        if start_year >= end_year:
+            logger.warning(f"[{__name__}.{self.func_name}] 起始年份{start_year} >= 结束年份{end_year}，季度数为0")
+            return 0
+        
+        # 计算完整年份的季度数 + 剩余年份的季度数
+        full_years = end_year - start_year - 1
+        full_quarters = full_years * 4
+        
+        # 总季度数 = 完整年份季度数 + 结束年的全部季度（因为end_year是不包含的）
+        total_quarters = full_quarters + 4
+        
+        logger.debug(
+            f"[{__name__}.{self.func_name}] 年份范围[{start_year}-{end_year}) 季度总数：{total_quarters}"
+        )
+        return total_quarters
 
     # -------------------------------------------------------------------------
     # 工具方法：计算指定季度的下一个季度标识
@@ -291,6 +342,9 @@ class KLineDownloader:
                 self._fetch_kline_block(quarter, stock_code, time_frame)
                 next_block = self._get_next_block(start_year, end_year, quarter, stock_code, time_frame)
                 dm.set_downloading_block(self.db_conn, stock_code, time_frame, quarter) # 更新当前下载区块指针
+                block_total = self._calc_total_blocks(start_year, end_year, time_frame)
+                completed_blocks = dm.get_completed_block_total_count(self.db_conn, time_frame)
+                logger.info(f"已下载区块总数：{completed_blocks}/{block_total}({completed_blocks/block_total*100:.2f}%) | 当前区块: {quarter} {stock_code} {time_frame.value}")
             except Exception as e:
                 logger.error(f"[{__name__}.{func_name}] 下载失败: {quarter} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出
