@@ -28,9 +28,7 @@ class CampsisLogger:
         "KitchenBase": logging.ERROR,
         "Ingredient": logging.INFO,
         # 模块级别控制（覆盖父级，PackageManager 模块单独设为 DEBUG）
-        "KitchenBase.package_manager": logging.ERROR,
-        # 类级别控制（可选，细化到类）
-        "KitchenBase.package_manager.PackageManager": logging.ERROR,
+        "KitchenBase.package_manager": logging.DEBUG,
         # 测试包单独控制
         "tests": logging.ERROR,
         # 第三方包控制（如屏蔽 pandas 日志）

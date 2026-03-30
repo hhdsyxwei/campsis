@@ -1,0 +1,6 @@
+/* ====================== 1. 创建A股量化数据库 ====================== */
+CREATE DATABASE IF NOT EXISTS {{ db_name | default('ashare') | safe }}
+DEFAULT CHARACTER SET {{ charset | default('utf8mb4') | safe }}
+COLLATE {{ collate | default('utf8mb4_unicode_ci') | safe }};
+
+USE {{ db_name | default('ashare') | safe }};

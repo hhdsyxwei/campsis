@@ -1,12 +1,13 @@
 # data_manager.py
 import os
-from typing import List, Optional, Tuple, Dict
+from typing import Any, List, Optional, Tuple, Dict
 import pymysql
 from pymysql.err import OperationalError
 import pandas as pd
 from datetime import datetime
 import re
 import logging
+from jinja2 import Template, Environment, FileSystemLoader  # 需要安装 jinja2
 from KitchenBase.download_utils import calculate_pre_close
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_utils import get_project_root
@@ -59,7 +60,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             """, (stock_code, time_frame.value, quarter))
             
             self.conn.commit()
-            logger.info(f"[{__name__}.{func_name}] 成功设置下载区块: {stock_code} {time_frame.value} {quarter}")
+            logger.debug(f"[{__name__}.{func_name}] 成功设置下载区块: {stock_code} {time_frame.value} {quarter}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 设置下载区块失败: {str(e)}")
@@ -153,8 +154,8 @@ class KLineUnifiedQuarterlyExtendedManager:
             保存是否成功
         """
         func_name = "save_kline_data_unified"
-        logger.info(f"[{__name__}.{func_name}] 开始保存 {len(df)} 条统一格式K线数据 for {stock_code}")
-        
+        logger.debug(f"[{__name__}.{func_name}] 开始保存 {len(df)} 条统一格式K线数据 for {stock_code}")
+
         cursor = None
         try:
             # 准备数据
@@ -195,7 +196,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor.executemany(sql, records)
             self.conn.commit()
             
-            logger.info(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {stock_code}")
+            logger.debug(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {stock_code}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 保存数据失败 for {stock_code}: {str(e)}")
@@ -338,6 +339,62 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
+    def get_completed_block_total_count(self, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+        """
+        查询kline_block_status表中状态为completed的区块总数
+        支持按年份范围过滤（仅匹配quarter字段中的年份部分）
+
+        Args:
+            start_year: 可选，起始年份（如2024），不传则不限制起始年份
+            end_year: 可选，结束年份（如2025），不传则不限制结束年份
+
+        Returns:
+            状态为completed的区块总数
+        """
+        func_name = "get_completed_block_total_count"
+        logger.debug(
+            f"[{__name__}.{func_name}] 查询completed状态区块总数，年份范围："
+            f"start_year={start_year}, end_year={end_year}"
+        )
+
+        cursor = None
+        try:
+            # 基础SQL：查询completed状态的总数
+            sql = """
+            SELECT COUNT(*) FROM kline_block_status 
+            WHERE status = 'completed'
+            """
+            params = []
+
+            # 动态添加年份范围过滤条件（解析quarter字段的年份部分）
+            year_conditions = []
+            if start_year is not None:
+                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) >= %s")
+                params.append(start_year)
+            if end_year is not None:
+                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) <= %s")
+                params.append(end_year)
+
+            if year_conditions:
+                sql += " AND " + " AND ".join(year_conditions)
+
+            # 执行查询
+            cursor = self.conn.cursor()
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+
+            logger.debug(
+                f"[{__name__}.{func_name}] 查询完成，completed状态区块总数：{count} "
+                f"(年份范围：{start_year or '不限'} - {end_year or '不限'})"
+            )
+            return count
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询completed状态区块总数失败: {str(e)}")
+            raise  # 保持和其他函数一致的异常抛出逻辑
+        finally:
+            if cursor:
+                cursor.close()
+
     def truncate_table_stock_fixed_seq(self) -> bool:
         """
         清空 stock_fixed_seq 表并批量插入新的股票代码数据
@@ -418,6 +475,34 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
+    def count_stocks_in_fixed_seq(self) -> int:
+        """
+        内部辅助函数：统计stock_fixed_seq表中的股票总数
+        :return: 股票总数
+        """
+        self.func_name = "count_stocks_in_fixed_seq"
+        
+        # 实际场景中需根据数据库表结构实现查询逻辑
+        # 示例：查询stock_fixed_seq表的总行数
+        try:
+            # 替换为真实的数据库查询逻辑（适配你的db_conn类型）
+            # 以下是通用示例（需根据实际ORM/数据库驱动调整）
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM stock_fixed_seq")
+            stock_count = cursor.fetchone()[0]
+            cursor.close()
+            
+            if stock_count <= 0:
+                logger.warning(f"[{__name__}.{self.func_name}] stock_fixed_seq表无股票数据")
+            return stock_count
+        
+        except Exception as e:
+            logger.error(
+                f"[{__name__}.{self.func_name}] 查询股票总数失败: {str(e)}",
+                exc_info=True
+            )
+            return 0
+
 # ================= 交易日历管理器 =================
 class TradeDateMapManager:
     def __init__(self, conn):
@@ -460,18 +545,18 @@ class DailyDataManager:
     def __init__(self, connection):
         self.conn = connection
 
-    def save_daily_data(self, ts_code: str, baostock_rs) -> bool:
+    def save_daily_data(self, std_stock_code: str, baostock_rs) -> bool:
         func_name = "save_daily_data"
         if baostock_rs is None or baostock_rs.error_code != '0':
             err_code = baostock_rs.error_code if baostock_rs else 'None'
-            logger.error(f"[{__name__}.{func_name}] {ts_code} 查询失败，错误码：{err_code}")
+            logger.error(f"[{__name__}.{func_name}] {std_stock_code} 查询失败，错误码：{err_code}")
             return False
 
         data_list = []
         while baostock_rs.next():
             data_list.append(baostock_rs.get_row_data())
 
-        logger.info(f"[{__name__}.{func_name}] {ts_code} 获取到 {len(data_list)} 条日线数据")
+        logger.info(f"[{__name__}.{func_name}] {std_stock_code} 获取到 {len(data_list)} 条日线数据")
         if not data_list:
             return True
 
@@ -483,7 +568,7 @@ class DailyDataManager:
                 trade_date = row['date']
                 pre_close_val = calculate_pre_close(row['close'], row['pctChg'])
                 records.append((
-                    ts_code, trade_date,
+                    std_stock_code, trade_date,
                     float(row['open']) if row['open'] else None,
                     float(row['high']) if row['high'] else None,
                     float(row['low']) if row['low'] else None,
@@ -497,7 +582,7 @@ class DailyDataManager:
                     float(row['pbMRQ']) if row['pbMRQ'] else None,
                 ))
             except ValueError as e:
-                logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {ts_code} {row['date']}: {str(e)}")
+                logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row['date']}: {str(e)}")
                 continue
 
         if not records:
@@ -506,7 +591,7 @@ class DailyDataManager:
         cursor = None
         sql = """
         INSERT INTO stock_daily 
-        (ts_code, trade_date, open, high, low, close, pre_close, change_rate, volume, amount, turnover_rate, pe, pb)
+        (std_stock_code, trade_date, open, high, low, close, pre_close, change_rate, volume, amount, turnover_rate, pe, pb)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             open = VALUES(open), high = VALUES(high), low = VALUES(low), close = VALUES(close),
@@ -517,26 +602,26 @@ class DailyDataManager:
             cursor = self.conn.cursor()
             cursor.executemany(sql, records)
             self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] {ts_code} 入库成功 {len(records)} 条")
+            logger.debug(f"[{__name__}.{func_name}] {std_stock_code} 入库成功 {len(records)} 条")
             return True
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] {ts_code} 入库失败：{str(e)}")
+            logger.error(f"[{__name__}.{func_name}] {std_stock_code} 入库失败：{str(e)}")
             self.conn.rollback()
             return False
         finally:
             if cursor:
                 cursor.close()
 
-    def check_date_range_exists(self, ts_code: str, start_date=None, end_date=None) -> bool:
+    def check_date_range_exists(self, std_stock_code: str, start_date=None, end_date=None) -> bool:
         func_name = "check_date_range_exists"
         cursor = None
         try:
             cursor = self.conn.cursor()
-            sql = "SELECT 1 FROM stock_daily WHERE ts_code = %s LIMIT 1"
-            cursor.execute(sql, (ts_code,))
+            sql = "SELECT 1 FROM stock_daily WHERE std_stock_code = %s LIMIT 1"
+            cursor.execute(sql, (std_stock_code,))
             return cursor.fetchone() is not None
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询失败 {ts_code}：{str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 查询失败 {std_stock_code}：{str(e)}")
             return False
         finally:
             if cursor:
@@ -548,11 +633,11 @@ class DailyDataManager:
         try:
             cursor = self.conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("""
-                SELECT ts_code FROM stock_basic 
+                SELECT std_stock_code FROM stock_basic 
                 WHERE market IN ('主板(深A)', '主板(沪A)', '科创板', '创业板', '北交所') 
                 AND is_active = 1
             """)
-            return [stock['ts_code'] for stock in cursor.fetchall()]
+            return [stock['std_stock_code'] for stock in cursor.fetchall()]
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询失败：{str(e)}")
             return []
@@ -560,16 +645,16 @@ class DailyDataManager:
             if cursor:
                 cursor.close()
 
-    def get_latest_tradedate_for_stock(self, ts_code: str) -> str:
+    def get_latest_tradedate_for_stock(self, std_stock_code: str) -> str:
         func_name = "get_latest_tradedate_for_stock"
         cursor = None
         try:
             cursor = self.conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("SELECT MAX(trade_date) AS latest FROM stock_daily WHERE ts_code = %s", (ts_code,))
+            cursor.execute("SELECT MAX(trade_date) AS latest FROM stock_daily WHERE std_stock_code = %s", (std_stock_code,))
             latest = cursor.fetchone()['latest']
             return latest.strftime('%Y-%m-%d') if latest else None
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询失败 {ts_code}：{str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 查询失败 {std_stock_code}：{str(e)}")
             return None
         finally:
             if cursor:
@@ -588,8 +673,8 @@ class BasicStockDataManager:
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                SELECT ts_code FROM stock_basic
-                WHERE code_name IS NULL OR list_date IS NULL
+                SELECT std_stock_code FROM stock_basic
+                WHERE stock_name IS NULL OR list_date IS NULL
             """)
             codes = {row[0] for row in cursor.fetchall()}
             logger.info(f"[{__name__}.{func_name}] 需补全信息股票数量：{len(codes)}")
@@ -605,7 +690,7 @@ class BasicStockDataManager:
         cursor = None
         try:
             cursor = self.conn.cursor(pymysql.cursors.SSCursor)
-            cursor.execute("SELECT DISTINCT ts_code FROM stock_basic")
+            cursor.execute("SELECT DISTINCT std_stock_code FROM stock_basic")
             codes = {row[0] for row in cursor.fetchall()}
             logger.debug(f"[{__name__}.{func_name}] 已加载 {len(codes)} 个股票代码")
             return codes
@@ -628,7 +713,7 @@ class BasicStockDataManager:
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                SELECT ts_code 
+                SELECT std_stock_code 
                 FROM stock_basic 
                 WHERE is_active = 1
                   AND market IN ('主板(深A)', '主板(沪A)', '科创板', '创业板', '北交所')
@@ -643,33 +728,49 @@ class BasicStockDataManager:
             if cursor:
                 cursor.close()
 
-    def batch_insert_stock_basic(self, records: list) -> bool:
+    def batch_insert_stock_basic(self, df: pd.DataFrame) -> bool:
+        """
+        批量插入/更新股票基础信息
+        【极简版】仅负责数据库写入，所有数据校验、清洗、字段过滤由调用者完成
+        """
         func_name = "batch_insert_stock_basic"
-        if not records:
-            logger.warning(f"[{__name__}.{func_name}] 无数据可插入")
+        logger.info(f"[{__name__}.{func_name}] 准备写入 {len(df)} 条股票基础数据")
+
+        # 空 DataFrame 直接返回
+        if df.empty:
+            logger.warning(f"[{__name__}.{func_name}] DataFrame 为空，无数据写入")
             return True
 
         cursor = None
-        sql = """
-        INSERT INTO stock_basic 
-        (ts_code, code_name, pure_symbol, industry, market, list_date, delist_date, is_active)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            -- 只更新代码、市场、状态，不覆盖已存在的名称/上市日/行业
-            pure_symbol = VALUES(pure_symbol),
-            market = VALUES(market),
-            is_active = VALUES(is_active)
-        """
         try:
+            # 直接从 DataFrame 获取列（完全信任调用方已处理好）
+            insert_cols = list(df.columns)
+            placeholders = ", ".join(["%s"] * len(insert_cols))
+
+            # SQL 完全由传入的 DataFrame 列动态生成
+            insert_sql = f"""
+            INSERT INTO stock_basic ({', '.join(insert_cols)})
+            VALUES ({placeholders})
+            ON DUPLICATE KEY UPDATE
+                pure_symbol = VALUES(pure_symbol),
+                market = VALUES(market),
+                is_active = VALUES(is_active)
+            """
+
+            # 执行批量写入
+            records = df.to_numpy().tolist()
             cursor = self.conn.cursor()
-            cursor.executemany(sql, records)
+            cursor.executemany(insert_sql, records)
             self.conn.commit()
-            logger.info(f"[{__name__}.{func_name}] 成功插入/更新 {len(records)} 条基础信息")
+
+            logger.info(f"[{__name__}.{func_name}] ✅ 成功写入 {len(df)} 条")
             return True
+
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 插入失败：{str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 写入失败: {str(e)}")
             self.conn.rollback()
             return False
+
         finally:
             if cursor:
                 cursor.close()
@@ -688,7 +789,7 @@ class BasicStockDataManager:
             cursor = self.conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("""
                 SELECT list_date, delist_date FROM stock_basic 
-                WHERE ts_code = %s
+                WHERE std_stock_code = %s
             """, (ts_code,))
             result = cursor.fetchone()
     
@@ -752,6 +853,24 @@ class DataManager:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return False
 
+    @staticmethod
+    def count_stocks_in_fixed_seq(db_conn) -> int:
+        """
+        统计stock_fixed_seq表中的股票总数
+
+        Args:
+            db_conn: 数据库连接
+
+        Returns:
+            股票总数
+        """
+        func_name = "count_stocks_in_fixed_seq"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.count_stocks_in_fixed_seq()
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return 0
 
     @staticmethod
     def save_kline_data_unified(db_conn, stock_code: str, df: pd.DataFrame) -> bool:
@@ -836,6 +955,25 @@ class DataManager:
             return manager.get_quarter_data_count(stock_code, time_frame, quarter)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
+            return 0
+
+    @staticmethod
+    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+        """查询kline_block_status表中状态为completed的区块总数
+        支持按年份范围过滤（仅匹配quarter字段中的年份部分）
+        Args:
+            db_conn: 数据库连接
+            start_year: 可选，起始年份（如2024），不传则不限制起始年份
+            end_year: 可选，结束年份（如2025），不传则不限制结束年份
+        Returns:
+            状态为completed的区块总数
+        """
+        func_name = "get_completed_block_total_count"
+        try:
+            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
+            return manager.get_completed_block_total_count(start_year, end_year)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return 0
 
     @staticmethod
@@ -969,46 +1107,80 @@ def get_nearest_trade_date_before(conn, date_str: str) -> str:
 
 
 # ================= 通用工具函数 =================
-def _get_sql_statements_from_file(sql_file_path: str) -> List[str]:
+def _get_sql_statements_from_file(
+    sql_file_path: str,
+    jinja_vars: Dict[str, Any] = None  # 模板变量（可选）
+) -> List[str]:
     """
-    增强版：从 .sql 文件读取内容，拆分并清洗为可执行的 SQL 语句列表
-    修复：处理/* */注释、编码兼容、分号在字符串/注释内的问题
-    :param sql_file_path: SQL 文件路径
-    :return: 清洗后的 SQL 语句列表
+    增强升级版：支持 Jinja2 模板渲染的 SQL 文件读取器
+    功能：
+      1. 自动渲染 Jinja2 SQL 模板
+      2. 多编码自动兼容（utf-8 / gbk / gb2312）
+      3. 清洗 /* */ 多行注释、-- 行注释
+      4. 按 ; 拆分 SQL 语句，过滤空语句
+    :param sql_file_path: SQL 模板文件路径
+    :param jinja_vars: Jinja 渲染变量（字典，可选）
+    :return: 清洗后的可执行 SQL 语句列表
     """
+    # 1. 检查文件是否存在
     if not os.path.exists(sql_file_path):
         logger.error(f"SQL 文件不存在：{sql_file_path}")
         return []
 
-    # 尝试多种编码读取
+    # 2. 自动尝试多种编码读取文件内容
     encodings = ['utf-8', 'gbk', 'gb2312']
-    sql_content = ""
+    sql_template_content = ""
     for encoding in encodings:
         try:
             with open(sql_file_path, 'r', encoding=encoding) as f:
-                sql_content = f.read().strip()
-            break  # 读取成功则退出编码循环
+                sql_template_content = f.read().strip()
+            break
         except (UnicodeDecodeError, PermissionError) as e:
             logger.warning(f"编码 {encoding} 读取失败：{str(e)}")
             continue
-    if not sql_content:
+
+    if not sql_template_content:
         logger.warning(f"SQL 文件内容为空/读取失败：{sql_file_path}")
         return []
 
-    # 步骤1：移除 /* ... */ 多行注释
-    sql_content = re.sub(r'/\*[\s\S]*?\*/', '', sql_content)
-    # 步骤2：移除 -- 行内注释（保留行内非开头的语句）
-    sql_content = re.sub(r'--.*?$', '', sql_content, flags=re.MULTILINE)
-    # 步骤3：按分号拆分，过滤空语句（处理末尾无分号的情况）
-    statements = []
-    for stmt in sql_content.split(';'):
-        stmt_clean = stmt.strip()
-        if stmt_clean:  # 仅过滤空语句，不再过滤--开头（已提前移除注释）
-            statements.append(stmt_clean)
-    
-    logger.info(f"从 {sql_file_path} 解析出 {len(statements)} 条 SQL 语句")
-    return statements
+    # ===================== 核心：Jinja2 模板渲染 =====================
+    try:
+        # 若没有传入变量，默认空字典
+        render_vars = jinja_vars or {}
+        
+        # 方法1：直接渲染字符串（简单场景）
+        sql_rendered = Template(sql_template_content).render(**render_vars)
 
+        # 方法2（可选，更强大，支持 extends / include 模板继承）
+        # sql_dir = os.path.dirname(sql_file_path)
+        # env = Environment(loader=FileSystemLoader(sql_dir))
+        # template = env.from_string(sql_template_content)
+        # sql_rendered = template.render(**render_vars)
+
+        logger.info(f"Jinja2 模板渲染成功：{sql_file_path}")
+
+    except Exception as e:
+        logger.error(f"Jinja2 模板渲染失败：{str(e)}，文件：{sql_file_path}")
+        return []
+    # =================================================================
+
+    # 3. 清洗注释
+    # 移除 /* ... */ 多行注释
+    sql_clean = re.sub(r'/\*[\s\S]*?\*/', '', sql_rendered)
+    # 移除 -- 行注释
+    sql_clean = re.sub(r'--.*?$', '', sql_clean, flags=re.MULTILINE)
+    # 移除 # 行注释（MySQL 常用）
+    sql_clean = re.sub(r'#.*?$', '', sql_clean, flags=re.MULTILINE)
+
+    # 4. 按分号拆分，清洗空语句
+    statements = []
+    for stmt in sql_clean.split(';'):
+        stmt_stripped = stmt.strip()
+        if stmt_stripped:
+            statements.append(stmt_stripped)
+
+    logger.info(f"从 {sql_file_path} 解析出 {len(statements)} 条可执行 SQL")
+    return statements
 
 def _execute_sql_statements(conn, cursor, statements: List[str], action_name: str) -> bool:
     """
@@ -1051,9 +1223,9 @@ def create_all_tables_if_not_exist(conn) -> bool:
         # 库
         # "database": "./init/00_database.sql",
         # 基础表
-        "trade_date_map": f"{database_dir}/init/01_table_trade_date_map.sql",
-        "stock_basic": f"{database_dir}/init/02_table_stock_basic.sql",
-        "stock_daily": f"{database_dir}/init/03_table_stock_daily.sql",
+        "trade_date_map": f"{database_dir}/init/01_table_trade_date_map.sql.j2",
+        "stock_basic": f"{database_dir}/init/02_table_stock_basic.sql.j2",
+        "stock_daily": f"{database_dir}/init/03_table_stock_daily.sql.j2",
         # "kline_1min": "./init/04_table_kline_1min.sql",
         # 统一K线表
         "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql",

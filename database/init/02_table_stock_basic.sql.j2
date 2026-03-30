@@ -1,0 +1,21 @@
+/* ====================== 2. 股票基础信息（核心回测数据） ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('stock_basic') | safe }}` (
+  `{{ col_std_stock_code | default('std_stock_code') | safe }}` varchar(20) NOT NULL COMMENT '股票代码',
+  `{{ col_stock_name | default('stock_name') | safe }}` varchar(100) DEFAULT NULL COMMENT '股票名称',
+  `{{ col_pure_symbol | default('pure_symbol') | safe }}` varchar(10) DEFAULT NULL COMMENT '纯股票代码（不含交易所后缀）',
+  `{{ col_industry | default('industry') | safe }}` varchar(50) DEFAULT NULL COMMENT '行业分类',
+  `{{ col_market | default('market') | safe }}` varchar(64) DEFAULT NULL COMMENT '市场板块',
+  `{{ col_list_date | default('list_date') | safe }}` date DEFAULT NULL COMMENT '上市日期',
+  `{{ col_delist_date | default('delist_date') | safe }}` date DEFAULT NULL COMMENT '退市日期',
+  `{{ col_is_active | default('is_active') | safe }}` tinyint(1) DEFAULT 1 COMMENT '是否活跃（1-活跃，0-已退市）',
+  `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `{{ col_update_time | default('update_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+  PRIMARY KEY (`{{ pk_col | default('std_stock_code') | safe }}`),
+  INDEX `{{ idx_market | default('idx_market') | safe }}` (`{{ idx_col_market | default('market') | safe }}`),
+  INDEX `{{ idx_list_date | default('idx_list_date') | safe }}` (`{{ idx_col_list_date | default('list_date') | safe }}`),
+  INDEX `{{ idx_is_active | default('idx_is_active') | safe }}` (`{{ idx_col_is_active | default('is_active') | safe }}`)
+) ENGINE={{ engine | default('InnoDB') | safe }}
+DEFAULT CHARSET={{ charset | default('utf8mb4') | safe }}
+COLLATE={{ collate | default('utf8mb4_unicode_ci') | safe }}
+COMMENT '{{ table_comment | default('股票基础信息表') | safe }}';

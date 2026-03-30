@@ -1,7 +1,7 @@
 /* ====================== 3. 股票日线行情表（核心回测数据） ====================== */
 CREATE TABLE IF NOT EXISTS `stock_daily` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `ts_code` varchar(20) NOT NULL COMMENT '股票代码',
+  `std_stock_code` varchar(20) NOT NULL COMMENT '股票代码',
   `trade_date` date NOT NULL COMMENT '交易日期',
   `open` decimal(10,3) DEFAULT NULL COMMENT '开盘价',
   `high` decimal(10,3) DEFAULT NULL COMMENT '最高价',
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS `stock_daily` (
   `create_time` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_tscode_date` (`ts_code`,`trade_date`),
-  INDEX `idx_ts_code` (`ts_code`),
+  UNIQUE KEY `uk_std_stock_date` (`std_stock_code`,`trade_date`),
+  INDEX `idx_std_stock_code` (`std_stock_code`),
   INDEX `idx_trade_date` (`trade_date`),
-  INDEX `idx_date_range` (`ts_code`, `trade_date`)
+  INDEX `idx_date_range` (`std_stock_code`, `trade_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票日线数据表';
