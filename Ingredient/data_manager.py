@@ -339,7 +339,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_completed_block_total_count(self, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+    def get_completed_block_total_count(self, start_year: Optional[int] = None, end_year: Optional[int] = None, time_frame: Optional[str] = None) -> int:
         """
         查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
@@ -347,6 +347,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         Args:
             start_year: 可选，起始年份（如2024），不传则不限制起始年份
             end_year: 可选，结束年份（如2025），不传则不限制结束年份
+            time_frame: 可选，时间周期，不传则不限制
 
         Returns:
             状态为completed的区块总数
@@ -354,7 +355,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         func_name = "get_completed_block_total_count"
         logger.debug(
             f"[{__name__}.{func_name}] 查询completed状态区块总数，年份范围："
-            f"start_year={start_year}, end_year={end_year}"
+            f"start_year={start_year}, end_year={end_year}, time_frame={time_frame}"
         )
 
         cursor = None
@@ -365,18 +366,24 @@ class KLineUnifiedQuarterlyExtendedManager:
             WHERE status = 'completed'
             """
             params = []
+            conditions = []
 
             # 动态添加年份范围过滤条件（解析quarter字段的年份部分）
-            year_conditions = []
+            # 注意：包含 start_year，不包含 end_year（惯例：[start_year, end_year)）
             if start_year is not None:
-                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) >= %s")
+                conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) >= %s")
                 params.append(start_year)
             if end_year is not None:
-                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) <= %s")
+                conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) < %s")
                 params.append(end_year)
+            
+            # 动态添加time_frame过滤条件
+            if time_frame is not None:
+                conditions.append("time_frame = %s")
+                params.append(time_frame)
 
-            if year_conditions:
-                sql += " AND " + " AND ".join(year_conditions)
+            if conditions:
+                sql += " AND " + " AND ".join(conditions)
 
             # 执行查询
             cursor = self.conn.cursor()
@@ -958,20 +965,21 @@ class DataManager:
             return 0
 
     @staticmethod
-    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, time_frame: Optional[str] = None) -> int:
         """查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
         Args:
             db_conn: 数据库连接
             start_year: 可选，起始年份（如2024），不传则不限制起始年份
             end_year: 可选，结束年份（如2025），不传则不限制结束年份
+            time_frame: 可选，时间周期，不传则不限制
         Returns:
             状态为completed的区块总数
         """
         func_name = "get_completed_block_total_count"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_completed_block_total_count(start_year, end_year)
+            return manager.get_completed_block_total_count(start_year, end_year, time_frame)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return 0

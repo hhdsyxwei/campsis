@@ -180,11 +180,21 @@ class KLineDownloader:
 
         df["time_frame"] = time_frame.value
         df["timestamp"] = pd.to_datetime(df["timestamp"])
+        
+        # 转换数值列
         numeric_cols = ["open_price", "high_price", "low_price", "close_price", "volume", "turnover"]
         for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-
+        
+        # 处理数值列的NaN
+        # 价格相关列：保留NaN（使用可空浮点类型）
+        price_cols = ["open_price", "high_price", "low_price", "close_price", "turnover"]
+        for col in price_cols:
+            df[col] = df[col].astype("Float64")
+        
+        # 成交量：NaN填充为0
         df["volume"] = df["volume"].fillna(0).astype("Int64")
+        
         df = df.dropna(subset=["timestamp"])
         return df
 
@@ -343,8 +353,12 @@ class KLineDownloader:
                 # 获取下一个区块
                 next_block = self._get_next_block(start_year, end_year, quarter, std_stock_code, time_frame)
                 # 记录进度
-                completed_blocks = dm.get_completed_block_total_count(self.db_conn, time_frame)
-                logger.info(f"已下载区块总数：{completed_blocks}/{block_total}({completed_blocks/block_total*100:.2f}%) | 当前区块: {quarter} {std_stock_code} {time_frame.value}")
+                completed_blocks = dm.get_completed_block_total_count(self.db_conn, start_year, end_year, time_frame.value)
+                if block_total > 0:
+                    progress = completed_blocks / block_total * 100
+                else:
+                    progress = 0.0
+                logger.info(f"已下载区块总数：{completed_blocks}/{block_total}({progress:.2f}%) | 当前区块: {quarter} {std_stock_code} {time_frame.value}")
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {quarter} {std_stock_code}, {str(e)}")
                 raise  # 异常向上抛出
