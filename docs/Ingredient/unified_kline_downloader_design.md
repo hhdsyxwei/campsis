@@ -33,19 +33,19 @@
 |字段|类型|说明|
 |---|---|---|
 |id|INT UNSIGNED|自增主键，固定排序标识|
-|stock_code|VARCHAR(20)|唯一股票代码|
+|std_stock_code|VARCHAR(20)|唯一股票代码|
 |stock_name|VARCHAR(50)|股票名称|
 |create_time|DATETIME|创建时间|
 ### 3.2 kline_block_status K线单元状态表
 
 |字段|类型|说明|
 |---|---|---|
-|stock_code|VARCHAR(20)|股票代码|
+|std_stock_code|VARCHAR(20)|股票代码|
 |time_frame|VARCHAR(10)|K线周期|
 |quarter|VARCHAR(10)|季度标识|
 |status|ENUM|waiting/completed/failed|
 |completed_at|DATETIME|完成时间|
-|主键|复合主键|stock_code+time_frame+quarter|
+|主键|复合主键|std_stock_code+time_frame+quarter|
 ### 3.3 kline_download_progress 全局进度指针表
 
 |字段|类型|说明|

@@ -103,7 +103,7 @@ class TestKLineDownloader:
         cursor = mock_db_conn.cursor()
         cursor.execute("""
             SELECT status FROM kline_block_status 
-            WHERE stock_code='sh.600000' AND time_frame=? AND quarter=?
+            WHERE std_stock_code='sh.600000' AND time_frame=? AND quarter=?
         """, (mock_time_frame.value, mock_quarter))
         result = cursor.fetchone()
         assert result[0] == BLOCK_COMPLETED

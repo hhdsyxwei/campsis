@@ -57,7 +57,7 @@ def main():
         # 5. 第三步：下载5分钟K线数据（示例）
         # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
         #bs_client = bs  # 已登录的 Baostock 客户端
-        #download_kline(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+        download_kline(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息
