@@ -4,7 +4,7 @@ import pymysql
 from KitchenBase.baostock_wrapper import query_history_k_data_plus
 import time
 from KitchenBase.logger_config import get_logger
-from Ingredient.data_manager import DailyDataManager, get_nearest_trade_date_before # 导入新的管理器
+from Ingredient.DataNest import DailyDataManager, get_nearest_trade_date_before # 导入新的管理器
 
 logger = get_logger(__name__)
 

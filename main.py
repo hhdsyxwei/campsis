@@ -11,7 +11,7 @@ import os
 import pymysql
 import baostock as bs
 import time
-from Ingredient.data_manager import create_database_and_tables
+from Ingredient.DataNest import create_database_and_tables
 from Ingredient.kline_unified_downloader import download_kline
 from Ingredient.daily_data_downloader import download_all_stocks_daily_data
 from Ingredient.trade_date_map_downloader import download_trade_date_map
@@ -37,6 +37,10 @@ def main():
     """主函数，协调整个数据下载流程。"""
     # 1. 登录 Baostock 服务
     lg = bs.login()
+    if(lg.error_code == "10001011"):
+        logger.error("IP已经加入黑名单, 需要去QQ群里求助")
+        return
+
     if lg.error_code != '0':
         logger.error(f"Baostock 登录失败: {lg.error_msg}")
         return

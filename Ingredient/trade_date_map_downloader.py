@@ -4,7 +4,7 @@ import baostock as bs
 import pandas as pd
 from datetime import datetime
 from typing import Optional
-from Ingredient.data_manager import TradeDateMapManager
+from Ingredient.DataNest import TradeDateMapManager
 
 logger = get_logger(__name__)
 
