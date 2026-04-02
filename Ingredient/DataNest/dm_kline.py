@@ -12,16 +12,19 @@ from .dm_columns import (
     QUARTER, STATUS, COMPLETED_AT,
     KlineUnifiedColumns as KUC
 )
+from .dm_global_progress import GlobalDownloadProgressManager
 
 logger = get_logger(__name__)
 
 class KLineUnifiedQuarterlyExtendedManager:
     def __init__(self, conn):
         self.conn = conn
+        self.progress_manager = GlobalDownloadProgressManager(conn)
 
     def set_downloading_block(self, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
         """
-        设置当前下载的区块信息（更新kline_download_progress表）
+        设置当前下载的区块信息（更新global_download_progress表）
+        委托给 GlobalDownloadProgressManager 处理
         Args:
             std_stock_code: 股票代码
             time_frame: 时间周期
@@ -31,58 +34,17 @@ class KLineUnifiedQuarterlyExtendedManager:
             设置是否成功
         """
         func_name = "set_downloading_block"
-        logger.debug(f"[{__name__}.{func_name}] 开始设置下载区块: {std_stock_code} {time_frame.value} {quarter}")
-        
-        cursor = None
-        try:
-            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
-            # 使用 INSERT ... ON DUPLICATE KEY UPDATE 处理记录存在/不存在的情况
-            cursor.execute("""
-                INSERT INTO kline_download_progress 
-                (id, downloading_stock_code, downloading_time_frame, downloading_quarter, update_time)
-                VALUES (1, %s, %s, %s, CURRENT_TIMESTAMP)
-                ON DUPLICATE KEY UPDATE
-                    downloading_stock_code = VALUES(downloading_stock_code),
-                    downloading_time_frame = VALUES(downloading_time_frame),
-                    downloading_quarter = VALUES(downloading_quarter),
-                    update_time = CURRENT_TIMESTAMP
-            """, (std_stock_code, time_frame.value, quarter))
-            self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] {std_stock_code} {time_frame.value} {quarter} 下载区块设置成功")
-            return True
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] {std_stock_code} {time_frame.value} {quarter} 下载区块设置失败：{str(e)}")
-            self.conn.rollback()
-            return False
-        finally:
-            if cursor:
-                cursor.close()
+        logger.debug(f"[{__name__}.{func_name}] 委托设置下载区块: {std_stock_code} {time_frame.value} {quarter}")
+        return self.progress_manager.set_kline_progress(std_stock_code, time_frame, quarter)
 
-    # 通过kline_download_progress表获取当前下载的区块信息（股票代码、时间周期、季度）
     def get_downloading_block(self) -> Optional[Tuple[str, str, KLinePeriod]]:
+        """
+        获取当前下载的区块信息（股票代码、时间周期、季度）
+        委托给 GlobalDownloadProgressManager 处理
+        """
         func_name = "get_downloading_block"
-        cursor = None
-        try:
-            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
-            cursor.execute("""
-                SELECT downloading_stock_code, downloading_time_frame, downloading_quarter 
-                FROM kline_download_progress 
-                WHERE id = 1 
-                LIMIT 1
-            """)
-            result = cursor.fetchone()
-            if result:
-                logger.debug(f"[{__name__}.{func_name}] 当前下载区块: {result}")
-                return result['downloading_quarter'], result['downloading_stock_code'], KLinePeriod(result['downloading_time_frame'])
-            else:
-                logger.debug(f"[{__name__}.{func_name}] 无正在下载的区块")
-                return None
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询下载区块失败: {str(e)}")
-            return None
-        finally:
-            if cursor:
-                cursor.close()
+        logger.debug(f"[{__name__}.{func_name}] 委托获取下载区块")
+        return self.progress_manager.get_kline_progress()
 
     def get_next_stock_in_fixed_seq(self, current_stock_code: Optional[str]) -> Optional[str]:
         """

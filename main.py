@@ -17,6 +17,7 @@ from Ingredient.daily_data_downloader import download_all_stocks_daily_data
 from Ingredient.trade_date_map_downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from Ingredient.stock_basic_downloader import download_stock_basic
+from Ingredient.xrxd_downloader import download_xrxd
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 # os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
@@ -52,7 +53,7 @@ def main():
     try:
         download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
         # 3. 第一步：同步并更新股票的基础信息表 (stock_basic)
-        download_stock_basic(conn)  # 下载股票详细信息（行业、上市日期等）
+        #download_stock_basic(conn)  # 下载股票详细信息（行业、上市日期等）
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
@@ -61,7 +62,10 @@ def main():
         # 5. 第三步：下载5分钟K线数据（示例）
         # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
         #bs_client = bs  # 已登录的 Baostock 客户端
-        download_kline(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+        #download_kline(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+
+        # 6. 第四步：下载分红送配数据
+        download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息

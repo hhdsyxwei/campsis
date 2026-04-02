@@ -6,11 +6,14 @@ from .dm_kline import KLineUnifiedQuarterlyExtendedManager
 from .dm_trade_date import TradeDateMapManager
 from .dm_daily import DailyDataManager
 from .dm_stock_basic import BasicStockDataManager
+from .dm_xrxd import XrxdManager
+from .dm_global_progress import GlobalDownloadProgressManager
 from .dm_utils import get_nearest_trade_date_before
 from .dm_columns import (
     KlineUnifiedColumns,
     StockBasicColumns,
-    StockDailyColumns
+    StockDailyColumns,
+    StockXrxdColumns
 )
 
 __all__ = [
@@ -21,8 +24,11 @@ __all__ = [
     'TradeDateMapManager',
     'DailyDataManager',
     'BasicStockDataManager',
+    'XrxdManager',
+    'GlobalDownloadProgressManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedColumns',
     'StockBasicColumns',
-    'StockDailyColumns'
+    'StockDailyColumns',
+    'StockXrxdColumns'
 ]

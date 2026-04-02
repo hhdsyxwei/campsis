@@ -1,0 +1,27 @@
+-- 股票分红送配表
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('stock_xrxd') | safe }}` (
+  `{{ col_id | default('id') | safe }}` INT NOT NULL AUTO_INCREMENT,
+  `{{ col_std_stock_code | default('std_stock_code') | safe }}` VARCHAR(10) NOT NULL,
+  `{{ col_xrxd_year | default('xrxd_year') | safe }}` INT NOT NULL,
+  `{{ col_xrxd_pre_notice_date | default('xrxd_pre_notice_date') | safe }}` DATE,
+  `{{ col_xrxd_agm_pum_date | default('xrxd_agm_pum_date') | safe }}` DATE,
+  `{{ col_xrxd_plan_announce_date | default('xrxd_plan_announce_date') | safe }}` DATE,
+  `{{ col_xrxd_plan_date | default('xrxd_plan_date') | safe }}` DATE,
+  `{{ col_xrxd_regist_date | default('xrxd_regist_date') | safe }}` DATE,
+  `{{ col_xrxd_operate_date | default('xrxd_operate_date') | safe }}` DATE,
+  `{{ col_xrxd_pay_date | default('xrxd_pay_date') | safe }}` DATE,
+  `{{ col_xrxd_stock_market_date | default('xrxd_stock_market_date') | safe }}` DATE,
+  `{{ col_xrxd_cash_ps_before_tax | default('xrxd_cash_ps_before_tax') | safe }}` DECIMAL(10,4),
+  `{{ col_xrxd_cash_ps_after_tax | default('xrxd_cash_ps_after_tax') | safe }}` DECIMAL(10,4),
+  `{{ col_xrxd_stocks_ps | default('xrxd_stocks_ps') | safe }}` DECIMAL(10,4),
+  `{{ col_xrxd_cash_stock | default('xrxd_cash_stock') | safe }}` VARCHAR(200),
+  `{{ col_xrxd_reserve_to_stock_ps | default('xrxd_reserve_to_stock_ps') | safe }}` DECIMAL(10,4),
+  `{{ col_create_time | default('create_time') | safe }}` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `{{ col_update_time | default('update_time') | safe }}` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`{{ pk_col | default('id') | safe }}`),
+  UNIQUE KEY `uk_stock_year` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`, `{{ col_xrxd_year | default('xrxd_year') | safe }}`),
+  INDEX `idx_xrxd_year` (`{{ col_xrxd_year | default('xrxd_year') | safe }}`),
+  INDEX `idx_std_stock_code` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票分红送配表';
+
+

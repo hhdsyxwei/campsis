@@ -30,11 +30,28 @@ TURNOVER_RATE = "turnover_rate"
 PE = "pe"
 PB = "pb"
 
+# 分红送配数据列名
+XRXD_YEAR = "xrxd_year"
+XRXD_PRE_NOTICE_DATE = "xrxd_pre_notice_date"
+XRXD_AGM_PUM_DATE = "xrxd_agm_pum_date"
+XRXD_PLAN_ANNOUNCE_DATE = "xrxd_plan_announce_date"
+XRXD_PLAN_DATE = "xrxd_plan_date"
+XRXD_REGIST_DATE = "xrxd_regist_date"
+XRXD_OPERATE_DATE = "xrxd_operate_date"
+XRXD_PAY_DATE = "xrxd_pay_date"
+XRXD_STOCK_MARKET_DATE = "xrxd_stock_market_date"
+XRXD_CASH_PS_BEFORE_TAX = "xrxd_cash_ps_before_tax"
+XRXD_CASH_PS_AFTER_TAX = "xrxd_cash_ps_after_tax"
+XRXD_STOCKS_PS = "xrxd_stocks_ps"
+XRXD_CASH_STOCK = "xrxd_cash_stock"
+XRXD_RESERVE_TO_STOCK_PS = "xrxd_reserve_to_stock_ps"
+CREATE_TIME = "create_time"
+UPDATE_TIME = "update_time"
+
 # 下载进度列名
 DOWNLOADING_STOCK_CODE = "downloading_stock_code"
 DOWNLOADING_TIME_FRAME = "downloading_time_frame"
 DOWNLOADING_QUARTER = "downloading_quarter"
-UPDATE_TIME = "update_time"
 
 # 区块状态列名
 QUARTER = "quarter"
@@ -77,3 +94,22 @@ class StockDailyColumns:
     TURNOVER_RATE = TURNOVER_RATE
     PE = PE
     PB = PB
+
+class StockXrxdColumns:
+    STD_STOCK_CODE = STD_STOCK_CODE
+    XRXD_YEAR = XRXD_YEAR
+    XRXD_PRE_NOTICE_DATE = XRXD_PRE_NOTICE_DATE
+    XRXD_AGM_PUM_DATE = XRXD_AGM_PUM_DATE
+    XRXD_PLAN_ANNOUNCE_DATE = XRXD_PLAN_ANNOUNCE_DATE
+    XRXD_PLAN_DATE = XRXD_PLAN_DATE
+    XRXD_REGIST_DATE = XRXD_REGIST_DATE
+    XRXD_OPERATE_DATE = XRXD_OPERATE_DATE
+    XRXD_PAY_DATE = XRXD_PAY_DATE
+    XRXD_STOCK_MARKET_DATE = XRXD_STOCK_MARKET_DATE
+    XRXD_CASH_PS_BEFORE_TAX = XRXD_CASH_PS_BEFORE_TAX
+    XRXD_CASH_PS_AFTER_TAX = XRXD_CASH_PS_AFTER_TAX
+    XRXD_STOCKS_PS = XRXD_STOCKS_PS
+    XRXD_CASH_STOCK = XRXD_CASH_STOCK
+    XRXD_RESERVE_TO_STOCK_PS = XRXD_RESERVE_TO_STOCK_PS
+    CREATE_TIME = CREATE_TIME
+    UPDATE_TIME = UPDATE_TIME
