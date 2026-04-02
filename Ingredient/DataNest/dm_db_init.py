@@ -43,12 +43,13 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "trade_date_map": f"{database_dir}/init/01_table_trade_date_map.sql.j2",
         "stock_basic": f"{database_dir}/init/02_table_stock_basic.sql.j2",
         "stock_daily": f"{database_dir}/init/03_table_stock_daily.sql.j2",
+        "stock_xrxd": f"{database_dir}/init/04_table_stock_xrxd.sql.j2",
         # "kline_1min": "./init/04_table_kline_1min.sql",
         # 统一K线表
         "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql.j2",
         "kline_block_status": f"{database_dir}/init/UnifiedKLine/02_table_kline_block_status.sql.j2",
         "stock_fixed_seq": f"{database_dir}/init/UnifiedKLine/03_stock_fixed_seq.sql.j2",
-        "kline_download_progress": f"{database_dir}/init/UnifiedKLine/04_kline_download_progress.sql.j2",
+        "global_download_progress": f"{database_dir}/init/UnifiedKLine/04_global_download_progress.sql.j2",
         "download_task_config": f"{database_dir}/init/UnifiedKLine/05_download_task_config.sql.j2",
     }
 

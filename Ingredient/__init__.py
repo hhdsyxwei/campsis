@@ -10,9 +10,11 @@ from .DataNest import (
     TradeDateMapManager,
     DailyDataManager,
     BasicStockDataManager,
+    XrxdManager,
     KlineUnifiedColumns,
     StockBasicColumns,
     StockDailyColumns,
+    StockXrxdColumns,
     get_nearest_trade_date_before
 )
 
@@ -28,10 +30,12 @@ __all__ = [
     'TradeDateMapManager',
     'DailyDataManager',
     'BasicStockDataManager',
+    'XrxdManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedColumns',
     'StockBasicColumns',
     'StockDailyColumns',
+    'StockXrxdColumns',
     # 下载器
     'KLineDownloader'
 ]
