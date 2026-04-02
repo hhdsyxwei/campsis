@@ -1,0 +1,12 @@
+-- 下载任务配置表 DDL
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('download_task_config') }}` (
+  `{{ col_id | default('id') }}` int NOT NULL AUTO_INCREMENT COMMENT '自增ID',
+  `{{ col_time_frame | default('time_frame') }}` VARCHAR(20) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '时间周期：1min/5min/daily等',
+  `{{ col_start_year | default('start_year') }}` int NOT NULL COMMENT '起始年份',
+  `{{ col_end_year | default('end_year') }}` int NOT NULL COMMENT '结束年份',
+  `{{ col_is_enabled | default('is_enabled') }}` tinyint(1) DEFAULT '1' COMMENT '是否启用：1-是 0-否',
+  `{{ col_create_time | default('create_time') }}` datetime DEFAULT CURRENT_TIMESTAMP,
+  `{{ col_update_time | default('update_time') }}` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`{{ col_id | default('id') }}`),
+  UNIQUE KEY `uk_time_frame` (`{{ col_time_frame | default('time_frame') }}`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='下载任务配置表';

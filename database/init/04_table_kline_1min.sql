@@ -4,7 +4,7 @@ CREATE TABLE kline_1min (
     -- 主键（自增，用于唯一标识每条记录）
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     -- 核心标识字段
-    stock_code VARCHAR(20) NOT NULL COMMENT '证券代码，格式：sh.600000 / sz.000001',
+    std_stock_code VARCHAR(20) NOT NULL COMMENT '证券代码，格式：sh.600000 / sz.000001',
     frequency TINYINT NOT NULL COMMENT 'K线频率：5=5分钟，15=15分钟，30=30分钟，60=60分钟',
     -- 时间字段（拆分存储，方便查询）
     trade_date DATE NOT NULL COMMENT '交易日期，格式：YYYY-MM-DD',

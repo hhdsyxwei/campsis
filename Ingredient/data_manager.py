@@ -30,11 +30,11 @@ class KLineUnifiedQuarterlyExtendedManager:
     def __init__(self, conn):
         self.conn = conn
 
-    def set_downloading_block(self, stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
+    def set_downloading_block(self, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
         """
         设置当前下载的区块信息（更新kline_download_progress表）
         Args:
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
         
@@ -42,7 +42,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             设置是否成功
         """
         func_name = "set_downloading_block"
-        logger.debug(f"[{__name__}.{func_name}] 开始设置下载区块: {stock_code} {time_frame.value} {quarter}")
+        logger.debug(f"[{__name__}.{func_name}] 开始设置下载区块: {std_stock_code} {time_frame.value} {quarter}")
         
         cursor = None
         try:
@@ -57,10 +57,10 @@ class KLineUnifiedQuarterlyExtendedManager:
                     downloading_time_frame = VALUES(downloading_time_frame),
                     downloading_quarter = VALUES(downloading_quarter),
                     update_time = CURRENT_TIMESTAMP
-            """, (stock_code, time_frame.value, quarter))
+            """, (std_stock_code, time_frame.value, quarter))
             
             self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] 成功设置下载区块: {stock_code} {time_frame.value} {quarter}")
+            logger.debug(f"[{__name__}.{func_name}] 成功设置下载区块: {std_stock_code} {time_frame.value} {quarter}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 设置下载区块失败: {str(e)}")
@@ -114,14 +114,14 @@ class KLineUnifiedQuarterlyExtendedManager:
             # 🔥 一条 SQL 搞定所有场景：性能最优
             # ==============================================
             sql = """
-                SELECT stock_code
+                SELECT std_stock_code
                 FROM stock_fixed_seq
                 WHERE
                     -- 传入 None：取所有数据
                     (%s IS NULL)
                     OR
                     -- 传入股票代码：取 id 比当前大的
-                    id > (SELECT id FROM stock_fixed_seq WHERE stock_code = %s)
+                    id > (SELECT id FROM stock_fixed_seq WHERE std_stock_code = %s)
                 ORDER BY id ASC
                 LIMIT 1
             """
@@ -129,8 +129,8 @@ class KLineUnifiedQuarterlyExtendedManager:
             result = cursor.fetchone()
 
             if result:
-                logger.debug(f"[{__name__}.{func_name}] 获取到下一只股票: {result['stock_code']}")
-                return result['stock_code']
+                logger.debug(f"[{__name__}.{func_name}] 获取到下一只股票: {result['std_stock_code']}")
+                return result['std_stock_code']
             else:
                 logger.debug(f"[{__name__}.{func_name}] 无下一只股票 / 表为空，返回None")
                 return None
@@ -142,19 +142,19 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def save_kline_data_unified(self, stock_code: str, df: pd.DataFrame) -> bool:
+    def save_kline_data_unified(self, std_stock_code: str, df: pd.DataFrame) -> bool:
         """
         保存统一格式的K线数据
         
         Args:
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             df: K线数据，包含time_frame, timestamp等字段
         
         Returns:
             保存是否成功
         """
         func_name = "save_kline_data_unified"
-        logger.debug(f"[{__name__}.{func_name}] 开始保存 {len(df)} 条统一格式K线数据 for {stock_code}")
+        logger.debug(f"[{__name__}.{func_name}] 开始保存 {len(df)} 条统一格式K线数据 for {std_stock_code}")
 
         cursor = None
         try:
@@ -162,7 +162,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             records = []
             for _, row in df.iterrows():
                 records.append((
-                    stock_code,
+                    std_stock_code,
                     row['time_frame'],
                     row['timestamp'],
                     row['open_price'],
@@ -181,7 +181,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             # 执行批量插入
             sql = """
             INSERT INTO kline_unified_quarterly_extended 
-            (stock_code, time_frame, timestamp, open_price, high_price, low_price, close_price, volume, turnover)
+            (std_stock_code, time_frame, timestamp, open_price, high_price, low_price, close_price, volume, turnover)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 open_price = VALUES(open_price), 
@@ -196,39 +196,39 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor.executemany(sql, records)
             self.conn.commit()
             
-            logger.debug(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {stock_code}")
+            logger.debug(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {std_stock_code}")
             return True
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 保存数据失败 for {stock_code}: {str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 保存数据失败 for {std_stock_code}: {str(e)}")
             self.conn.rollback()
             return False
         finally:
             if cursor:
                 cursor.close()
 
-    def get_kline_block_status(self, quarter: str, stock_code: str, time_frame: KLinePeriod) -> str:
+    def get_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> str:
         """
         获取K线下载状态
         
         Args:
             quarter: 季度，格式如 '2024-Q1'
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             time_frame: 时间周期
         
         Returns:
             状态字符串: 'completed' 或 'not_completed'
         """
         func_name = "get_kline_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 查询 {stock_code} {time_frame} {quarter} 的下载状态")
+        logger.debug(f"[{__name__}.{func_name}] 查询 {std_stock_code} {time_frame} {quarter} 的下载状态")
         
         cursor = None
         try:
             cursor = self.conn.cursor()
             query = """
             SELECT status FROM kline_block_status 
-            WHERE quarter = %s AND stock_code = %s AND time_frame = %s
+            WHERE quarter = %s AND std_stock_code = %s AND time_frame = %s
             """
-            cursor.execute(query, (quarter, stock_code, time_frame.value))
+            cursor.execute(query, (quarter, std_stock_code, time_frame.value))
             result = cursor.fetchone()
             
             if result:
@@ -242,25 +242,25 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def update_kline_block_status(self, quarter: str, stock_code: str, time_frame: KLinePeriod, status: str):
+    def update_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: str):
         """
         更新K线下载进度（统一格式）
         
         Args:
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
             status: 状态，'completed' 或 'not_completed'
         """
         func_name = "update_kline_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 更新 {quarter} {stock_code} {time_frame.value}  的状态为: {status}")
+        logger.debug(f"[{__name__}.{func_name}] 更新 {quarter} {std_stock_code} {time_frame.value}  的状态为: {status}")
         
         cursor = None
         try:
             cursor = self.conn.cursor()
             # 使用INSERT ... ON DUPLICATE KEY UPDATE来处理记录存在与否的情况
             query = """
-            INSERT INTO kline_block_status (quarter, stock_code, time_frame,  status, completed_at) 
+            INSERT INTO kline_block_status (quarter, std_stock_code, time_frame,  status, completed_at) 
             VALUES (%s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE 
             status = VALUES(status),
@@ -271,10 +271,10 @@ class KLineUnifiedQuarterlyExtendedManager:
             """
 
             completed_at = datetime.now() if status == 'completed' else None
-            cursor.execute(query, (quarter, stock_code, time_frame.value, status, completed_at))
+            cursor.execute(query, (quarter, std_stock_code, time_frame.value, status, completed_at))
             self.conn.commit()
             
-            logger.debug(f"[{__name__}.{func_name}] {quarter} {stock_code} {time_frame.value}  的状态已更新为: {status}")
+            logger.debug(f"[{__name__}.{func_name}] {quarter} {std_stock_code} {time_frame.value}  的状态已更新为: {status}")
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 更新进度失败: {str(e)}")
             self.conn.rollback()
@@ -283,12 +283,12 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_quarter_data_count(self, stock_code: str, time_frame: KLinePeriod, quarter: str) -> int:
+    def get_quarter_data_count(self, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> int:
         """
         获取指定股票、时间周期和季度的数据条数
         
         Args:
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
         
@@ -296,7 +296,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             数据条数
         """
         func_name = "get_quarter_data_count"
-        logger.debug(f"[{__name__}.{func_name}] 查询 {stock_code} {time_frame.value} {quarter} 的数据条数")
+        logger.debug(f"[{__name__}.{func_name}] 查询 {std_stock_code} {time_frame.value} {quarter} 的数据条数")
         
         # 解析季度得到日期范围
         year, q = quarter.split('-Q')
@@ -324,13 +324,13 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor = self.conn.cursor()
             sql = """
             SELECT COUNT(*) FROM kline_unified_quarterly_extended 
-            WHERE stock_code = %s AND time_frame = %s 
+            WHERE std_stock_code = %s AND time_frame = %s 
             AND timestamp >= %s AND timestamp <= %s
             """
-            cursor.execute(sql, (stock_code, time_frame.value, start_date, end_date))
+            cursor.execute(sql, (std_stock_code, time_frame.value, start_date, end_date))
             count = cursor.fetchone()[0]
             
-            logger.debug(f"[{__name__}.{func_name}] {stock_code} {time_frame.value} {quarter} 的数据条数: {count}")
+            logger.debug(f"[{__name__}.{func_name}] {std_stock_code} {time_frame.value} {quarter} 的数据条数: {count}")
             return count
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询数据条数失败: {str(e)}")
@@ -339,7 +339,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_completed_block_total_count(self, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+    def get_completed_block_total_count(self, start_year: Optional[int] = None, end_year: Optional[int] = None, time_frame: Optional[str] = None) -> int:
         """
         查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
@@ -347,6 +347,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         Args:
             start_year: 可选，起始年份（如2024），不传则不限制起始年份
             end_year: 可选，结束年份（如2025），不传则不限制结束年份
+            time_frame: 可选，时间周期，不传则不限制
 
         Returns:
             状态为completed的区块总数
@@ -354,7 +355,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         func_name = "get_completed_block_total_count"
         logger.debug(
             f"[{__name__}.{func_name}] 查询completed状态区块总数，年份范围："
-            f"start_year={start_year}, end_year={end_year}"
+            f"start_year={start_year}, end_year={end_year}, time_frame={time_frame}"
         )
 
         cursor = None
@@ -365,18 +366,24 @@ class KLineUnifiedQuarterlyExtendedManager:
             WHERE status = 'completed'
             """
             params = []
+            conditions = []
 
             # 动态添加年份范围过滤条件（解析quarter字段的年份部分）
-            year_conditions = []
+            # 注意：包含 start_year，不包含 end_year（惯例：[start_year, end_year)）
             if start_year is not None:
-                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) >= %s")
+                conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) >= %s")
                 params.append(start_year)
             if end_year is not None:
-                year_conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) <= %s")
+                conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) < %s")
                 params.append(end_year)
+            
+            # 动态添加time_frame过滤条件
+            if time_frame is not None:
+                conditions.append("time_frame = %s")
+                params.append(time_frame)
 
-            if year_conditions:
-                sql += " AND " + " AND ".join(year_conditions)
+            if conditions:
+                sql += " AND " + " AND ".join(conditions)
 
             # 执行查询
             cursor = self.conn.cursor()
@@ -458,7 +465,7 @@ class KLineUnifiedQuarterlyExtendedManager:
 
             # 批量插入 SQL（仅插入 stock_code，ID 由数据库自增）
             insert_sql = """
-            INSERT INTO stock_fixed_seq (stock_code)
+            INSERT INTO stock_fixed_seq (std_stock_code)
             VALUES (%s)
             """
             cursor.executemany(insert_sql, standardized_data)
@@ -840,7 +847,7 @@ class DataManager:
 
         Args:
             db_conn: 数据库连接
-            stock_data: 股票数据列表，每个元素为元组(stock_code, stock_name)，例如 [('000001', '平安银行'), ...]
+            stock_data: 股票数据列表，每个元素为元组(std_stock_code, stock_name)，例如 [('000001', '平安银行'), ...]
 
         Returns:
             操作是否成功
@@ -873,13 +880,13 @@ class DataManager:
             return 0
 
     @staticmethod
-    def save_kline_data_unified(db_conn, stock_code: str, df: pd.DataFrame) -> bool:
+    def save_kline_data_unified(db_conn, std_stock_code: str, df: pd.DataFrame) -> bool:
         """
         保存统一格式的K线数据
         
         Args:
             db_conn: 数据库连接
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             df: K线数据，包含time_frame, timestamp等字段
         
         Returns:
@@ -888,19 +895,19 @@ class DataManager:
         func_name = "save_kline_data_unified"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.save_kline_data_unified(stock_code, df)
+            return manager.save_kline_data_unified(std_stock_code, df)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return False
 
     @staticmethod
-    def get_kline_block_status(db_conn, quarter: str, stock_code: str, time_frame: KLinePeriod) -> str:
+    def get_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> str:
         """
         获取K线下载状态
         
         Args:
             db_conn: 数据库连接
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
         
@@ -910,19 +917,19 @@ class DataManager:
         func_name = "get_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_kline_block_status(quarter, stock_code, time_frame)
+            return manager.get_kline_block_status(quarter, std_stock_code, time_frame)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return 'not_completed'
 
     @staticmethod
-    def update_kline_block_status(db_conn, quarter: str, stock_code: str, time_frame: KLinePeriod, status: str):
+    def update_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: str):
         """
         更新K线下载进度（统一格式）
         
         Args:
             db_conn: 数据库连接
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
             status: 状态，'completed' 或 'not_completed'
@@ -930,19 +937,19 @@ class DataManager:
         func_name = "update_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.update_kline_block_status(quarter, stock_code, time_frame, status)
+            return manager.update_kline_block_status(quarter, std_stock_code, time_frame, status)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return None
 
     @staticmethod
-    def get_quarter_data_count(db_conn, stock_code: str, time_frame: KLinePeriod, quarter: str) -> int:
+    def get_quarter_data_count(db_conn, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> int:
         """
         获取指定股票、时间周期和季度的数据条数
         
         Args:
             db_conn: 数据库连接
-            stock_code: 股票代码
+            std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
         
@@ -952,26 +959,27 @@ class DataManager:
         func_name = "get_quarter_data_count"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_quarter_data_count(stock_code, time_frame, quarter)
+            return manager.get_quarter_data_count(std_stock_code, time_frame, quarter)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return 0
 
     @staticmethod
-    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None) -> int:
+    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, time_frame: Optional[str] = None) -> int:
         """查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
         Args:
             db_conn: 数据库连接
             start_year: 可选，起始年份（如2024），不传则不限制起始年份
             end_year: 可选，结束年份（如2025），不传则不限制结束年份
+            time_frame: 可选，时间周期，不传则不限制
         Returns:
             状态为completed的区块总数
         """
         func_name = "get_completed_block_total_count"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_completed_block_total_count(start_year, end_year)
+            return manager.get_completed_block_total_count(start_year, end_year, time_frame)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return 0
@@ -1051,12 +1059,12 @@ class DataManager:
             return []
 
     @staticmethod
-    def get_stock_listing_date(db_conn, stock_code: str) -> tuple[Optional[str], Optional[str]]:
+    def get_stock_listing_date(db_conn, std_stock_code: str) -> tuple[Optional[str], Optional[str]]:
         """
         便捷调用BasicStockDataManager的get_stock_listing_date方法
         返回：(上市日期，退市日期)
         """
-        return BasicStockDataManager(db_conn).get_stock_listing_date(stock_code)
+        return BasicStockDataManager(db_conn).get_stock_listing_date(std_stock_code)
 
 # ================= 工具函数 =================
 def get_existing_stock_codes_set(conn) -> set:
@@ -1228,11 +1236,11 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "stock_daily": f"{database_dir}/init/03_table_stock_daily.sql.j2",
         # "kline_1min": "./init/04_table_kline_1min.sql",
         # 统一K线表
-        "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql",
-        "kline_block_status": f"{database_dir}/init/UnifiedKLine/02_table_kline_block_status.sql",
-        "stock_fixed_seq": f"{database_dir}/init/UnifiedKLine/03_stock_fixed_seq.sql",
-        "kline_download_progress": f"{database_dir}/init/UnifiedKLine/04_kline_download_progress.sql",
-        "download_task_config": f"{database_dir}/init/UnifiedKLine/05_download_task_config.sql",
+        "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql.j2",
+        "kline_block_status": f"{database_dir}/init/UnifiedKLine/02_table_kline_block_status.sql.j2",
+        "stock_fixed_seq": f"{database_dir}/init/UnifiedKLine/03_stock_fixed_seq.sql.j2",
+        "kline_download_progress": f"{database_dir}/init/UnifiedKLine/04_kline_download_progress.sql.j2",
+        "download_task_config": f"{database_dir}/init/UnifiedKLine/05_download_task_config.sql.j2",
     }
 
     cursor = None

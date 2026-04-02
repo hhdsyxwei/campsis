@@ -64,7 +64,7 @@ download_kline函数的要求如下：
 2. 根据我的下载器设计思路，请生成kline_unified_quarterly_extended表的设计思路，由我决定是否生成数据库表的DDL
 
 #### kline_unified_quarterly_extended表设计要求：
-1. 以(stock_code, time_frame, timestamp)为主键
+1. 以(std_stock_code, time_frame, timestamp)为主键
 2. 去除当前需求不涉及的字段，简化表设计
 3. 预建2024-2028年所有季度分区，便于按季度查询和管理数据生命周期
 4. 与kline_download_progress表配合，确保下载单元的完整性

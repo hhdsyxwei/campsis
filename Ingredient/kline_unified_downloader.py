@@ -63,12 +63,8 @@ class KLineDownloader:
             logger.warning(f"[{__name__}.{self.func_name}] 起始年份{start_year} >= 结束年份{end_year}，季度数为0")
             return 0
         
-        # 计算完整年份的季度数 + 剩余年份的季度数
-        full_years = end_year - start_year - 1
-        full_quarters = full_years * 4
-        
-        # 总季度数 = 完整年份季度数 + 结束年的全部季度（因为end_year是不包含的）
-        total_quarters = full_quarters + 4
+        # 总季度数 = (结束年份 - 起始年份) × 4
+        total_quarters = (end_year - start_year) * 4
         
         logger.debug(
             f"[{__name__}.{self.func_name}] 年份范围[{start_year}-{end_year}) 季度总数：{total_quarters}"
@@ -109,8 +105,6 @@ class KLineDownloader:
         # 检查是否超出范围
         if next_year >= end_year:
             return None
-        if next_year == end_year - 1 and next_q > 4:
-            return None
 
         return f"{next_year}-Q{next_q}"
 
@@ -137,14 +131,14 @@ class KLineDownloader:
     # 核心规则：股票上市/退市时间校验
     # -------------------------------------------------------------------------
     def _is_time_range_overlap_with_listing_period(
-        self, stock_code: str, start_date: str, end_date: str
+        self, std_stock_code: str, start_date: str, end_date: str
     ) -> Tuple[bool, Optional[str], Optional[str]]:
         self.func_name = "_is_time_range_overlap_with_listing_period"
-        listing_date, delist_date = dm.get_stock_listing_date(self.db_conn, stock_code)
+        listing_date, delist_date = dm.get_stock_listing_date(self.db_conn, std_stock_code)
 
         # 无上市日期直接跳过
         if not listing_date:
-            logger.debug(f"[{__name__}.{self.func_name}] {stock_code} 无上市日期，跳过")
+            logger.debug(f"[{__name__}.{self.func_name}] {std_stock_code} 无上市日期，跳过")
             return False, None, None
 
         # 日期转换
@@ -186,18 +180,28 @@ class KLineDownloader:
 
         df["time_frame"] = time_frame.value
         df["timestamp"] = pd.to_datetime(df["timestamp"])
+        
+        # 转换数值列
         numeric_cols = ["open_price", "high_price", "low_price", "close_price", "volume", "turnover"]
         for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-
+        
+        # 处理数值列的NaN
+        # 价格相关列：保留NaN（使用可空浮点类型）
+        price_cols = ["open_price", "high_price", "low_price", "close_price", "turnover"]
+        for col in price_cols:
+            df[col] = df[col].astype("Float64")
+        
+        # 成交量：NaN填充为0
         df["volume"] = df["volume"].fillna(0).astype("Int64")
+        
         df = df.dropna(subset=["timestamp"])
         return df
 
     def _get_downloading_block(self) -> Optional[Tuple[str, str, KLinePeriod]]:
         """
         获取当前正在下载的区块（如果有）
-        :return: (quarter, stock_code, time_frame) 或 None（无正在下载的区块）
+        :return: (quarter, std_stock_code, time_frame) 或 None（无正在下载的区块）
         """
         return dm.get_downloading_block(self.db_conn)
 
@@ -261,35 +265,35 @@ class KLineDownloader:
     # -------------------------------------------------------------------------
     # 最小下载单元：下载单个区块
     # -------------------------------------------------------------------------
-    def _fetch_kline_block(self, quarter: str, stock_code: str, time_frame: KLinePeriod):
+    def _fetch_kline_block(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod):
         self.func_name = "_fetch_kline_block"
-        logger.debug(f"[{__name__}.{self.func_name}] 处理: {quarter} | {stock_code} | {time_frame}")
+        logger.debug(f"[{__name__}.{self.func_name}] 处理: {quarter} | {std_stock_code} | {time_frame}")
 
         # ========== 1. 参数校验 ==========
         if not isinstance(quarter, str) or "-Q" not in quarter:
             raise ValueError(f"无效季度: {quarter}")
-        if not stock_code:
+        if not std_stock_code:
             raise ValueError("股票代码不能为空")
 
-        # ========== 2. 上市时间校验 ==========
-        s_date, e_date = self._quarter_to_date_range(quarter)
-        is_ok, real_s, real_e = self._is_time_range_overlap_with_listing_period(stock_code, s_date, e_date)
-        if not is_ok:
-            dm.update_kline_block_status(self.db_conn, quarter, stock_code, time_frame, BLOCK_COMPLETED)
-            logger.debug(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {stock_code} {quarter}")
+        # ========== 2. 检查是否已完成 ==========
+        status = dm.get_kline_block_status(self.db_conn, quarter, std_stock_code, time_frame)
+        if status == BLOCK_COMPLETED:
+            logger.debug(f"[{__name__}.{self.func_name}] 已完成，跳过: {std_stock_code} {quarter}")
             return
 
-        # ========== 3. 检查是否已完成 ==========
-        status = dm.get_kline_block_status(self.db_conn, quarter, stock_code, time_frame)
-        if status == BLOCK_COMPLETED:
-            logger.debug(f"[{__name__}.{self.func_name}] 已完成，跳过: {stock_code} {quarter}")
+        # ========== 3. 上市时间校验 ==========
+        s_date, e_date = self._quarter_to_date_range(quarter)
+        is_ok, real_s, real_e = self._is_time_range_overlap_with_listing_period(std_stock_code, s_date, e_date)
+        if not is_ok:
+            dm.update_kline_block_status(self.db_conn, quarter, std_stock_code, time_frame, BLOCK_COMPLETED)
+            logger.debug(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {std_stock_code} {quarter}")
             return
 
         # ========== 4. 下载数据（假定已登录baostock） ==========
-        logger.debug(f"[{__name__}.{self.func_name}] 下载: {stock_code} {real_s} ~ {real_e}")
+        logger.debug(f"[{__name__}.{self.func_name}] 下载: {std_stock_code} {real_s} ~ {real_e}")
         freq = bsw.convert_kline_period_to_baostock_freq(time_frame)
         res = query_history_k_data_plus(
-            code=stock_code,
+            code=std_stock_code,
             fields="date,open,high,low,close,volume,amount",
             start_date=real_s,
             end_date=real_e,
@@ -299,7 +303,7 @@ class KLineDownloader:
 
         # 网络/服务异常直接抛出
         if res.error_code != "0":
-            raise Exception(f"baostock下载失败 {stock_code} {quarter}: {res.error_msg}")
+            raise Exception(f"baostock下载失败 {std_stock_code} {quarter}: {res.error_msg}")
 
         # ========== 5. 清洗数据 ==========
         df = self._clean_kline_data(res.get_data(), time_frame)
@@ -307,14 +311,14 @@ class KLineDownloader:
         # ========== 6. 保存数据 ==========
         if not df.empty:
             ok = dm.save_kline_data_unified(
-                self.db_conn, stock_code, df
+                self.db_conn, std_stock_code, df
             )
             if not ok:
-                raise Exception(f"数据保存失败: {stock_code} {quarter}")
+                raise Exception(f"数据保存失败: {std_stock_code} {quarter}")
 
         # ========== 7. 更新状态为完成 ==========
-        dm.update_kline_block_status(self.db_conn, quarter, stock_code, time_frame, BLOCK_COMPLETED)
-        logger.debug(f"[{__name__}.{self.func_name}] 完成: {stock_code} {quarter}")
+        dm.update_kline_block_status(self.db_conn, quarter, std_stock_code, time_frame, BLOCK_COMPLETED)
+        logger.debug(f"[{__name__}.{self.func_name}] 完成: {std_stock_code} {quarter}")
 
     # -------------------------------------------------------------------------
     # 【类内唯一对外入口】主下载流程
@@ -323,33 +327,43 @@ class KLineDownloader:
         """
         类内核心下载接口：无列表、动态查找、断点续传
         """
-        func_name = "download_kline"
-        logger.debug(f"[{__name__}.{func_name}] 启动下载: {start_year}-{end_year} {time_frame.value}")
+        self.func_name = "download_kline"
+        logger.debug(f"[{__name__}.{self.func_name}] 启动下载: {start_year}-{end_year} {time_frame.value}")
+
+        # 预先计算总区块数（仅计算一次）
+        block_total = self._calc_total_blocks(start_year, end_year, time_frame)
 
         # 步骤1：优先恢复中断的下载区块
         next_block = self._get_downloading_block()
-        logger.debug(f"[{__name__}.{func_name}] 启动前：当前下载区块: {next_block}")
+        logger.debug(f"[{__name__}.{self.func_name}] 启动前：当前下载区块: {next_block}")
 
         # 步骤2：无中断区块则获取第一个待下载区块
         if not next_block:
             next_block = self._get_next_block(start_year, end_year, None, None, time_frame)
-        logger.debug(f"[{__name__}.{func_name}] 启动后：第一个下载区块: {next_block}")
+        logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
 
         # 核心循环：有下一个区块则执行下载
         while next_block:
-            quarter, stock_code, time_frame = next_block
+            quarter, std_stock_code, time_frame = next_block
             try:
-                self._fetch_kline_block(quarter, stock_code, time_frame)
-                next_block = self._get_next_block(start_year, end_year, quarter, stock_code, time_frame)
-                dm.set_downloading_block(self.db_conn, stock_code, time_frame, quarter) # 更新当前下载区块指针
-                block_total = self._calc_total_blocks(start_year, end_year, time_frame)
-                completed_blocks = dm.get_completed_block_total_count(self.db_conn, time_frame)
-                logger.info(f"已下载区块总数：{completed_blocks}/{block_total}({completed_blocks/block_total*100:.2f}%) | 当前区块: {quarter} {stock_code} {time_frame.value}")
+                # 先更新下载指针，确保中断后能从正确位置恢复
+                dm.set_downloading_block(self.db_conn, std_stock_code, time_frame, quarter)
+                # 执行下载
+                self._fetch_kline_block(quarter, std_stock_code, time_frame)
+                # 获取下一个区块
+                next_block = self._get_next_block(start_year, end_year, quarter, std_stock_code, time_frame)
+                # 记录进度
+                completed_blocks = dm.get_completed_block_total_count(self.db_conn, start_year, end_year, time_frame.value)
+                if block_total > 0:
+                    progress = completed_blocks / block_total * 100
+                else:
+                    progress = 0.0
+                logger.info(f"已下载区块总数：{completed_blocks}/{block_total}({progress:.2f}%) | 当前区块: {quarter} {std_stock_code} {time_frame.value}")
             except Exception as e:
-                logger.error(f"[{__name__}.{func_name}] 下载失败: {quarter} {stock_code}, {str(e)}")
+                logger.error(f"[{__name__}.{self.func_name}] 下载失败: {quarter} {std_stock_code}, {str(e)}")
                 raise  # 异常向上抛出
 
-        logger.debug(f"[{__name__}.{func_name}] 全部下载完成")
+        logger.debug(f"[{__name__}.{self.func_name}] 全部下载完成")
 
 # ===================== 全局唯一对外接口函数 =====================
 def download_kline(db_conn, start_year: int, end_year: int, time_frame: KLinePeriod):
