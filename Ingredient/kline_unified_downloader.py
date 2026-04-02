@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_history_k_data_plus
 from KitchenBase.baostock_wrapper import BaostockWrapper as bsw
-from Ingredient.data_manager import DataManager as dm
+from Ingredient.DataNest import UnifiedDataManager as dm
 from KitchenBase.stock_enums import KLinePeriod
 
 # ===================== 全局配置 =====================

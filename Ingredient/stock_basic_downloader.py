@@ -6,7 +6,7 @@ import baostock as bs
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import MarketType
 from KitchenBase.download_utils import baostock_code_to_market, convert_baostock_code  # 导入工具函数
-from Ingredient.data_manager import BasicStockDataManager  # 确保导入
+from Ingredient.DataNest import BasicStockDataManager  # 确保导入
 
 # 初始化日志
 logger = get_logger(__name__)
