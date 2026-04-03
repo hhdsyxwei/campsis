@@ -12,14 +12,14 @@ from .dm_columns import (
     QUARTER, STATUS, COMPLETED_AT,
     KlineUnifiedColumns as KUC
 )
-from .dm_global_progress import GlobalDownloadProgressManager
+from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
 
 logger = get_logger(__name__)
 
 class KLineUnifiedQuarterlyExtendedManager:
     def __init__(self, conn):
         self.conn = conn
-        self.progress_manager = GlobalDownloadProgressManager(conn)
+        self.progress_manager = GlobalDlCtrlBlockManager(conn)
 
     def set_downloading_block(self, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
         """
@@ -35,16 +35,20 @@ class KLineUnifiedQuarterlyExtendedManager:
         """
         func_name = "set_downloading_block"
         logger.debug(f"[{__name__}.{func_name}] 委托设置下载区块: {std_stock_code} {time_frame.value} {quarter}")
-        return self.progress_manager.set_kline_progress(std_stock_code, time_frame, quarter)
+        return self.progress_manager.set_kline_progress(quarter, std_stock_code, time_frame)
 
-    def get_downloading_block(self) -> Optional[Tuple[str, str, KLinePeriod]]:
+    def get_downloading_block(self) -> Optional[Tuple[str, KLinePeriod, str]]:
         """
         获取当前下载的区块信息（股票代码、时间周期、季度）
-        委托给 GlobalDownloadProgressManager 处理
+        委托给 GlobalDlCtrlBlockManager 处理
         """
         func_name = "get_downloading_block"
         logger.debug(f"[{__name__}.{func_name}] 委托获取下载区块")
-        return self.progress_manager.get_kline_progress()
+        result = self.progress_manager.get_kline_progress()
+        if result:
+            quarter, stock_code, time_frame, _, _, _ = result
+            return (stock_code, time_frame, quarter)
+        return None
 
     def get_next_stock_in_fixed_seq(self, current_stock_code: Optional[str]) -> Optional[str]:
         """
@@ -61,7 +65,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor = self.conn.cursor(pymysql.cursors.DictCursor)
 
             # ==============================================
-            # 🔥 一条 SQL 搞定所有场景：性能最优
+            #  一条 SQL 搞定所有场景：性能最优
             # ==============================================
             sql = """
                 SELECT std_stock_code
