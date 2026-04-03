@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 import baostock as bs
-from Ingredient.DataNest import XrxdManager, BasicStockDataManager, UnifiedDataManager as dm
+from Ingredient.DataNest import XrxdManager, BasicStockDataManager, UnifiedDataManager as dm, GlobalDlCtrlBlockManager
 
 # ===================== 全局配置 =====================
 logger = get_logger(__name__)
@@ -18,6 +18,7 @@ class XrxdDownloader:
         """
         self.db_conn = db_conn
         self.func_name = ""
+        self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
 
     def _calc_total_tasks(self, start_year: int, end_year: int) -> int:
         """
@@ -281,14 +282,16 @@ class XrxdDownloader:
         获取当前正在下载的任务（如果有）
         :return: (year, stock_code) 或 None（无正在下载的任务）
         """
-        cursor = self.db_conn.cursor()
         try:
-            sql = "SELECT primary_pointer_value, secondary_pointer_value FROM global_download_progress WHERE task_type = 'xrxd'"
-            cursor.execute(sql)
-            result = cursor.fetchone()
-            return (result[0], result[1]) if result else None
-        finally:
-            cursor.close()
+            result = self.progress_manager.get_xrxd_progress()
+            if result:
+                year, stock_code, _, _, _ = result
+                if year > 0 and stock_code:
+                    return (year, stock_code)
+            return None
+        except Exception as e:
+            logger.error(f"[{__name__}._get_downloading_task] 获取下载任务失败: {str(e)}")
+            return None
 
     def _save_download_progress(self, year: int, stock_code: str):
         """
@@ -296,35 +299,56 @@ class XrxdDownloader:
         :param year: 年份
         :param stock_code: 股票代码
         """
-        cursor = self.db_conn.cursor()
         try:
-            sql = """
-            INSERT INTO global_download_progress (task_type, primary_pointer_name, primary_pointer_value, secondary_pointer_name, secondary_pointer_value, update_time)
-            VALUES ('xrxd', 'year', %s, 'stock_code', %s, CURRENT_TIMESTAMP)
-            ON DUPLICATE KEY UPDATE
-                primary_pointer_name = VALUES(primary_pointer_name),
-                primary_pointer_value = VALUES(primary_pointer_value),
-                secondary_pointer_name = VALUES(secondary_pointer_name),
-                secondary_pointer_value = VALUES(secondary_pointer_value),
-                update_time = CURRENT_TIMESTAMP
-            """
-            cursor.execute(sql, (year, stock_code))
-            self.db_conn.commit()
-        finally:
-            cursor.close()
+            self.progress_manager.set_xrxd_progress(year, stock_code)
+        except Exception as e:
+            logger.error(f"[{__name__}._save_download_progress] 保存进度失败: {str(e)}")
 
     # -------------------------------------------------------------------------
     # 【类内唯一对外入口】主下载流程
     # -------------------------------------------------------------------------
-    def download_xrxd(self, start_year: int, end_year: int):
+    def get_download_status(self) -> str:
+        """
+        获取当前下载状态
+        :return: 下载状态描述
+        """
+        # 步骤1：检查任务是否存在
+        task_exists = self.progress_manager.task_exists('xrxd')
+        
+        if not task_exists:
+            return "下载未开始"
+        
+        # 步骤2：检查指针是否为空
+        pointer_empty = self.progress_manager.is_download_pointer_empty('xrxd')
+        
+        if pointer_empty:
+            return "下载已完成"
+        else:
+            # 步骤3：获取当前任务
+            task = self._get_downloading_task()
+            if task:
+                year, stock_code = task
+                return f"下载进行中: {year} {stock_code}"
+            return "下载进行中"
+
+
+    def download_xrxd(self, start_year: int, end_year: int) -> bool:
         """
         类内核心下载接口：无列表、动态查找、断点续传
+        :return: True 表示全部下载完成，False 表示未完成
         """
         self.func_name = "download_xrxd"
         logger.debug(f"[{__name__}.{self.func_name}] 启动下载: {start_year}-{end_year}")
 
-        # 预先计算总任务数（仅计算一次）
-        total_tasks = self._calc_total_tasks(start_year, end_year)
+        # 步骤0：检查下载状态
+        status = self.get_download_status()
+        if status == "下载已完成":
+            logger.info(f"[{__name__}.{self.func_name}] 下载已完成，无需重复执行")
+            return True
+        elif status == "下载进行中":
+            logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
+        else:  # 下载未开始
+            logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
 
         # 步骤1：优先恢复中断的下载任务
         next_task = self._get_downloading_task()
@@ -334,9 +358,6 @@ class XrxdDownloader:
         if not next_task:
             next_task = self._get_next_task(start_year, end_year, None, None)
         logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载任务: {next_task}")
-
-        # 初始化计数器
-        completed_tasks = 0
 
         # 核心循环：有下一个任务则执行下载
         while next_task:
@@ -349,29 +370,60 @@ class XrxdDownloader:
                 # 获取下一个任务
                 next_task = self._get_next_task(start_year, end_year, year, stock_code)
                 # 记录进度
-                completed_tasks += 1
-                if total_tasks > 0:
-                    progress = completed_tasks / total_tasks * 100
-                else:
-                    progress = 0.0
-                logger.info(f"已完成任务数：{completed_tasks}/{total_tasks}({progress:.2f}%) | 当前任务: {year} {stock_code}")
+                logger.info(f"完成任务: {year} {stock_code}")
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出
 
-        logger.debug(f"[{__name__}.{self.func_name}] 全部下载完成")
+        # 下载完成，清空下载指针
+        self.progress_manager.clear_download_pointer('xrxd')
+        logger.debug(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
+        return True
+
+    def download_xrxd_from_scratch(self, start_year: int, end_year: int) -> bool:
+        """
+        从头开始下载（删除之前的下载记录）
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（包含）
+        :return: True 表示全部下载完成，False 表示未完成
+        """
+        self.func_name = "download_xrxd_from_scratch"
+        logger.info(f"[{__name__}.{self.func_name}] 开始从头下载: {start_year}-{end_year}")
+        
+        # 步骤1：删除任务记录
+        self.progress_manager.delete_task('xrxd')
+        logger.debug(f"[{__name__}.{self.func_name}] 已删除任务记录")
+        
+        # 步骤2：调用普通下载方法
+        return self.download_xrxd(start_year, end_year)
 
 # ===================== 全局唯一对外接口函数 =====================
-def download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None):
+def download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
     """
     【全局唯一对外接口】
     使用者只需调用此函数，无需关心内部类实现
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
+    :return: True 表示全部下载完成，False 表示未完成
     """
     if end_year is None:
         end_year = datetime.now().year
     
     downloader = XrxdDownloader(db_conn)
-    downloader.download_xrxd(start_year, end_year)
+    return downloader.download_xrxd(start_year, end_year)
+
+def download_xrxd_from_scratch(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
+    """
+    【全局唯一对外接口】
+    从头开始下载（清空之前的下载进度）
+    :param db_conn: 使用者创建的数据库连接
+    :param start_year: 起始年份（包含）
+    :param end_year: 结束年份（包含，默认当前年份）
+    :return: True 表示全部下载完成，False 表示未完成
+    """
+    if end_year is None:
+        end_year = datetime.now().year
+    
+    downloader = XrxdDownloader(db_conn)
+    return downloader.download_xrxd_from_scratch(start_year, end_year)

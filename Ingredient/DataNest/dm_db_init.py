@@ -49,7 +49,7 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql.j2",
         "kline_block_status": f"{database_dir}/init/UnifiedKLine/02_table_kline_block_status.sql.j2",
         "stock_fixed_seq": f"{database_dir}/init/UnifiedKLine/03_stock_fixed_seq.sql.j2",
-        "global_download_progress": f"{database_dir}/init/UnifiedKLine/04_global_download_progress.sql.j2",
+        "global_dl_ctrl_block": f"{database_dir}/init/UnifiedKLine/04_global_dl_ctrl_block.sql.j2",
         "download_task_config": f"{database_dir}/init/UnifiedKLine/05_download_task_config.sql.j2",
     }
 
