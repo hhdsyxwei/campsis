@@ -79,10 +79,10 @@ class XrxdDownloader:
         return next_year if next_year <= end_year else None
 
     # -------------------------------------------------------------------------
-    # 【核心】动态查找：下一个待下载任务（无列表、纯数据库驱动）
+    # 【核心】动态查找：下一个待下载区块（无列表、纯数据库驱动）
     #  当前排序规则：年份(旧→新) → 股票固定顺序
     # -------------------------------------------------------------------------
-    def _get_next_task(
+    def _get_next_block(
         self, 
         start_year: int, 
         end_year: int, 
@@ -90,15 +90,21 @@ class XrxdDownloader:
         current_stock: Optional[str] = None
     ) -> Optional[Tuple[int, str]]:
         """
-        仅推动任务指针向前，找到下一个待处理任务（不判断下载状态）
+        仅推动区块指针向前，找到下一个待处理区块（不判断下载状态）
+        
+        区块概念：
+        - 一个区块代表一个股票在一个年份的数据
+        - 区块排序规则：先按年份升序，同一年内按stock_fixed_seq表顺序
+        - 区块序号计算公式：(year - start_year) * 股票总数 + 股票在序列中的位置
+        
         迭代规则：年份升序 → 股票固定顺序（stock_fixed_seq表）
         :param start_year: 起始年份（包含）
         :param end_year: 结束年份（包含）
         :param current_year: 当前年份（首次调用传None，从start_year开始）
         :param current_stock: 当前股票（首次调用传None，从第一个股票开始）
-        :return: (next_year, next_stock) 或 None（无更多任务）
+        :return: (next_year, next_stock) 或 None（无更多区块）
         """
-        self.func_name = "_get_next_task"
+        self.func_name = "_get_next_block"
 
         # ========== 步骤1：初始化起始年份（首次调用） ==========
         if current_year is None:
@@ -242,13 +248,18 @@ class XrxdDownloader:
 
         return df
 
-    def _fetch_xrxd_task(self, year: int, stock_code: str):
+    def _fetch_xrxd_block(self, year: int, stock_code: str):
         """
-        处理单个分红送配数据下载任务
+        处理单个分红送配数据下载区块
+        
+        区块概念：
+        - 区块是一只股票在一个年份中的数据集合
+        - 每个区块由 (年份, 股票代码) 唯一标识
+        
         :param year: 年份
         :param stock_code: 股票代码
         """
-        self.func_name = "_fetch_xrxd_task"
+        self.func_name = "_fetch_xrxd_block"
         logger.debug(f"[{__name__}.{self.func_name}] 处理: {year} | {stock_code}")
 
         # ========== 1. 下载数据 ==========
@@ -273,10 +284,15 @@ class XrxdDownloader:
 
         logger.debug(f"[{__name__}.{self.func_name}] 完成: {stock_code} {year}")
 
-    def _get_downloading_task(self) -> Optional[Tuple[int, str]]:
+    def _get_downloading_block(self) -> Optional[Tuple[int, str]]:
         """
-        获取当前正在下载的任务（如果有）
-        :return: (year, stock_code) 或 None（无正在下载的任务）
+        获取当前正在下载的区块（如果有）
+        
+        区块概念：
+        - 区块是一只股票在一个年份中的数据集合
+        - 每个区块由 (年份, 股票代码) 唯一标识
+        
+        :return: (year, stock_code) 或 None（无正在下载的区块）
         """
         try:
             result = self.progress_manager.get_xrxd_progress()
@@ -286,7 +302,7 @@ class XrxdDownloader:
                     return (year, stock_code)
             return None
         except Exception as e:
-            logger.error(f"[{__name__}._get_downloading_task] 获取下载任务失败: {str(e)}")
+            logger.error(f"[{__name__}._get_downloading_block] 获取下载区块失败: {str(e)}")
             return None
 
     def _save_download_progress(self, year: int, stock_code: str):
@@ -320,10 +336,10 @@ class XrxdDownloader:
         if pointer_empty:
             return "下载已完成"
         else:
-            # 步骤3：获取当前任务
-            task = self._get_downloading_task()
-            if task:
-                year, stock_code = task
+            # 步骤3：获取当前区块
+            block = self._get_downloading_block()
+            if block:
+                year, stock_code = block
                 return f"下载进行中: {year} {stock_code}"
             return "下载进行中"
 
@@ -365,13 +381,13 @@ class XrxdDownloader:
             logger.debug(f"[{__name__}.{self.func_name}] 下载已完成，返回总区块数: {total_blocks}")
             return total_blocks
         
-        # 步骤5：获取当前下载任务
-        task = self._get_downloading_task()
-        if not task:
-            logger.warning(f"[{__name__}.{self.func_name}] 无法获取当前下载任务")
+        # 步骤5：获取当前下载区块
+        block = self._get_downloading_block()
+        if not block:
+            logger.warning(f"[{__name__}.{self.func_name}] 无法获取当前下载区块")
             return None
         
-        year, stock_code = task
+        year, stock_code = block
         
         # 步骤6：验证年份范围
         if year < start_year or year >= end_year:
@@ -394,12 +410,12 @@ class XrxdDownloader:
         return block_position
 
 
-    def download_xrxd(self, start_year: int, end_year: int) -> bool:
+    def continue_download_xrxd(self, start_year: int, end_year: int) -> bool:
         """
         类内核心下载接口：无列表、动态查找、断点续传
         :return: True 表示全部下载完成，False 表示未完成
         """
-        self.func_name = "download_xrxd"
+        self.func_name = "continue_download_xrxd"
         logger.debug(f"[{__name__}.{self.func_name}] 启动下载: {start_year}-{end_year}")
 
         # 步骤0：检查下载状态
@@ -416,33 +432,33 @@ class XrxdDownloader:
         total_blocks = self._calc_total_blocks(start_year, end_year)
         logger.info(f"[{__name__}.{self.func_name}] 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
 
-        # 步骤2：优先恢复中断的下载任务
-        next_task = self._get_downloading_task()
-        logger.debug(f"[{__name__}.{self.func_name}] 启动前：当前下载任务: {next_task}")
+        # 步骤2：优先恢复中断的下载区块
+        next_block = self._get_downloading_block()
+        logger.debug(f"[{__name__}.{self.func_name}] 启动前：当前下载区块: {next_block}")
 
-        # 步骤3：无中断任务则获取第一个待下载任务
-        if not next_task:
-            next_task = self._get_next_task(start_year, end_year, None, None)
-        logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载任务: {next_task}")
+        # 步骤3：无中断任务则获取第一个待下载区块
+        if not next_block:
+            next_block = self._get_next_block(start_year, end_year, None, None)
+        logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
 
-        # 核心循环：有下一个任务则执行下载
-        while next_task:
-            year, stock_code = next_task
+        # 核心循环：有下一个区块则执行下载
+        while next_block:
+            year, stock_code = next_block
             try:
                 # 先更新下载指针，确保中断后能从正确位置恢复
                 self._save_download_progress(year, stock_code)
                 # 执行下载
-                self._fetch_xrxd_task(year, stock_code)
-                # 获取下一个任务
-                next_task = self._get_next_task(start_year, end_year, year, stock_code)
+                self._fetch_xrxd_block(year, stock_code)
+                # 获取下一个区块
+                next_block = self._get_next_block(start_year, end_year, year, stock_code)
                 # 记录进度
-                logger.info(f"完成任务: {year} {stock_code}")
+                logger.info(f"XRXD数据下载完成区块: {year} {stock_code}")
                 
                 # 输出下载进度（基于当前下载指针位置）
                 current_position = self._get_download_pointer_position(start_year, end_year)
                 if current_position is not None and total_blocks > 0:
                     progress_percent = (current_position / total_blocks) * 100
-                    logger.info(f"下载进度: {progress_percent:.2f}% ({current_position}/{total_blocks})")
+                    logger.info(f"XRXD数据下载进度: {progress_percent:.2f}% ({current_position}/{total_blocks})")
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出
@@ -452,14 +468,14 @@ class XrxdDownloader:
         logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True
 
-    def download_xrxd_from_scratch(self, start_year: int, end_year: int) -> bool:
+    def start_new_xrxd_download(self, start_year: int, end_year: int) -> bool:
         """
         从头开始下载（删除之前的下载记录）
         :param start_year: 起始年份（包含）
         :param end_year: 结束年份（包含）
         :return: True 表示全部下载完成，False 表示未完成
         """
-        self.func_name = "download_xrxd_from_scratch"
+        self.func_name = "start_new_xrxd_download"
         logger.info(f"[{__name__}.{self.func_name}] 开始从头下载: {start_year}-{end_year}")
         
         # 步骤1：删除任务记录
@@ -467,13 +483,26 @@ class XrxdDownloader:
         logger.debug(f"[{__name__}.{self.func_name}] 已删除任务记录")
         
         # 步骤2：调用普通下载方法
-        return self.download_xrxd(start_year, end_year)
+        return self.continue_download_xrxd(start_year, end_year)
 
 # ===================== 全局唯一对外接口函数 =====================
-def download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
+def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
     """
-    【全局唯一对外接口】
-    使用者只需调用此函数，无需关心内部类实现
+    【全局唯一对外接口】继续下载分红送配数据（支持断点续传）
+    
+    功能说明：
+    - 从上次中断的位置继续下载分红送配数据
+    - 支持断点续传，自动恢复下载进度
+    - 按照年份和股票代码的顺序下载数据
+    - 自动处理下载过程中的异常
+    
+    下载流程：
+    1. 检查下载状态（未开始、进行中、已完成）
+    2. 计算总区块数
+    3. 优先恢复中断的下载区块
+    4. 按顺序下载所有区块
+    5. 完成后清空下载指针
+    
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
@@ -483,12 +512,24 @@ def download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None) -> b
         end_year = datetime.now().year
     
     downloader = XrxdDownloader(db_conn)
-    return downloader.download_xrxd(start_year, end_year)
+    return downloader.continue_download_xrxd(start_year, end_year)
 
-def download_xrxd_from_scratch(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
+def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
     """
-    【全局唯一对外接口】
-    从头开始下载（清空之前的下载进度）
+    【全局唯一对外接口】开始新的分红送配数据下载任务（清空之前的下载进度）
+    
+    功能说明：
+    - 清空之前的下载进度记录
+    - 从头开始下载指定年份范围的分红送配数据
+    - 按照年份和股票代码的顺序下载数据
+    - 自动处理下载过程中的异常
+    
+    下载流程：
+    1. 删除之前的任务记录
+    2. 调用继续下载方法开始新的下载任务
+    3. 按照年份和股票代码的顺序下载所有区块
+    4. 完成后清空下载指针
+    
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
@@ -498,4 +539,4 @@ def download_xrxd_from_scratch(db_conn, start_year: int, end_year: Optional[int]
         end_year = datetime.now().year
     
     downloader = XrxdDownloader(db_conn)
-    return downloader.download_xrxd_from_scratch(start_year, end_year)
+    return downloader.start_new_xrxd_download(start_year, end_year)

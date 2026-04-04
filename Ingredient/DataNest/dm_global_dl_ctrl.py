@@ -2,6 +2,22 @@
 """
 全局下载控制块管理模块
 集中管理对 global_dl_ctrl_block 表的访问
+区块概念：
+- 区块代表一定范围的下载集合
+- 每个区块包含多个年份和多个股票的下载任务
+- 区块排序规则：
+  1. 先按年份升序（从start_year到end_year-1）
+  2. 同一年内按stock_fixed_seq表的顺序
+任务概念：
+- 任务代表一定范围的区块集合
+- 一个任务通常对应一个完整的下载任务，包含多个年份和多个股票的区块
+- 任务类型（task_type）用于区分不同的数据下载任务，如 'xrxd'、'kline' 等
+- 任务状态通过下载指针来跟踪，指针指向当前正在下载的区块
+指针概念：
+- 指针用于跟踪当前正在下载的区块
+- 每个任务有一个独立的指针，用于记录当前下载的区块
+- 指针包含 primary_name, primary_value, secondary_name, secondary_value, tertiary_name, tertiary_value 等字段
+- 指针包含 startup_params, completed_blocks, total_blocks 等字段
 """
 from typing import Optional, Tuple, Dict, Any
 import pymysql
@@ -357,6 +373,13 @@ class GlobalDlCtrlBlockManager:
     def task_exists(self, task_type: str) -> bool:
         """
         查询指定类型的任务是否存在
+        
+        任务概念：
+        - 任务代表一定范围的区块集合
+        - 一个任务通常对应一个完整的下载任务，包含多个年份和多个股票的区块
+        - 任务类型（task_type）用于区分不同的数据下载任务，如 'xrxd'、'kline' 等
+        - 任务状态通过下载指针来跟踪，指针指向当前正在下载的区块
+        
         :param task_type: 任务类型
         :return: True 表示任务存在，False 表示任务不存在
         """
