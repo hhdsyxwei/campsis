@@ -22,7 +22,7 @@
 from typing import Optional, Tuple, Dict, Any
 import pymysql
 from KitchenBase.logger_config import get_logger
-from KitchenBase.stock_enums import KLinePeriod
+from KitchenBase.stock_enums import KLinePeriod, DlTaskStatus
 
 logger = get_logger(__name__)
 
@@ -331,6 +331,49 @@ class GlobalDlCtrlBlockManager:
                 return None
         return None
 
+    # -------------------------------------------------------------------------
+    def set_adjustment_factor_progress(self, year: int, stock_code: str, 
+                                     startup_params: Optional[Dict] = None, 
+                                     completed_blocks: int = 0, 
+                                     total_blocks: int = 0) -> bool:
+        """
+        设置复权因子下载进度
+        :param year: 年份
+        :param stock_code: 股票代码
+        :param startup_params: 启动参数
+        :param completed_blocks: 已下载区块数量
+        :param total_blocks: 区块总数量
+        :return: 是否成功
+        """
+        pointers = {
+            'primary_name': 'year',
+            'primary_value': str(year),
+            'secondary_name': 'stock_code',
+            'secondary_value': stock_code,
+            'tertiary_name': '',
+            'tertiary_value': ''
+        }
+        return self.write_progress('adjustment_factor', pointers, startup_params, completed_blocks, total_blocks)
+
+    def get_adjustment_factor_progress(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
+        """
+        获取复权因子下载进度
+        :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
+        """
+        progress = self.read_progress('adjustment_factor')
+        if progress:
+            try:
+                year = int(progress['primary_value']) if progress['primary_value'] else 0
+                stock_code = progress['secondary_value']
+                startup_params = progress['startup_params']
+                completed_blocks = progress['completed_blocks']
+                total_blocks = progress['total_blocks']
+                return (year, stock_code, startup_params, completed_blocks, total_blocks)
+            except (ValueError, KeyError) as e:
+                logger.warning(f"[{__name__}.get_adjustment_factor_progress] 进度数据格式错误: {str(e)}")
+                return None
+        return None
+
     def clear_download_pointer(self, task_type: str) -> bool:
         """
         将下载指针设置为空
@@ -410,3 +453,61 @@ class GlobalDlCtrlBlockManager:
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 判断下载指针失败: {str(e)}")
             return False
+
+    def set_task_status(self, task_type: str, status: DlTaskStatus) -> bool:
+        """
+        设置指定任务类型的状态
+        :param task_type: 任务类型
+        :param status: 任务状态
+        :return: 是否成功
+        """
+        func_name = "set_task_status"
+        try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("""
+                INSERT INTO global_dl_ctrl_block 
+                (task_type, task_status, update_time)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE
+                    task_status = VALUES(task_status),
+                    update_time = CURRENT_TIMESTAMP
+            """, (task_type, status.value))
+            self.conn.commit()
+            logger.debug(f"[{__name__}.{func_name}] 任务状态设置成功: {task_type} -> {status.value}")
+            return True
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 任务状态设置失败: {str(e)}")
+            return False
+        finally:
+            if 'cursor' in locals() and cursor:
+                cursor.close()
+
+    def get_task_status(self, task_type: str) -> Optional[DlTaskStatus]:
+        """
+        获取指定任务类型的状态
+        :param task_type: 任务类型
+        :return: 任务状态或None
+        """
+        func_name = "get_task_status"
+        try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("""
+                SELECT task_status
+                FROM global_dl_ctrl_block 
+                WHERE task_type = %s 
+                LIMIT 1
+            """, (task_type,))
+            result = cursor.fetchone()
+            if result and result['task_status']:
+                try:
+                    return DlTaskStatus(result['task_status'])
+                except ValueError:
+                    logger.warning(f"[{__name__}.{func_name}] 任务状态值无效: {result['task_status']}")
+                    return None
+            return None
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 任务状态获取失败: {str(e)}")
+            return None
+        finally:
+            if 'cursor' in locals() and cursor:
+                cursor.close()

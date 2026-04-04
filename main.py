@@ -18,6 +18,7 @@ from Ingredient.trade_date_map_downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from Ingredient.stock_basic_downloader import download_stock_basic
 from Ingredient.xrxd_downloader import start_new_xrxd_download, continue_download_xrxd
+from Ingredient.adjustment_factor_downloader import start_new_adjustment_factor_download, continue_download_adjustment_factor
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 # os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
@@ -65,8 +66,12 @@ def main():
         #download_kline(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
 
         # 6. 第四步：下载分红送配数据
-        # start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
-        continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
+        start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
+        # continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
+
+        # 7. 第五步：下载复权因子数据
+        start_new_adjustment_factor_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的复权因子数据
+        # continue_download_adjustment_factor(conn, 2020, 2025)  # 继续下载2020-2025年的复权因子数据
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息

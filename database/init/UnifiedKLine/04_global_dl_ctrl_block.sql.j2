@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS `{{ table_name | default('global_dl_ctrl_block') | safe }}` (
   `{{ col_id | default('id') | safe }}` TINYINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   `{{ col_task_type | default('task_type') | safe }}` VARCHAR(20) NOT NULL COMMENT '任务类型（如：kline、xrxd、daily等）',
+  `{{ col_task_status | default('task_status') | safe }}` VARCHAR(32) DEFAULT NULL COMMENT '任务状态',
   `{{ col_primary_pointer_name | default('primary_pointer_name') | safe }}` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '主进度指示器名称（如：quarter、year、date等）',
   `{{ col_primary_pointer_value | default('primary_pointer_value') | safe }}` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '主进度指示器值（如：2024-Q1、2024、2024-01-01等）',
   `{{ col_secondary_pointer_name | default('secondary_pointer_name') | safe }}` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '次级进度指示器名称（如：stock_code、code等）',

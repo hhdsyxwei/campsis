@@ -35,6 +35,13 @@ class AdjustType(Enum):
     FORWARD = "forward"    # 前复权（常用）
     BACKWARD = "backward"  # 后复权
 
+class DlTaskStatus(Enum):
+    """
+    下载任务状态枚举
+    """
+    NOT_STARTED = "not_started"  # 未开始
+    IN_PROGRESS = "in_progress"  # 正在进行中
+    COMPLETED = "completed"  # 已下载完成
 
 class MarketType(Enum):
     """定义股票/证券的市场类型枚举。"""

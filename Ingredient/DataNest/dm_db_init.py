@@ -44,6 +44,8 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "stock_basic": f"{database_dir}/init/02_table_stock_basic.sql.j2",
         "stock_daily": f"{database_dir}/init/03_table_stock_daily.sql.j2",
         "stock_xrxd": f"{database_dir}/init/04_table_stock_xrxd.sql.j2",
+        "stock_adjustment_factor": f"{database_dir}/init/05_table_stock_adjustment_factor.sql.j2",
+
         # "kline_1min": "./init/04_table_kline_1min.sql",
         # 统一K线表
         "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql.j2",
