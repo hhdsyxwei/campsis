@@ -235,3 +235,95 @@ def query_history_k_data_plus(
         timeout=timeout,
         max_retry=max_retry
     )
+
+
+def query_adjust_factor(
+    code: str,
+    start_date: str = "",
+    end_date: str = ""
+) -> Any:
+    """
+    简单封装baostock.query_adjust_factor接口
+    获取复权因子信息数据，BaoStock提供的是涨跌幅复权算法复权因子
+    
+    参数说明：
+    - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+    - start_date: 开始日期，为空时默认为2015-01-01，包含此日期
+    - end_date: 结束日期，为空时默认当前日期，包含此日期
+    
+    返回字段：
+    - code: 证券代码
+    - dividOperateDate: 除权除息日期
+    - foreAdjustFactor: 向前复权因子
+    - backAdjustFactor: 向后复权因子
+    - adjustFactor: 本次复权因子
+    
+    返回值：原生ResultData对象
+    """
+    current_func = "query_adjust_factor"
+    logger.debug(
+        f"[{current_func}] 查询复权因子 "
+        f"| 股票代码: {code} "
+        f"| 时间范围: {start_date or '2015-01-01'} - {end_date or '当前日期'}"
+    )
+    
+    result = bs.query_adjust_factor(
+        code=code,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+    return result
+
+
+def query_dividend_data(
+    code: str,
+    year: str,
+    yearType: str = "report"
+) -> Any:
+    """
+    简单封装baostock.query_dividend_data接口
+    获取除权除息信息数据（预披露、预案、正式都已通过）
+    
+    参数说明：
+    - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+    - year: 年份，如：2017
+    - yearType: 年份类别
+        - "report": 预案公告年份（默认）
+        - "operate": 除权除息年份
+    
+    返回字段：
+    - code: 证券代码
+    - dividPreNoticeDate: 预案公告日期
+    - dividAgmPumDate: 股东大会公告日期
+    - dividPlanAnnounceDate: 预案披露日期
+    - dividPlanDate: 预案日期
+    - dividRegistDate: 股权登记日期
+    - dividOperateDate: 除权除息日期
+    - dividPayDate: 派息日期
+    - dividStockMarketDate: 红股上市日期
+    - dividCashPsBeforeTax: 每股股利（税前）
+    - dividCashPsAfterTax: 每股股利（税后）
+    - dividStocksPs: 每股送股
+    - dividCashStock: 每股转增
+    - dividReserveToStockPs: 每股资本公积转增
+    
+    返回值：原生ResultData对象
+    """
+    current_func = "query_dividend_data"
+    logger.debug(
+        f"[{current_func}] 查询分红送配数据 "
+        f"| 股票代码: {code} "
+        f"| 年份: {year} "
+        f"| 年份类型: {yearType}"
+    )
+    
+    result = bs.query_dividend_data(
+        code=code,
+        year=year,
+        yearType=yearType
+    )
+    
+    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+    return result

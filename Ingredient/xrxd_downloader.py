@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
-import baostock as bs
+from KitchenBase.baostock_wrapper import query_dividend_data
 from Ingredient.DataNest import XrxdManager, BasicStockDataManager, UnifiedDataManager as dm, GlobalDlCtrlBlockManager
 
 # ===================== 全局配置 =====================
@@ -144,11 +144,10 @@ class XrxdDownloader:
         """
         self.func_name = "_download_raw_xrxd_data"
         try:
-            # 调用Baostock API获取分红送配数据
-            rs = bs.query_dividend_data(
+            rs = query_dividend_data(
                 code=stock_code,
                 year=str(year),
-                yearType="report"  # 预案公告年份
+                yearType="report"
             )
             
             # 检查API返回状态

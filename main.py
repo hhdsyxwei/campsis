@@ -65,8 +65,8 @@ def main():
         #download_kline(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
 
         # 6. 第四步：下载分红送配数据
-        # download_xrxd_from_scratch(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
-        download_xrxd(conn, 2026, 2026)  # 下载2026年的分红送配数据
+        download_xrxd_from_scratch(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
+        # download_xrxd(conn, 2026, 2026)  # 下载2026年的分红送配数据
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息
