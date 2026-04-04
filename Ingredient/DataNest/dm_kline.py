@@ -23,8 +23,8 @@ class KLineUnifiedQuarterlyExtendedManager:
 
     def set_downloading_block(self, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
         """
-        设置当前下载的区块信息（更新global_download_progress表）
-        委托给 GlobalDownloadProgressManager 处理
+        设置当前下载的区块信息（更新global_dl_ctrl_block表）
+        委托给 GlobalDlCtrlBlockManager 处理
         Args:
             std_stock_code: 股票代码
             time_frame: 时间周期

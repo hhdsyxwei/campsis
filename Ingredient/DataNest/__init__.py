@@ -25,7 +25,7 @@ __all__ = [
     'DailyDataManager',
     'BasicStockDataManager',
     'XrxdManager',
-    'GlobalDownloadProgressManager',
+    'GlobalDlCtrlBlockManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedColumns',
     'StockBasicColumns',
