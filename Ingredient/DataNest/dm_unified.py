@@ -4,6 +4,7 @@ from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
 from .dm_kline import KLineUnifiedQuarterlyExtendedManager
 from .dm_stock_basic import BasicStockDataManager
+from .dm_stock_seq import StockFixedSeqManager
 
 logger = get_logger(__name__)
 
@@ -20,10 +21,10 @@ class UnifiedDataManager:
         Returns:
             操作是否成功
         """
-        func_name = "insert_single_stock_code_for_seq"
+        func_name = "save_stock_fixed_seq"
         try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.save_stock_fixed_seq(records)
+            manager = StockFixedSeqManager(db_conn)
+            return manager.save_stock_codes(records)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return False
@@ -31,19 +32,18 @@ class UnifiedDataManager:
     @staticmethod
     def truncate_table_stock_fixed_seq(db_conn) -> bool:
         """
-        清空stock_fixed_seq表，然后写入新的股票代码和名称列表
+        清空stock_fixed_seq表
 
         Args:
             db_conn: 数据库连接
-            stock_data: 股票数据列表，每个元素为元组(std_stock_code, stock_name)，例如 [('000001', '平安银行'), ...]
 
         Returns:
             操作是否成功
         """
         func_name = "truncate_table_stock_fixed_seq"
         try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.truncate_table_stock_fixed_seq()
+            manager = StockFixedSeqManager(db_conn)
+            return manager.truncate_table()
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return False
@@ -61,8 +61,8 @@ class UnifiedDataManager:
         """
         func_name = "count_stocks_in_fixed_seq"
         try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.count_stocks_in_fixed_seq()
+            manager = StockFixedSeqManager(db_conn)
+            return manager.count_stocks()
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return 0
@@ -181,8 +181,8 @@ class UnifiedDataManager:
         """
 
         try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_next_stock_in_fixed_seq(current_stock)
+            manager = StockFixedSeqManager(db_conn)
+            return manager.get_next_stock(current_stock)
         except Exception as e:
             logger.error(f"[{__name__}.next_fixed_stock] 调用失败: {str(e)}")
             return None
@@ -253,3 +253,24 @@ class UnifiedDataManager:
         返回：(上市日期，退市日期)
         """
         return BasicStockDataManager(db_conn).get_stock_listing_date(std_stock_code)
+
+    @staticmethod
+    def get_stock_position(db_conn, stock_code: str) -> Optional[int]:
+        """
+        查询指定股票的顺序位置
+        首只股票顺序位置为0，后面依次增加
+        
+        Args:
+            db_conn: 数据库连接
+            stock_code: 股票代码
+            
+        Returns:
+            股票的顺序位置 | None（股票不存在）
+        """
+        func_name = "get_stock_position"
+        try:
+            manager = StockFixedSeqManager(db_conn)
+            return manager.get_stock_position(stock_code)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return None
