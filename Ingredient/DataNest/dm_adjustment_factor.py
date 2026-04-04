@@ -1,0 +1,196 @@
+# dm_adjustment_factor.py
+from typing import Optional, List
+import pandas as pd
+import numpy as np
+from KitchenBase.logger_config import get_logger
+
+# ===================== 全局配置 =====================
+logger = get_logger(__name__)
+
+# ===================== 复权因子数据管理器 =====================
+class AdjustmentFactorManager:
+    def __init__(self, db_conn):
+        """
+        初始化复权因子数据管理器
+        :param db_conn: 数据库连接
+        """
+        self.db_conn = db_conn
+        self.func_name = ""
+
+    def save_adjustment_factor_data(self, df: pd.DataFrame) -> bool:
+        """
+        保存复权因子数据到数据库
+        :param df: 复权因子数据DataFrame
+        :return: 是否保存成功
+        """
+        self.func_name = "save_adjustment_factor_data"
+        if df.empty:
+            logger.warning(f"[{__name__}.{self.func_name}] 空数据，无需保存")
+            return True
+
+        cursor = self.db_conn.cursor()
+        try:
+            # 构建插入/更新语句
+            sql = """
+            INSERT INTO stock_adjustment_factor (
+                std_stock_code, adjust_date, fore_adjust_factor, 
+                back_adjust_factor, adjust_factor
+            ) VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                fore_adjust_factor = VALUES(fore_adjust_factor),
+                back_adjust_factor = VALUES(back_adjust_factor),
+                adjust_factor = VALUES(adjust_factor)
+            """
+
+            # 准备数据，将NaN值转换为None
+            records = []
+            for _, row in df.iterrows():
+                def convert_value(val):
+                    """转换值：将NaN/NaT/空字符串转换为None"""
+                    if pd.isna(val):
+                        return None
+                    if isinstance(val, str) and val.strip() == '':
+                        return None
+                    if isinstance(val, (int, float, np.integer, np.floating)):
+                        if isinstance(val, float) and np.isnan(val):
+                            return None
+                    return val
+
+                records.append((
+                    row['std_stock_code'],
+                    convert_value(row.get('adjust_date')),
+                    convert_value(row.get('fore_adjust_factor')),
+                    convert_value(row.get('back_adjust_factor')),
+                    convert_value(row.get('adjust_factor'))
+                ))
+
+            # 执行批量插入/更新
+            if records:
+                cursor.executemany(sql, records)
+                self.db_conn.commit()
+                logger.info(f"[{__name__}.{self.func_name}] 成功保存 {len(records)} 条复权因子数据")
+            else:
+                logger.warning(f"[{__name__}.{self.func_name}] 无数据可保存")
+
+            return True
+        except Exception as e:
+            logger.error(f"[{__name__}.{self.func_name}] 保存复权因子数据失败: {str(e)}")
+            self.db_conn.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_adjustment_factor_by_stock(self, stock_code: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> pd.DataFrame:
+        """
+        获取指定股票的复权因子数据
+        :param stock_code: 股票代码
+        :param start_date: 开始日期（可选）
+        :param end_date: 结束日期（可选）
+        :return: 复权因子数据DataFrame
+        """
+        self.func_name = "get_adjustment_factor_by_stock"
+        cursor = self.db_conn.cursor()
+        try:
+            sql = """
+            SELECT 
+                std_stock_code, adjust_date, fore_adjust_factor, 
+                back_adjust_factor, adjust_factor
+            FROM stock_adjustment_factor
+            WHERE std_stock_code = %s
+            """
+            params = [stock_code]
+            
+            if start_date:
+                sql += " AND adjust_date >= %s"
+                params.append(start_date)
+            if end_date:
+                sql += " AND adjust_date <= %s"
+                params.append(end_date)
+            
+            sql += " ORDER BY adjust_date ASC"
+            
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            
+            # 构建DataFrame
+            columns = [
+                'std_stock_code', 'adjust_date', 'fore_adjust_factor', 
+                'back_adjust_factor', 'adjust_factor'
+            ]
+            df = pd.DataFrame(rows, columns=columns)
+            return df
+        except Exception as e:
+            logger.error(f"[{__name__}.{self.func_name}] 查询复权因子数据失败: {str(e)}")
+            return pd.DataFrame()
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_adjustment_factor_by_date(self, date: str) -> pd.DataFrame:
+        """
+        获取指定日期的复权因子数据
+        :param date: 日期（格式：YYYY-MM-DD）
+        :return: 复权因子数据DataFrame
+        """
+        self.func_name = "get_adjustment_factor_by_date"
+        cursor = self.db_conn.cursor()
+        try:
+            sql = """
+            SELECT 
+                std_stock_code, adjust_date, fore_adjust_factor, 
+                back_adjust_factor, adjust_factor
+            FROM stock_adjustment_factor
+            WHERE adjust_date = %s
+            ORDER BY std_stock_code
+            """
+            cursor.execute(sql, (date,))
+            rows = cursor.fetchall()
+            
+            # 构建DataFrame
+            columns = [
+                'std_stock_code', 'adjust_date', 'fore_adjust_factor', 
+                'back_adjust_factor', 'adjust_factor'
+            ]
+            df = pd.DataFrame(rows, columns=columns)
+            return df
+        except Exception as e:
+            logger.error(f"[{__name__}.{self.func_name}] 查询复权因子数据失败: {str(e)}")
+            return pd.DataFrame()
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_adjustment_factor_count(self, stock_code: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None) -> int:
+        """
+        获取复权因子数据数量
+        :param stock_code: 股票代码（可选）
+        :param start_date: 开始日期（可选）
+        :param end_date: 结束日期（可选）
+        :return: 数据数量
+        """
+        self.func_name = "get_adjustment_factor_count"
+        cursor = self.db_conn.cursor()
+        try:
+            sql = "SELECT COUNT(*) FROM stock_adjustment_factor WHERE 1=1"
+            params = []
+            
+            if stock_code:
+                sql += " AND std_stock_code = %s"
+                params.append(stock_code)
+            if start_date:
+                sql += " AND adjust_date >= %s"
+                params.append(start_date)
+            if end_date:
+                sql += " AND adjust_date <= %s"
+                params.append(end_date)
+            
+            cursor.execute(sql, params)
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        except Exception as e:
+            logger.error(f"[{__name__}.{self.func_name}] 查询复权因子数据数量失败: {str(e)}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()

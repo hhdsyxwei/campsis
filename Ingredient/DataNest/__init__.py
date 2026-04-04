@@ -7,7 +7,9 @@ from .dm_trade_date import TradeDateMapManager
 from .dm_daily import DailyDataManager
 from .dm_stock_basic import BasicStockDataManager
 from .dm_xrxd import XrxdManager
+from .dm_adjustment_factor import AdjustmentFactorManager
 from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
+from .dm_stock_seq import StockFixedSeqManager
 from .dm_utils import get_nearest_trade_date_before
 from .dm_columns import (
     KlineUnifiedColumns,
@@ -25,7 +27,9 @@ __all__ = [
     'DailyDataManager',
     'BasicStockDataManager',
     'XrxdManager',
-    'GlobalDownloadProgressManager',
+    'AdjustmentFactorManager',
+    'GlobalDlCtrlBlockManager',
+    'StockFixedSeqManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedColumns',
     'StockBasicColumns',

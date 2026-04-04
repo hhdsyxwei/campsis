@@ -1,0 +1,15 @@
+-- 股票复权因子表
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('stock_adjustment_factor') | safe }}` (
+  `{{ col_id | default('id') | safe }}` INT NOT NULL AUTO_INCREMENT,
+  `{{ col_std_stock_code | default('std_stock_code') | safe }}` VARCHAR(10) NOT NULL,
+  `{{ col_adjust_date | default('adjust_date') | safe }}` DATE NOT NULL,
+  `{{ col_fore_adjust_factor | default('fore_adjust_factor') | safe }}` DECIMAL(18,6) NOT NULL,
+  `{{ col_back_adjust_factor | default('back_adjust_factor') | safe }}` DECIMAL(18,6) NOT NULL,
+  `{{ col_adjust_factor | default('adjust_factor') | safe }}` DECIMAL(18,6) NOT NULL,
+  `{{ col_create_time | default('create_time') | safe }}` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `{{ col_update_time | default('update_time') | safe }}` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`{{ pk_col | default('id') | safe }}`),
+  UNIQUE KEY `uk_stock_date` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`, `{{ col_adjust_date | default('adjust_date') | safe }}`),
+  INDEX `idx_adjust_date` (`{{ col_adjust_date | default('adjust_date') | safe }}`),
+  INDEX `idx_std_stock_code` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票复权因子表';

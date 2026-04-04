@@ -151,7 +151,7 @@ def download_trade_date_map(
     # 结束日期：end_year - 1 年的 12月31日
     end_date = f"{end_year - 1}-12-31"
 
-    logger.info(f"按年下载范围：{start_year} ~ {end_year-1} 年（{start_date} ~ {end_date}）")
+    logger.info(f"交易日数据按年下载范围：{start_year} ~ {end_year-1} 年（{start_date} ~ {end_date}）")
 
     # 1. 校验日期范围
     if not _validate_date_range(start_date, end_date):
