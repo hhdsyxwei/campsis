@@ -20,31 +20,31 @@ class XrxdDownloader:
         self.func_name = ""
         self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
 
-    def _calc_total_tasks(self, start_year: int, end_year: int) -> int:
+    def _calc_total_blocks(self, start_year: int, end_year: int) -> int:
         """
-        内部函数：计算指定时间范围下需要下载的任务总数
-        计算逻辑：年份总数 × 股票总数 = 总任务数
+        内部函数：计算指定时间范围下需要下载的区块总数
+        计算逻辑：(结束年份 - 起始年份) × 股票总数 = 总区块数
         :param start_year: 起始年份（包含）
-        :param end_year: 结束年份（包含）
-        :return: 需要下载的任务总数
+        :param end_year: 结束年份（不包含）
+        :return: 需要下载的区块总数
         """
-        self.func_name = "_calc_total_tasks"
-        
-        # 步骤1：统计指定时间范围内的年份总数
-        year_count = end_year - start_year + 1
-        
+        self.func_name = "_calc_total_blocks"
+
+        # 步骤1：统计指定时间范围内的年份总数（不包含end_year）
+        year_count = end_year - start_year
+
         # 步骤2：统计stock_fixed_seq表中的股票总数
         stock_count = self._count_stocks_in_fixed_seq()
-        
-        # 步骤3：计算总任务数（年份数 × 股票数）
-        total_tasks = year_count * stock_count
-        
+
+        # 步骤3：计算总区块数（年份数 × 股票数）
+        total_blocks = year_count * stock_count
+
         logger.debug(
             f"[{__name__}.{self.func_name}] 统计结果："
-            f"年份范围[{start_year}-{end_year}] | 年份数={year_count} "
-            f"| 股票数={stock_count} | 总任务数={total_tasks}"
+            f"年份范围[{start_year}-{end_year-1}] | 年份数={year_count} "
+            f"| 股票数={stock_count} | 总区块数={total_blocks}"
         )
-        return total_tasks
+        return total_blocks
 
     def _count_stocks_in_fixed_seq(self) -> int:
         """
@@ -327,6 +327,72 @@ class XrxdDownloader:
                 return f"下载进行中: {year} {stock_code}"
             return "下载进行中"
 
+    def _get_download_pointer_position(self, start_year: int, end_year: int) -> Optional[int]:
+        """
+        获取当前下载指针的位置（区块序号）
+        
+        区块排序规则：
+        1. 先按年份升序（从start_year到end_year-1）
+        2. 同一年内按stock_fixed_seq表的顺序
+        
+        区块序号计算公式：
+        position = (year - start_year) * total_stocks + stock_position
+        
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
+        :return: 区块序号（从0开始），如果下载未开始则返回None，如果下载已完成返回总区块数
+        """
+        self.func_name = "get_download_pointer_position"
+        
+        # 步骤1：检查下载状态
+        status = self.get_download_status()
+        
+        if status == "下载未开始":
+            logger.debug(f"[{__name__}.{self.func_name}] 下载未开始，返回None")
+            return None
+        
+        # 步骤2：获取股票总数
+        total_stocks = self._count_stocks_in_fixed_seq()
+        if total_stocks == 0:
+            logger.warning(f"[{__name__}.{self.func_name}] 股票序列表为空")
+            return None
+        
+        # 步骤3：计算总区块数
+        total_blocks = (end_year - start_year) * total_stocks
+        
+        # 步骤4：如果下载已完成，返回总区块数
+        if status == "下载已完成":
+            logger.debug(f"[{__name__}.{self.func_name}] 下载已完成，返回总区块数: {total_blocks}")
+            return total_blocks
+        
+        # 步骤5：获取当前下载任务
+        task = self._get_downloading_task()
+        if not task:
+            logger.warning(f"[{__name__}.{self.func_name}] 无法获取当前下载任务")
+            return None
+        
+        year, stock_code = task
+        
+        # 步骤6：验证年份范围
+        if year < start_year or year >= end_year:
+            logger.warning(f"[{__name__}.{self.func_name}] 当前年份{year}不在范围[{start_year}, {end_year})内")
+            return None
+        
+        # 步骤7：获取股票在序列中的位置
+        stock_position = dm.get_stock_position(self.db_conn, stock_code)
+        if stock_position is None:
+            logger.warning(f"[{__name__}.{self.func_name}] 股票{stock_code}不在固定序列中")
+            return None
+        
+        # 步骤8：计算区块序号
+        year_offset = year - start_year
+        block_position = year_offset * total_stocks + stock_position
+        
+        logger.debug(f"[{__name__}.{self.func_name}] 计算结果: 年份{year}(偏移{year_offset}), "
+                    f"股票{stock_code}(位置{stock_position}), 区块序号={block_position}")
+        
+        return block_position
+
 
     def download_xrxd(self, start_year: int, end_year: int) -> bool:
         """
@@ -346,11 +412,15 @@ class XrxdDownloader:
         else:  # 下载未开始
             logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
 
-        # 步骤1：优先恢复中断的下载任务
+        # 步骤1：计算总区块数
+        total_blocks = self._calc_total_blocks(start_year, end_year)
+        logger.info(f"[{__name__}.{self.func_name}] 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
+
+        # 步骤2：优先恢复中断的下载任务
         next_task = self._get_downloading_task()
         logger.debug(f"[{__name__}.{self.func_name}] 启动前：当前下载任务: {next_task}")
 
-        # 步骤2：无中断任务则获取第一个待下载任务
+        # 步骤3：无中断任务则获取第一个待下载任务
         if not next_task:
             next_task = self._get_next_task(start_year, end_year, None, None)
         logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载任务: {next_task}")
@@ -367,13 +437,19 @@ class XrxdDownloader:
                 next_task = self._get_next_task(start_year, end_year, year, stock_code)
                 # 记录进度
                 logger.info(f"完成任务: {year} {stock_code}")
+                
+                # 输出下载进度（基于当前下载指针位置）
+                current_position = self._get_download_pointer_position(start_year, end_year)
+                if current_position is not None and total_blocks > 0:
+                    progress_percent = (current_position / total_blocks) * 100
+                    logger.info(f"下载进度: {progress_percent:.2f}% ({current_position}/{total_blocks})")
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出
 
         # 下载完成，清空下载指针
         self.progress_manager.clear_download_pointer('xrxd')
-        logger.debug(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
+        logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True
 
     def download_xrxd_from_scratch(self, start_year: int, end_year: int) -> bool:
