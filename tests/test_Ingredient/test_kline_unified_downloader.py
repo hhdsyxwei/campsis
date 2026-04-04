@@ -39,7 +39,7 @@ class TestKLineDownloader:
         assert real_e == "2024-03-31"
 
         # 测试无上市日期（模拟）
-        with patch("Ingredient.data_manager.DataManager.get_stock_listing_date") as mock_get:
+        with patch("Ingredient.DataNest.UnifiedDataManager.get_stock_listing_date") as mock_get:
             mock_get.return_value = (None, None)
             is_ok, _, _ = downloader._is_time_range_overlap_with_listing_period(
                 "sh.600001", "2024-01-01", "2024-03-31"
@@ -75,7 +75,7 @@ class TestKLineDownloader:
 
     # -------------- 测试区块下载（模拟外部依赖） --------------
     @patch("Ingredient.kline_unified_downloader.query_history_k_data_plus")
-    @patch("Ingredient.data_manager.DataManager.get_kline_block_status")
+    @patch("Ingredient.DataNest.UnifiedDataManager.get_kline_block_status")
     def test_fetch_kline_block(
         self, mock_get_status, mock_download, mock_db_conn, mock_quarter, mock_time_frame
     ):
@@ -113,7 +113,7 @@ class TestKLineDownloader:
     def test_download_kline_resume(self, mock_next_block, mock_db_conn, mock_time_frame):
         """测试断点续传（恢复中断区块）"""
         # 模拟有中断区块
-        with patch("Ingredient.data_manager.DataManager.get_downloading_block") as mock_get_block:
+        with patch("Ingredient.DataNest.UnifiedDataManager.get_downloading_block") as mock_get_block:
             mock_get_block.return_value = ("2024-Q1", "sh.600000", mock_time_frame)
             # 模拟下一个区块为None（执行完中断区块后结束）
             mock_next_block.return_value = None

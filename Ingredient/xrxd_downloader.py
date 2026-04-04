@@ -52,14 +52,11 @@ class XrxdDownloader:
         :return: 股票总数
         """
         self.func_name = "_count_stocks_in_fixed_seq"
-        cursor = self.db_conn.cursor()
         try:
-            sql = "SELECT COUNT(*) FROM stock_fixed_seq"
-            cursor.execute(sql)
-            result = cursor.fetchone()
-            return result[0] if result else 0
-        finally:
-            cursor.close()
+            return dm.count_stocks_in_fixed_seq(self.db_conn)
+        except Exception as e:
+            logger.error(f"[{__name__}.{self.func_name}] 统计股票数量失败: {str(e)}")
+            return 0
 
     def _get_next_stock(self, current_stock: Optional[str]) -> Optional[str]:
         """
