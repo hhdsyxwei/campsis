@@ -78,10 +78,10 @@ class GlobalDlCtrlBlockManager:
                     completed_blocks = VALUES(completed_blocks),
                     total_blocks = VALUES(total_blocks),
                     update_time = CURRENT_TIMESTAMP
-            """, (task_type, primary_name, primary_value, secondary_name, secondary_value,
+            """, (task_type.value, primary_name, primary_value, secondary_name, secondary_value,
                   tertiary_name, tertiary_value, startup_params, completed_blocks, total_blocks))
             self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] 进度写入成功: {task_type}")
+            logger.debug(f"[{__name__}.{func_name}] 进度写入成功: {task_type.value}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 进度写入失败: {str(e)}")
@@ -108,7 +108,7 @@ class GlobalDlCtrlBlockManager:
                 FROM global_dl_ctrl_block 
                 WHERE task_type = %s 
                 LIMIT 1
-            """, (task_type,))
+            """, (task_type.value,))
             result = cursor.fetchone()
             if result:
                 progress = {

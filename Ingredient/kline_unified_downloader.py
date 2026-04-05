@@ -208,6 +208,18 @@ class KLineDownloader:
         :return: (quarter, std_stock_code, time_frame) 或 None（无正在下载的区块）
         """
         return dm.get_downloading_block(self.db_conn)
+    
+    def _set_downloading_block(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod):
+        """
+        设置当前正在下载的区块（如果有）
+        :param quarter: 当前季度（格式如 '2024-Q1'）
+        :param std_stock_code: 当前股票代码
+        :param time_frame: 当前时间周期（单个周期，非列表）
+        """
+        self.func_name = "_set_downloading_block"
+        dm.set_downloading_block(self.db_conn, std_stock_code, time_frame, quarter)
+
+
 
     def _get_download_status(self):
         """
@@ -375,10 +387,14 @@ class KLineDownloader:
         if status == DlTaskStatus.COMPLETED:
             logger.info(f"[{__name__}.{self.func_name}] 下载已完成，无需重复执行")
             return True
-        elif status == DlTaskStatus.IN_PROGRESS:
-            logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
-        else:  # 下载未开始
+        elif status == DlTaskStatus.NOT_STARTED:  # 下载未开始
+            first_block = self._get_first_block(start_year, end_year, time_frame)
+            if not first_block:
+                logger.error(f"[{__name__}.{self.func_name}] 无股票数据可用，无法开始下载")
+                return False
             logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
+            quarter, std_stock_code, time_frame = first_block
+            self._set_downloading_block(quarter, std_stock_code, time_frame)
             self._set_download_status(DlTaskStatus.IN_PROGRESS)
 
         # 步骤1：计算总区块数
