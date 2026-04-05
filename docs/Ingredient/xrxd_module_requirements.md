@@ -1,188 +1,181 @@
 # XRXD Module Requirements Document
 
-## 1. Module Overview
+## 1. Project Background and Objectives
 
-The XRXD module is a dividend and bonus data downloader responsible for fetching stock dividend and bonus data from the Baostock API and storing it in the database.
+### 1.1 Project Background
 
-## 2. Terminology
+Campsis is an enterprise-grade data intelligence platform aimed at empowering business decisions through data. To achieve this goal, the platform needs to obtain various financial data from multiple data sources, including stock dividend and bonus data.
 
-### 2.1 Task
-- **Definition**: A task represents a collection of download blocks within a specific range
-- **Scope**: Typically corresponds to a complete download operation, containing multiple blocks across different years and stocks
-- **Identification**: Each task is identified by a task type (e.g., 'xrxd', 'kline')
-- **State Management**: Task state is tracked through download pointers, which indicate the current progress
+1.2 Project Objectives
 
-### 2.2 Block
-- **Definition**: A block is a collection of data for one stock in one year
-- **Uniqueness**: Each block is uniquely identified by (year, stock_code)
-- **Ordering**: Blocks are ordered first by year (ascending), then by stock code order in the `stock_fixed_seq` table
-- **Processing**: Each block is processed as a single unit during download
+The objectives of the XRXD module are:
 
-### 2.3 Pointer
-- **Definition**: A pointer is a reference to the current download block
-- **Purpose**: Tracks the progress of the download task
-- **State Indicator**: The pointer's value indicates the current download state:
-  - Empty pointer: Download completed
-  - Non-empty pointer: Download in progress, pointing to the current block
-- **Update**: The pointer is updated before each block download to ensure breakpoint resume capability
+- Reliably obtain stock dividend and bonus data from the Baostock API
+- Clean and process data to ensure data quality
+- Store processed data in the database for use by other platform modules
+- Support breakpoint resume and fresh download functions to improve download reliability
+- Provide a clear state management mechanism for monitoring and maintenance
 
-## 3. Core Functional Requirements
+## 2. Basic Concept Definitions
 
-### 3.1 Data Download
-- Support downloading dividend and bonus data by year and stock code
-- Use Baostock API to retrieve raw data
-- Support data cleaning and processing
-- Support data storage to database
+### 2.1 General Concepts
 
-### 3.2 Download Order
-- Adopt year-first, stock-code-second download order
-- Years arranged in ascending order
-- Stock code order based on the fixed sequence in the `stock_fixed_seq` table
+For general concepts such as Block, Task, Pointer, and Download Status, please refer to the [Generic Downloader Requirements Document](downloader_generic_requirements.md).
 
-### 3.3 Resume from Breakpoint
-- Support resuming downloads from interruption points
-- Record current progress during download
-- Support continuing from last interruption point after program restart
+### 2.2 XRXD-Specific Concepts
 
-### 3.4 Download from Scratch
-- Support clearing previous download records and starting from scratch
-- Provide dedicated interface for downloading from scratch
+| Concept              | Definition                                                            | Description                                                                 |
+| -------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **XRXD Data**        | Dividend and bonus data of stocks                                     | Includes cash dividends, stock dividends, capitalization, and related dates |
+| **XRXD Year**        | The year in which the dividend and bonus event occurs                 | Typically corresponds to the fiscal year of the company                     |
+| **Ex-dividend Date** | The date on which the stock starts trading without the dividend value | Important for calculating adjusted stock prices                             |
 
-## 4. State Management Requirements
+## 3. Functional Requirements (What to Do)
 
-### 4.1 State Definitions
+### 3.1 General Functions
 
-| State | Condition | Description |
-|------|------|------|
-| **Download Not Started** | No corresponding task type record exists in database | Task record does not exist |
-| **Download Completed** | Task record exists and all three-level pointers are empty | Primary, secondary, and tertiary pointer values are all empty strings |
-| **Download In Progress** | Task record exists and pointer points to valid download block | Pointer value is not empty, pointing to specific download task |
+For general functions such as Data Download, Data Cleaning, Data Storage, Breakpoint Resume, and Fresh Download, please refer to the [Generic Downloader Requirements Document](downloader_generic_requirements.md).
 
-### 4.2 State Management Interfaces
+### 3.2 XRXD-Specific Functions
 
-#### 4.2.1 Core Interfaces
-- `task_exists(task_type)`: Query whether a task of specified type exists
-- `is_download_pointer_empty(task_type)`: Determine if download pointer is empty
-- `clear_download_pointer(task_type)`: Set download pointer to empty
-- `delete_task(task_type)`: Delete task record of specified type
+1. **Dividend and Bonus Data Acquisition**: Specifically download dividend and bonus data from Baostock API using `query_dividend_data` function
+2. **Year-based Data Collection**: Collect data on a yearly basis with support for both "report" and "operate" year types
+3. **XRXD-specific Data Cleaning**: Handle XRXD-specific data fields such as dividend dates, cash amounts, and stock dividend ratios
+4. **XRXD Data Validation**: Validate the integrity and consistency of dividend and bonus data
+5. **Dividend Date Processing**: Special handling for various dividend-related dates (pre-announcement, AGM, registration, etc.)
 
-#### 4.2.2 State Query Flow
-1. Check if task exists: call `task_exists`
-2. If task does not exist, state is "Download Not Started"
-3. If task exists, check if pointer is empty: call `is_download_pointer_empty`
-4. If pointer is empty, state is "Download Completed"
-5. If pointer is not empty, state is "Download In Progress"
+## 4. Non-Functional Requirements (Performance / Security / Compatibility)
 
-### 4.3 State Transitions
+### 4.1 General Requirements
 
-1. **Initial State**: No task record → Download Not Started
-2. **Start Download**: Create task record, pointer points to first task → Download In Progress
-3. **Downloading**: Pointer continuously updates, pointing to current task → Download In Progress
-4. **Download Completed**: Clear all pointers → Download Completed
-5. **Restart Download**: Delete task record → Download Not Started
+For general non-functional requirements, please refer to the [Generic Downloader Requirements Document](downloader_generic_requirements.md).
 
-## 5. Interface Design
+### 4.2 XRXD-Specific Requirements
 
-### 5.1 Class Methods
+- **Data Accuracy**: Ensure the accuracy of dividend and bonus data, especially for critical dates and amounts
+- **API Parameter Handling**: Properly handle Baostock API parameters specific to dividend data (e.g., yearType)
+- **Date Validation**: Validate the logical sequence of dividend-related dates
+- **Amount Precision**: Maintain proper precision for dividend amounts and ratios
 
-#### XrxdDownloader Class
-- `__init__(db_conn)`: Initialize downloader
-- `download_xrxd(start_year, end_year)`: Core download method, supports resume from breakpoint
-- `download_xrxd_from_scratch(start_year, end_year)`: Download from scratch
-- `get_download_status()`: Get current download status
+## 5. Business Process / Use Cases
 
-### 5.2 Global Interfaces
+### 5.1 General Process
 
-- `continue_download_xrxd(db_conn, start_year, end_year)`: Continue download interface provided externally (supports resume from breakpoint)
-- `start_new_xrxd_download(db_conn, start_year, end_year)`: Start new download interface provided externally (clears previous progress)
+For the general download process and status transition, please refer to the [Generic Downloader Requirements Document](downloader_generic_requirements.md).
 
-### 5.3 State Management Interfaces
+### 5.2 XRXD-Specific Process
 
-#### GlobalDlCtrlBlockManager Class
-- `task_exists(task_type)`: Query if task exists
-- `is_download_pointer_empty(task_type)`: Determine if pointer is empty
-- `clear_download_pointer(task_type)`: Clear pointer
-- `delete_task(task_type)`: Delete task record
-- `set_xrxd_progress(year, stock_code)`: Set XRXD download progress
-- `get_xrxd_progress()`: Get XRXD download progress
+**XRXD Download Process**:
 
-## 6. Implementation Details
+1. **Check Status**: Same as general process (refer to generic document)
+2. **Determine Status**: Same as general process (refer to generic document)
+3. **Calculate Total Blocks**: Calculate based on year range and stock count
+4. **Get Download Block**: Priority to resume interrupted block
+5. **Loop Download**:
+   - Update download pointer
+   - **Call Baostock API with yearType parameter** ("report" or "operate")
+   - **Clean XRXD-specific data fields** (dates, amounts, ratios)
+   - **Validate dividend date sequence** (pre-announcement < AGM < registration < ex-dividend < payment)
+   - Save data to `stock_xrxd` table
+   - Get next block
+   - Record progress
+6. **Download Complete**: Set status to completed and clear pointer
 
-### 6.1 Data Download Flow
-1. Check download status
-2. If download completed, return directly
-3. If download in progress, resume from breakpoint
-4. If download not started, start from scratch
-5. Loop through each download block
-6. Update download pointer before each block download
-7. Get next block after download completion
-8. Clear download pointer after all blocks completed
+### 5.3 XRXD-Specific Use Cases
 
-### 6.2 Data Processing
-- Retrieve raw data from Baostock API
-- Clean data, handle null values and anomalies
-- Transform data format to ensure compatibility with database table structure
-- Store data to `stock_xrxd` table
+**Use Case 1: Download by Report Year**
 
-### 6.3 Error Handling
-- Capture exceptions during download process
-- Record detailed error logs
-- Propagate exceptions upward for caller to handle
+- **Trigger**: Call `continue_download_xrxd()` with specific year range
+- **Process**: Download data using `yearType="report"` to get data based on fiscal year
+- **Expected Result**: Successfully download dividend and bonus data based on company reporting periods
 
-## 7. Workflow
+**Use Case 2: Download by Operate Year**
 
-### 7.1 Resume from Breakpoint Flow
-1. Call `continue_download_xrxd` method
-2. Check download status
-3. If status is "Download Completed", return directly
-4. If status is "Download In Progress", resume from breakpoint
-5. If status is "Download Not Started", start from scratch
-6. Execute download blocks one by one
-7. Clear download pointer after all blocks completed
+- **Trigger**: Call `continue_download_xrxd()` with specific year range
+- **Process**: Download data using `yearType="operate"` to get data based on actual operation dates
+- **Expected Result**: Successfully download dividend and bonus data based on actual ex-dividend dates
 
-### 7.2 Download from Scratch Flow
-1. Call `start_new_xrxd_download` method
-2. Delete task record
-3. Call `continue_download_xrxd` method (status is now "Download Not Started")
-4. Start downloading all blocks from scratch
+## 6. Data and Interfaces
 
-## 8. Database Design
+### 6.1 XRXD-Specific Data Structure
 
-### 8.1 Table Structure
+**`stock_xrxd`** **Table Structure**:
 
-#### `stock_xrxd` Table
-- Stores dividend and bonus data
-- Contains stock code, year, dividend and bonus related fields
+| Field Name                 | Type    | Description                          |
+| -------------------------- | ------- | ------------------------------------ |
+| `std_stock_code`           | VARCHAR | Stock code                           |
+| `xrxd_year`                | INT     | Dividend and bonus year              |
+| `xrxd_pre_notice_date`     | DATE    | Pre-announcement date                |
+| `xrxd_agm_pum_date`        | DATE    | AGM announcement date                |
+| `xrxd_plan_announce_date`  | DATE    | Plan announcement date               |
+| `xrxd_plan_date`           | DATE    | Plan date                            |
+| `xrxd_regist_date`         | DATE    | Registration date                    |
+| `xrxd_operate_date`        | DATE    | Ex-dividend date                     |
+| `xrxd_pay_date`            | DATE    | Payment date                         |
+| `xrxd_stock_market_date`   | DATE    | Stock listing date                   |
+| `xrxd_cash_ps_before_tax`  | DECIMAL | Cash dividend per share (before tax) |
+| `xrxd_cash_ps_after_tax`   | DECIMAL | Cash dividend per share (after tax)  |
+| `xrxd_stocks_ps`           | DECIMAL | Stock dividend per share             |
+| `xrxd_cash_stock`          | VARCHAR | Capitalization per share             |
+| `xrxd_reserve_to_stock_ps` | DECIMAL | Capital reserve to stock per share   |
 
-#### `global_dl_ctrl_block` Table
-- Stores download control information
-- Contains task type, pointer information, startup parameters, block count, etc.
+### 6.2 XRXD-Specific Interfaces
 
-### 8.2 Index Design
-- `global_dl_ctrl_block` table has unique index on `task_type` field
-- Ensures uniqueness of task types
+**External Interfaces**:
 
-## 9. Performance Optimization
+1. **`continue_download_xrxd(db_conn, start_year, end_year)`**
+   - **Function**: Continue downloading dividend and bonus data (supports breakpoint resume)
+   - **Parameters**:
+     - `db_conn`: Database connection
+     - `start_year`: Start year (inclusive)
+     - `end_year`: End year (inclusive)
+   - **Return**: `True` indicates all downloads completed, `False` indicates not completed
+2. **`start_new_xrxd_download(db_conn, start_year, end_year)`**
+   - **Function**: Start a new dividend and bonus data download task (clear previous progress)
+   - **Parameters**:
+     - `db_conn`: Database connection
+     - `start_year`: Start year (inclusive)
+     - `end_year`: End year (inclusive)
+   - **Return**: `True` indicates all downloads completed, `False` indicates not completed
 
-### 9.1 Download Optimization
-- Download by year and stock code order to avoid duplicate downloads
-- Utilize fixed sequence in `stock_fixed_seq` table to reduce database queries
+**Internal Interfaces**:
 
-### 9.2 State Management Optimization
-- Centralize download state management to avoid repeated queries
-- Use database transactions to ensure atomicity of state updates
+1. **`XrxdDownloader._download_raw_xrxd_data(stock_code, year)`**
+   - **Function**: Download raw dividend and bonus data from Baostock API
+   - **Parameters**:
+     - `stock_code`: Stock code
+     - `year`: Year
+   - **Return**: Raw data DataFrame or None
+2. **`XrxdDownloader._clean_xrxd_data(raw_df, stock_code, year)`**
+   - **Function**: Clean and process XRXD data
+   - **Parameters**:
+     - `raw_df`: Raw data DataFrame
+     - `stock_code`: Stock code
+     - `year`: Year
+   - **Return**: Cleaned data DataFrame or None
+3. **`XrxdManager.save_xrxd_data(df)`**
+   - **Function**: Save XRXD data to database
+   - **Parameters**:
+     - `df`: XRXD data DataFrame
+   - **Return**: Boolean indicating success
 
-## 10. Extensibility
+## 7. Acceptance Criteria
 
-- Support adding new task types
-- Support custom download order
-- Support adding new data processing logic
-- Support integration with other modules
+### 7.1 General Criteria
 
-## 11. Testing Recommendations
+For general acceptance criteria, please refer to the [Generic Downloader Requirements Document](downloader_generic_requirements.md).
 
-- Test resume from breakpoint functionality
-- Test download from scratch functionality
-- Test state management logic
-- Test exception handling
-- Test performance and reliability
+### 7.2 XRXD-Specific Criteria
+
+- ✅ Can successfully download dividend and bonus data for all stocks in the specified year range
+- ✅ Can correctly handle different types of dividend events (cash dividends, stock dividends, capitalization)
+- ✅ Can properly validate and process dividend-related dates
+- ✅ Can maintain data consistency even with missing or partial data
+- ✅ Can handle edge cases such as stocks with no dividend history
+- ✅ Data accuracy verified against official company announcements
+
+## 8. Summary
+
+The XRXD download module is a specialized component of the Campsis platform, focused on obtaining and processing stock dividend and bonus data from the Baostock API. While following the general downloader framework, it includes specific functionality for handling the unique aspects of dividend and bonus data, such as multiple date fields, different dividend types, and year-based data collection.
+
+By implementing this specialized module, the Campsis platform can provide comprehensive dividend and bonus data for investment analysis, portfolio management, and financial modeling. The module's design ensures reliable data acquisition, proper data validation, and efficient processing, making it a valuable component of the overall data intelligence platform.

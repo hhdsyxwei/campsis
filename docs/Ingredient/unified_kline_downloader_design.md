@@ -1,110 +1,260 @@
-# 统一K线数据下载器 - 一页纸最终设计文档（开发交接版）
+# Unified KLine Downloader Design Document
 
-**适用场景**：全周期K线离线下载、断点续传、动态范围扩展、7×24h稳定运行
+## 1. Project Overview and Objectives
 
-**核心特性**：无回溯、不重置指针、零内存、不重复、不遗漏、极简架构
+### 1.1 Project Overview
+The Unified KLine Downloader is a core component of the Campsis platform, responsible for retrieving stock K-line data from the Baostock API and storing it in the local database. This component adopts a modular design, supporting the download, cleaning, and storage of K-line data for multiple time periods, with features such as breakpoint resume and listing time validation.
 
-## 1. 设计目标
+### 1.2 Project Objectives
+- **Data Acquisition**: Reliably obtain stock K-line data from the Baostock API
+- **Multi-period Support**: Support K-line data for different time periods (e.g., 5-minute, 15-minute, daily, etc.)
+- **Efficient Download**: Download data in quarterly blocks to improve efficiency and reliability
+- **Breakpoint Resume**: Support resuming downloads from interruption points to avoid duplicate downloads
+- **Data Quality**: Clean and validate data to ensure data quality
+- **Unified Storage**: Store processed data in a unified K-line data table
 
-实现固定顺序、单向推进、无队列、零内存的K线下载器；自动跳过已完成数据，支持时间扩展、股票追加、崩溃续传；全程不回溯、常规操作无需重置指针；单任务极简架构，易开发、易维护、长期稳定运行。
+## 2. Overall Architecture Design
 
-## 2. 核心基础规则
+### 2.1 Architecture Layers
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Application Layer                  │
+├─────────────────────────────────────────────────────────┤
+│ main.py                                                │
+│ - Main entry point, calls the downloader                │
+├─────────────────────────────────────────────────────────┤
+│                     Download Layer                     │
+├─────────────────────────────────────────────────────────┤
+│ Ingredient/kline_unified_downloader.py                 │
+│ - KLineDownloader class: Core download logic           │
+├─────────────────────────────────────────────────────────┤
+│                   Data Management Layer                │
+├─────────────────────────────────────────────────────────┤
+│ Ingredient/DataNest/                                   │
+│ - dm_unified.py: Unified data management               │
+│ - dm_kline.py: K-line data management                 │
+├─────────────────────────────────────────────────────────┤
+│                    Utility Layer                       │
+├─────────────────────────────────────────────────────────┤
+│ KitchenBase/                                           │
+│ - logger_config.py: Logging configuration              │
+│ - baostock_wrapper.py: Baostock API wrapper            │
+│ - stock_enums.py: Stock-related enums                  │
+├─────────────────────────────────────────────────────────┤
+│                    Storage Layer                       │
+├─────────────────────────────────────────────────────────┤
+│ MySQL Database                                         │
+│ - kline_unified: K-line data storage                   │
+│ - kline_block_status: Block status management          │
+│ - global_dl_ctrl_block: Task status management         │
+└─────────────────────────────────────────────────────────┘
+```
 
-### 最小下载单元
+### 2.2 Design Principles
+- **Modularity**: Clear module division with well-defined responsibilities
+- **Extensibility**: Support for adding new K-line periods and data sources
+- **Reliability**: Breakpoint resume and error handling mechanisms
+- **Performance Optimization**: Quarterly block download and batch operations
 
-股票代码 + 时间周期 + 季度（不可拆分）
+## 3. Module Division and Responsibilities
 
-### 全局固定下载顺序
+| Module | Responsibility | Core Functions |
+|--------|---------------|---------------|
+| **KLineDownloader** | Core download logic | Calculate total blocks, get next block, download single block, data cleaning |
+| **UnifiedDataManager** | Unified data management | Save K-line data, manage block status, get download progress |
+| **KLineUnifiedQuarterlyExtendedManager** | K-line data management | Specific K-line data storage implementation |
+| **BaostockWrapper** | API wrapper | Convert K-line periods, call Baostock API |
+| **GlobalDlCtrlBlockManager** | Task status management | Manage task-level status and progress |
 
-**季度（旧→新） → 股票固定ID（升序） → 时间周期（固定序列）**
+## 4. Core Business Process
 
-### 周期固定排序（不可修改）
+### 4.1 Main Download Process
+1. **Initialization**: Create KLineDownloader instance
+2. **Calculate Total Blocks**: Based on year range, quarter count, and stock count
+3. **Get Download Block**: Priority to resume interrupted block, get first block if no interruption
+4. **Loop Download**:
+   - Update download pointer
+   - Convert quarter to date range
+   - Validate listing time
+   - Call Baostock API to download data
+   - Clean data
+   - Save data
+   - Update block status
+   - Get next block
+   - Record progress
+5. **Complete Download**: All blocks downloaded
 
-1min → 5min → 15min → 30min → 60min → daily → weekly → monthly
+### 4.2 Single Block Download Process
+1. **Parameter Validation**: Validate quarter and stock code
+2. **Status Check**: Check if block is already completed
+3. **Listing Time Validation**: Verify if stock was listed within the specified time range
+4. **Download Data**: Call Baostock API to get raw data
+5. **Clean Data**: Process price, volume, and other fields
+6. **Save Data**: Store data in database
+7. **Update Status**: Update block status to completed
 
-### 股票管理规则
+## 5. Database and Data Structure Design
 
-新股仅允许追加至`stock_fixed_seq`末尾，禁止中间插入、禁止修改原有排序。
+### 5.1 Core Data Tables
 
-## 3. 四张核心数据表
+**`kline_unified` Table**:
+| Field Name | Type | Description |
+|------------|------|-------------|
+| `std_stock_code` | VARCHAR(20) | Stock code |
+| `timestamp` | DATETIME | Timestamp |
+| `open_price` | DECIMAL(10,2) | Opening price |
+| `high_price` | DECIMAL(10,2) | Highest price |
+| `low_price` | DECIMAL(10,2) | Lowest price |
+| `close_price` | DECIMAL(10,2) | Closing price |
+| `volume` | BIGINT | Trading volume |
+| `turnover` | DECIMAL(15,2) | Turnover |
+| `time_frame` | VARCHAR(10) | K-line period |
+| **PRIMARY KEY** | | (`std_stock_code`, `timestamp`, `time_frame`) |
 
-### 3.1 stock_fixed_seq 股票固定顺序表
+**`kline_block_status` Table**:
+| Field Name | Type | Description |
+|------------|------|-------------|
+| `quarter` | VARCHAR(10) | Quarter (e.g., "2024-Q1") |
+| `std_stock_code` | VARCHAR(20) | Stock code |
+| `time_frame` | VARCHAR(10) | K-line period |
+| `status` | VARCHAR(10) | Status (pending/completed) |
+| `created_at` | TIMESTAMP | Creation time |
+| `updated_at` | TIMESTAMP | Update time |
+| **PRIMARY KEY** | | (`quarter`, `std_stock_code`, `time_frame`) |
 
-|字段|类型|说明|
-|---|---|---|
-|id|INT UNSIGNED|自增主键，固定排序标识|
-|std_stock_code|VARCHAR(20)|唯一股票代码|
-|stock_name|VARCHAR(50)|股票名称|
-|create_time|DATETIME|创建时间|
-### 3.2 kline_block_status K线单元状态表
+**`global_dl_ctrl_block` Table**:
+| Field Name | Type | Description |
+|------------|------|-------------|
+| `task_type` | VARCHAR(50) | Task type (e.g., "kline") |
+| `main_pointer` | VARCHAR(50) | Main pointer (e.g., quarter) |
+| `secondary_pointer` | VARCHAR(50) | Secondary pointer (e.g., stock code) |
+| `tertiary_pointer` | VARCHAR(50) | Tertiary pointer (e.g., K-line period) |
+| `start_args` | VARCHAR(255) | Start parameters |
+| `block_total` | INT | Total number of blocks |
+| `block_completed` | INT | Number of completed blocks |
+| `task_status` | VARCHAR(20) | Task status |
+| `created_at` | TIMESTAMP | Creation time |
+| `updated_at` | TIMESTAMP | Update time |
+| **PRIMARY KEY** | | (`task_type`) |
 
-|字段|类型|说明|
-|---|---|---|
-|std_stock_code|VARCHAR(20)|股票代码|
-|time_frame|VARCHAR(10)|K线周期|
-|quarter|VARCHAR(10)|季度标识|
-|status|ENUM|waiting/completed/failed|
-|completed_at|DATETIME|完成时间|
-|主键|复合主键|std_stock_code+time_frame+quarter|
-### 3.3 kline_download_progress 全局进度指针表
+### 5.2 Data Structures
 
-|字段|类型|说明|
-|---|---|---|
-|id|INT|固定值1，唯一主键|
-|downloading_quarter|VARCHAR(10)|当前下载的季度|
-|downloading_stock_code|INT UNSIGNED|当前下载的股票ID|
-|downloading_time_frame|VARCHAR(10)|当前下载数据的周期类型(5min/15min)|
-|update_time|DATETIME|更新时间|
-### 3.4 download_task_config 下载范围配置表
+**KLinePeriod Enum**:
+- MIN_1: 1 minute
+- MIN_5: 5 minutes
+- MIN_15: 15 minutes
+- MIN_30: 30 minutes
+- MIN_60: 60 minutes
+- DAY: Daily
+- WEEK: Weekly
+- MONTH: Monthly
 
-|字段|类型|说明|
-|---|---|---|
-|id|TINYINT|固定值1，唯一主键|
-|start_stock_id|INT UNSIGNED|起始股票ID|
-|end_stock_id|INT UNSIGNED|结束股票ID|
-|start_time_frame|VARCHAR(10)|起始周期|
-|end_time_frame|VARCHAR(10)|结束周期|
-|start_quarter|VARCHAR(10)|起始季度|
-|end_quarter|VARCHAR(10)|结束季度|
-|reset_progress|TINYINT|0=不重置 1=强制重置指针|
-|created_at|DATETIME|创建时间|
-|update_at|DATETIME|自动更新时间|
-## 4. 核心运行逻辑
+**Block Definition**:
+- Uniquely identified by `(quarter, stock_code, time_frame)`
+- Quarter format: YYYY-QN (e.g., "2024-Q1")
 
-1. 启动加载`download_task_config`读取全局下载边界范围；
+## 6. Interface Design Overview
 
-2. 读取`kline_download_progress`断点指针，定位上次结束位置；
+### 6.1 External Interfaces
+1. **`download_kline(db_conn, start_year, end_year, time_frame)`**
+   - **Function**: Download K-line data for specified time range and period
+   - **Parameters**:
+     - `db_conn`: Database connection
+     - `start_year`: Start year (inclusive)
+     - `end_year`: End year (exclusive)
+     - `time_frame`: K-line period enum
+   - **Return**: No return value, throws exception on error
 
-3. 严格按【季度→股票ID→周期】顺序查询单个未完成下载单元；
+### 6.2 Internal Interfaces
+1. **`KLineDownloader.download_kline(start_year, end_year, time_frame)`**
+   - **Function**: Core download logic
+   - **Parameters**: Same as external interface
+   - **Return**: No return value
 
-4. 校验状态表，已完成单元自动跳过，仅处理待下载单元；
+2. **`KLineDownloader._fetch_kline_block(quarter, std_stock_code, time_frame)`**
+   - **Function**: Download single block
+   - **Parameters**:
+     - `quarter`: Quarter
+     - `std_stock_code`: Stock code
+     - `time_frame`: K-line period
+   - **Return**: No return value
 
-5. 下载成功后更新状态表为completed并回填完成时间；同步单向推进进度指针；
+3. **`KLineDownloader._clean_kline_data(raw_data, time_frame)`**
+   - **Function**: Clean K-line data
+   - **Parameters**:
+     - `raw_data`: Raw data
+     - `time_frame`: K-line period
+   - **Return**: Cleaned data DataFrame
 
-6. 循环迭代，全程无队列预生成，单次仅处理一条数据；
+4. **`UnifiedDataManager.save_kline_data_unified(db_conn, std_stock_code, df)`**
+   - **Function**: Save K-line data
+   - **Parameters**:
+     - `db_conn`: Database connection
+     - `std_stock_code`: Stock code
+     - `df`: K-line data DataFrame
+   - **Return**: Whether save was successful
 
-7. 重启自动读取指针续传，常规运行**不回溯历史、不重置指针**。
+5. **`UnifiedDataManager.update_kline_block_status(db_conn, quarter, std_stock_code, time_frame, status)`**
+   - **Function**: Update block status
+   - **Parameters**:
+     - `db_conn`: Database connection
+     - `quarter`: Quarter
+     - `std_stock_code`: Stock code
+     - `time_frame`: K-line period
+     - `status`: Status
+   - **Return**: Whether update was successful
 
-## 5. 范围扩展标准流程
+## 7. Technology Selection
 
-1. 向后扩展时间：修改配置表结束季度，无需重置指针、无需回溯；新增季度自动末尾排序，全股票自动补齐数据无缺失。
+| Category | Technology/Library | Purpose |
+|----------|--------------------|---------|
+| Programming Language | Python 3.8+ | Main development language |
+| Database | MySQL 5.7+ | Data storage |
+| Financial Data API | Baostock | K-line data source |
+| Data Processing | Pandas | Data cleaning and processing |
+| Database Connection | pymysql | MySQL connection |
+| Logging | logging | Log recording |
+| Type Hints | typing | Type annotations |
+| Date Processing | datetime | Date and time handling |
 
-2. 末尾追加新股：股票表尾部插入新数据，无需任何配置修改；新股从当前指针季度开始向后自动下载。
+## 8. Deployment and Runtime Environment
 
-3. 向前补历史数据：修改配置起始季度，设置reset_progress=1；系统重置指针从头遍历，自动跳过已完成单元，仅补缺失历史。
+### 8.1 Hardware Requirements
+- **CPU**: At least 2 cores
+- **Memory**: At least 4GB
+- **Storage**: Depending on data volume, recommended at least 100GB
 
-## 6. 强制约束规范
+### 8.2 Software Requirements
+- **Operating System**: Windows/Linux/macOS
+- **Python**: Version 3.8 or higher
+- **MySQL**: Version 5.7 or higher
+- **Dependencies**:
+  - pandas
+  - pymysql
+  - baostock
 
-1. 下载排序规则、周期顺序永久固定，禁止修改；
+### 8.3 Running Methods
+1. **Direct Execution**:
+   ```bash
+   python main.py
+   ```
 
-2. 进度指针仅向前推进，业务流程禁止回溯回滚；
+2. **Import as Module**:
+   ```python
+   from Ingredient.kline_unified_downloader import download_kline
+   from KitchenBase.stock_enums import KLinePeriod
+   
+   # Download 5-minute K-line data for 2024
+   download_kline(db_conn, 2024, 2025, KLinePeriod.MIN_5)
+   ```
 
-3. 状态表数据永久保留，不得清空删除；
+### 8.4 Configuration Requirements
+- **Database Configuration**: MySQL connection information needs to be configured
+- **Baostock Login**: Need to log in to Baostock service before use
+- **Logging Configuration**: Log level can be adjusted through environment variables
 
-4. 股票仅尾部追加，严禁调整原有ID顺序；
+## 9. Summary
 
-5. 全程无内存任务队列，严格遵循单条查询模式。
+The Unified KLine Downloader is a well-designed, fully functional K-line data acquisition component that adopts a modular design, supporting the download, cleaning, and storage of K-line data for multiple time periods. This component features breakpoint resume, listing time validation, and other functions to ensure the reliability and efficiency of data acquisition. Through quarterly block download strategy and batch operation optimization, it improves download efficiency and system stability.
 
-## 7. 架构总结
-
-季度优先排序 + 单向只读指针 + 范围配置驱动；常规扩展零重置零回溯，仅历史补全手动重置；架构极简低负载，适配长期后台稳定运行。
+This design not only meets current K-line data acquisition needs but also reserves space for future function expansion and performance optimization, making it an important infrastructure of the Campsis platform.
