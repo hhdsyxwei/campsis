@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_adjust_factor
 from Ingredient.DataNest import AdjustmentFactorManager, BasicStockDataManager, UnifiedDataManager as dm, GlobalDlCtrlBlockManager
-from KitchenBase.stock_enums import DlTaskStatus
+from KitchenBase.download_enums import DlTaskStatus
 
 # ===================== 全局配置 =====================
 logger = get_logger(__name__)

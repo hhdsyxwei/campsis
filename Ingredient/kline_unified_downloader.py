@@ -8,12 +8,13 @@ from KitchenBase.baostock_wrapper import query_history_k_data_plus
 from KitchenBase.baostock_wrapper import BaostockWrapper as bsw
 from Ingredient.DataNest import UnifiedDataManager as dm
 from Ingredient.DataNest.dm_global_dl_ctrl import GlobalDlCtrlBlockManager
-from KitchenBase.stock_enums import KLinePeriod, DlTaskStatus
+from KitchenBase.stock_enums import KLinePeriod
+from KitchenBase.download_enums import DlTaskStatus, DlBlockStatus
 
 # ===================== 全局配置 =====================
 logger = get_logger(__name__)
-BLOCK_PENDING = "pending"    # 未完成
-BLOCK_COMPLETED = "completed"# 已完成
+BLOCK_PENDING = DlBlockStatus.NOT_COMPLETED    # 未完成
+BLOCK_COMPLETED = DlBlockStatus.COMPLETED# 已完成
 
 # ===================== 下载器核心类 =====================
 class KLineDownloader:
@@ -403,7 +404,7 @@ class KLineDownloader:
                 # 获取下一个区块
                 next_block = self._get_next_block(start_year, end_year, quarter, std_stock_code, time_frame)
                 # 记录进度
-                completed_blocks = dm.get_completed_block_total_count(self.db_conn, start_year, end_year, time_frame.value)
+                completed_blocks = dm.get_completed_block_total_count(self.db_conn, start_year, end_year, time_frame)
                 if block_total > 0:
                     progress = completed_blocks / block_total * 100
                 else:

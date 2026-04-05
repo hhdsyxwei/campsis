@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
+from KitchenBase.download_enums import DlBlockStatus
 from .dm_columns import (
     STD_STOCK_CODE, TIME_FRAME, TIMESTAMP,
     OPEN_PRICE, HIGH_PRICE, LOW_PRICE, CLOSE_PRICE, VOLUME, TURNOVER,
@@ -117,7 +118,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> str:
+    def get_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> DlBlockStatus:
         """
         获取K线下载状态
         
@@ -127,7 +128,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             time_frame: 时间周期
         
         Returns:
-            状态字符串: 'completed' 或 'not_completed'
+            状态枚举: BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED
         """
         func_name = "get_kline_block_status"
         logger.debug(f"[{__name__}.{func_name}] 查询 {std_stock_code} {time_frame.value} {quarter} 的下载状态")
@@ -142,10 +143,12 @@ class KLineUnifiedQuarterlyExtendedManager:
             cursor.execute(query, (quarter, std_stock_code, time_frame.value))
             result = cursor.fetchone()
             
+            # 解包查询结果，返回枚举值
+            # 如果解包失败，默认返回NOT_COMPLETED
+            # 发生其它异常时，抛出异常
             if result:
-                return result[0]
-            else:
-                return None  # 表示记录不存在
+                return DlBlockStatus(result[0])
+            return DlBlockStatus.NOT_COMPLETED
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询状态失败: {str(e)}")
             raise
@@ -153,7 +156,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def update_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: str):
+    def update_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: DlBlockStatus):
         """
         更新K线下载进度（统一格式）
         
@@ -161,10 +164,10 @@ class KLineUnifiedQuarterlyExtendedManager:
             std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
-            status: 状态，'completed' 或 'not_completed'
+            status: 状态，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED
         """
         func_name = "update_kline_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 更新 {quarter} {std_stock_code} {time_frame.value}  的状态为: {status}")
+        logger.debug(f"[{__name__}.{func_name}] 更新 {quarter} {std_stock_code} {time_frame.value}  的状态为: {status.value}")
         
         cursor = None
         try:
@@ -181,8 +184,8 @@ class KLineUnifiedQuarterlyExtendedManager:
             END
             """
 
-            completed_at = datetime.now() if status == 'completed' else None
-            cursor.execute(query, (quarter, std_stock_code, time_frame.value, status, completed_at))
+            completed_at = datetime.now() if status == DlBlockStatus.COMPLETED else None
+            cursor.execute(query, (quarter, std_stock_code, time_frame.value, status.value, completed_at))
             self.conn.commit()
             
             logger.debug(f"[{__name__}.{func_name}] {quarter} {std_stock_code} {time_frame.value}  的状态已更新为: {status}")
@@ -250,7 +253,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_completed_block_total_count(self, start_year: Optional[int] = None, end_year: Optional[int] = None, time_frame: Optional[str] = None) -> int:
+    def get_completed_block_total_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
         """
         查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
@@ -266,7 +269,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         func_name = "get_completed_block_total_count"
         logger.debug(
             f"[{__name__}.{func_name}] 查询completed状态区块总数，年份范围："
-            f"start_year={start_year}, end_year={end_year}, time_frame={time_frame}"
+            f"start_year={start_year}, end_year={end_year}, time_frame={time_frame.value}"
         )
 
         cursor = None
@@ -291,7 +294,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             # 动态添加time_frame过滤条件
             if time_frame is not None:
                 conditions.append("time_frame = %s")
-                params.append(time_frame)
+                params.append(time_frame.value)
 
             if conditions:
                 sql += " AND " + " AND ".join(conditions)

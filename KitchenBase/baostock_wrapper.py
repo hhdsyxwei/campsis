@@ -45,8 +45,8 @@ class BaostockWrapper:
         func,
         args=(),
         kwargs=None,
-        timeout: int = None,
-        max_retry: int = None
+        timeout: int = 300,
+        max_retry: int = 3
     ) -> Any:
         """
         带超时+重试+自动重登的函数执行器
@@ -115,8 +115,8 @@ class BaostockWrapper:
         end_date: str,
         frequency: str = "d",
         adjustflag: str = "3",
-        timeout: int = None,
-        max_retry: int = None
+        timeout: int = 300,
+        max_retry: int = 3
     ) -> Any:
         """
         完全兼容原生baostock.query_history_k_data_plus接口
@@ -160,7 +160,7 @@ class BaostockWrapper:
                 frequency=frequency,
                 adjustflag=adjustflag
             )
-            logger.debug(f"[{current_func}->{inner_func}] 接口调用完成，error_code: {result.error_code}")
+            logger.debug(f"[{current_func}->{inner_func}] 接口调用完成，error_code: {result.error_code if result is not None else 'None'}")
             return result
 
         try:

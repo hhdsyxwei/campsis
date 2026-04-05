@@ -46,7 +46,7 @@ class DailyDataManager:
                     float(row['peTTM']) if row['peTTM'] else None,
                     float(row['pbMRQ']) if row['pbMRQ'] else None,
                 ))
-            except ValueError as e:
+            except (ValueError, ZeroDivisionError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row['date']}: {str(e)}")
                 continue
 
@@ -111,16 +111,48 @@ class DailyDataManager:
                 cursor.close()
 
     def get_latest_tradedate_for_stock(self, std_stock_code: str) -> str:
+        """
+        获取股票的最新交易日
+        
+        Args:
+            std_stock_code: 股票代码
+            
+        Returns:
+            最新交易日，格式为 'YYYY-MM-DD'
+            
+        Raises:
+            ValueError: 当股票不存在或无交易数据时
+            RuntimeError: 当数据库操作或日期格式错误时
+        """
         func_name = "get_latest_tradedate_for_stock"
         cursor = None
         try:
             cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            
+            # 先检查股票是否存在
+            cursor.execute("SELECT 1 FROM stock_basic WHERE std_stock_code = %s", (std_stock_code,))
+            if not cursor.fetchone():
+                raise ValueError(f"股票 {std_stock_code} 不存在")
+            
+            # 查询最新交易日
             cursor.execute("SELECT MAX(trade_date) AS latest FROM stock_daily WHERE std_stock_code = %s", (std_stock_code,))
-            latest = cursor.fetchone()['latest']
-            return latest.strftime('%Y-%m-%d') if latest else None
+            result = cursor.fetchone()
+            if not result:
+                raise RuntimeError("查询结果异常")
+            
+            latest = result['latest']
+            if not latest:
+                raise ValueError(f"股票 {std_stock_code} 无交易数据")
+            
+            try:
+                return latest.strftime('%Y-%m-%d')
+            except Exception as e:
+                raise RuntimeError(f"日期格式错误: {str(e)}")
+        except (ValueError, RuntimeError):
+            raise
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询失败 {std_stock_code}：{str(e)}")
-            return None
+            raise RuntimeError(f"数据库操作错误: {str(e)}") from e
         finally:
             if cursor:
                 cursor.close()

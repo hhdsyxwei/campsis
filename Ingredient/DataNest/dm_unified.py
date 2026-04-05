@@ -1,4 +1,5 @@
 # dm_unified.py
+from KitchenBase.download_enums import DlBlockStatus
 from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
@@ -89,7 +90,7 @@ class UnifiedDataManager:
             return False
 
     @staticmethod
-    def get_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> str:
+    def get_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> DlBlockStatus:
         """
         获取K线下载状态
         
@@ -100,7 +101,7 @@ class UnifiedDataManager:
             quarter: 季度，格式如 '2024-Q1'
         
         Returns:
-            状态字符串: 'completed' 或 'not_completed'
+            状态枚举值，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED
         """
         func_name = "get_kline_block_status"
         try:
@@ -108,10 +109,10 @@ class UnifiedDataManager:
             return manager.get_kline_block_status(quarter, std_stock_code, time_frame)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
-            return 'not_completed'
+            raise
 
     @staticmethod
-    def update_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: str):
+    def update_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: DlBlockStatus):
         """
         更新K线下载进度（统一格式）
         
@@ -120,7 +121,7 @@ class UnifiedDataManager:
             std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
-            status: 状态，'completed' 或 'not_completed'
+            status: 状态，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED
         """
         func_name = "update_kline_block_status"
         try:
@@ -153,7 +154,7 @@ class UnifiedDataManager:
             return 0
 
     @staticmethod
-    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, time_frame: Optional[str] = None) -> int:
+    def get_completed_block_total_count(db_conn, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
         """查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
         Args:

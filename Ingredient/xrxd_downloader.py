@@ -1,6 +1,6 @@
 # xrxd_downloader.py
 from KitchenBase.download_enums import DlTaskType
-from KitchenBase.stock_enums import DlTaskStatus
+from KitchenBase.download_enums import DlTaskStatus
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple

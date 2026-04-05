@@ -23,7 +23,8 @@ from KitchenBase.download_enums import DlTaskType
 from typing import Optional, Tuple, Dict, Any
 import pymysql
 from KitchenBase.logger_config import get_logger
-from KitchenBase.stock_enums import KLinePeriod, DlTaskStatus
+from KitchenBase.stock_enums import KLinePeriod
+from KitchenBase.download_enums import DlTaskStatus, DlTaskType
 
 logger = get_logger(__name__)
 
