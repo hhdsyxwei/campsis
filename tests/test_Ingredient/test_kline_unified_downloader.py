@@ -119,7 +119,7 @@ class TestKLineDownloader:
             mock_next_block.return_value = None
 
             downloader = KLineDownloader(mock_db_conn)
-            downloader.download_kline(2024, 2025, mock_time_frame)
+            downloader.continue_download_kline(2024, 2025, mock_time_frame)
 
             # 断言：中断区块被处理
             mock_next_block.assert_not_called()  # 优先处理中断区块，未调用_next_block

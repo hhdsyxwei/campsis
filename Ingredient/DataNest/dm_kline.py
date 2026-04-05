@@ -37,7 +37,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         logger.debug(f"[{__name__}.{func_name}] 委托设置下载区块: {std_stock_code} {time_frame.value} {quarter}")
         return self.progress_manager.set_kline_progress(quarter, std_stock_code, time_frame)
 
-    def get_downloading_block(self) -> Optional[Tuple[str, KLinePeriod, str]]:
+    def get_downloading_block(self) -> Optional[Tuple[str, str, KLinePeriod]]:
         """
         获取当前下载的区块信息（股票代码、时间周期、季度）
         委托给 GlobalDlCtrlBlockManager 处理
@@ -47,9 +47,10 @@ class KLineUnifiedQuarterlyExtendedManager:
         result = self.progress_manager.get_kline_progress()
         if result:
             quarter, stock_code, time_frame, _, _, _ = result
-            return (stock_code, time_frame, quarter)
+            # 当所有字段都存在时，返回元组
+            if quarter and stock_code and time_frame:
+                return (quarter, stock_code, time_frame)
         return None
-
 
 
     def save_kline_data_unified(self, std_stock_code: str, df: pd.DataFrame) -> bool:
@@ -129,7 +130,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             状态字符串: 'completed' 或 'not_completed'
         """
         func_name = "get_kline_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 查询 {std_stock_code} {time_frame} {quarter} 的下载状态")
+        logger.debug(f"[{__name__}.{func_name}] 查询 {std_stock_code} {time_frame.value} {quarter} 的下载状态")
         
         cursor = None
         try:

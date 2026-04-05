@@ -215,7 +215,7 @@ class UnifiedDataManager:
         """
         【对外标准接口】获取当前下载的区块信息（股票代码、时间周期、季度）
         :param db_conn: 数据库连接
-        :return: 元组(downloading_stock_code, downloading_time_frame, downloading_quarter) | None
+        :return: 元组(downloading_quarter, downloading_stock_code, downloading_time_frame) | None
         """
         func_name = "get_downloading_block"
         try:

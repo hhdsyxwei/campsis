@@ -182,25 +182,3 @@ def download_trade_date_map(
     except Exception as e:
         logger.error(f"初始化TradeDateMapManager或保存数据异常：{e}", exc_info=True)
         return False
-
-# 测试代码（可选，单独运行该模块时执行）
-if __name__ == "__main__":
-    import pymysql
-
-    # 配置数据库连接
-    DB_CONFIG = {
-        "host": "localhost",
-        "user": "root",
-        "password": "ta225924",
-        "database": "ashare",
-        "charset": "utf8mb4"
-    }
-
-    # 创建连接
-    conn = pymysql.connect(**DB_CONFIG)
-    try:
-        # 示例：下载 2015 ~ 2016 年全年数据（不包含2017）
-        result = download_trade_date_map(conn, start_year=2015, end_year=2016)
-        print(f"下载结果：{'成功' if result else '失败'}")
-    finally:
-        conn.close()

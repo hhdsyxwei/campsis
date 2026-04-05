@@ -1,4 +1,5 @@
 # kline_unified_downloader.py
+from KitchenBase.download_enums import DlTaskType
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple
@@ -6,7 +7,8 @@ from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_history_k_data_plus
 from KitchenBase.baostock_wrapper import BaostockWrapper as bsw
 from Ingredient.DataNest import UnifiedDataManager as dm
-from KitchenBase.stock_enums import KLinePeriod
+from Ingredient.DataNest.dm_global_dl_ctrl import GlobalDlCtrlBlockManager
+from KitchenBase.stock_enums import KLinePeriod, DlTaskStatus
 
 # ===================== 全局配置 =====================
 logger = get_logger(__name__)
@@ -22,6 +24,7 @@ class KLineDownloader:
         """
         self.db_conn = db_conn
         self.func_name = ""
+        self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
 
     def _calc_total_blocks(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
         """
@@ -74,7 +77,7 @@ class KLineDownloader:
     # -------------------------------------------------------------------------
     # 工具方法：计算指定季度的下一个季度标识
     # -------------------------------------------------------------------------
-    def _get_next_quarter(self, start_year: int, end_year: int, quarter: str) -> str:
+    def _get_next_quarter(self, start_year: int, end_year: int, quarter: str) -> Optional[str]:
         """
         获取指定季度的下一个季度
 
@@ -205,6 +208,20 @@ class KLineDownloader:
         """
         return dm.get_downloading_block(self.db_conn)
 
+    def _get_download_status(self):
+        """
+        获取当前下载状态
+        :return: 下载状态描述
+        """
+        return self.progress_manager.get_task_status(DlTaskType.KLINE)
+    
+    def _set_download_status(self, status: DlTaskStatus):
+        """
+        设置当前下载状态
+        :param status: 下载状态描述
+        """
+        self.progress_manager.set_task_status(DlTaskType.KLINE, status)
+
     # -------------------------------------------------------------------------
     # 【核心】动态查找：下一个待下载区块（无列表、纯数据库驱动）
     #  当前排序规则：季度(旧→新) → 股票固定顺序
@@ -262,6 +279,27 @@ class KLineDownloader:
         logger.debug(f"[{__name__}.{self.func_name}] 下一个区块: {current_quarter} -> {first_stock}")
         return (current_quarter, first_stock, time_frame)
 
+    def _get_first_block(
+        self, 
+        start_year: int, 
+        end_year: int, 
+        time_frame: KLinePeriod = KLinePeriod.MIN_5
+    ) -> Optional[Tuple[str, str, KLinePeriod]]:
+        """
+        查询第一个下载区块
+        迭代规则：季度升序 → 股票固定顺序（stock_fixed_seq表）
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
+        :param time_frame: K线周期
+        :return: (first_quarter, first_stock, time_frame) 或 None（无区块）
+        """
+        self.func_name = "_get_first_block"
+        logger.debug(f"[{__name__}.{self.func_name}] 查询第一个下载区块: {start_year}-{end_year} {time_frame.value}")
+        
+        # 调用_get_next_block函数，传入None作为当前季度和当前股票
+        # 这样会返回第一个区块
+        return self._get_next_block(start_year, end_year, None, None, time_frame)
+
     # -------------------------------------------------------------------------
     # 最小下载单元：下载单个区块
     # -------------------------------------------------------------------------
@@ -284,7 +322,7 @@ class KLineDownloader:
         # ========== 3. 上市时间校验 ==========
         s_date, e_date = self._quarter_to_date_range(quarter)
         is_ok, real_s, real_e = self._is_time_range_overlap_with_listing_period(std_stock_code, s_date, e_date)
-        if not is_ok:
+        if not is_ok or not real_s or not real_e:
             dm.update_kline_block_status(self.db_conn, quarter, std_stock_code, time_frame, BLOCK_COMPLETED)
             logger.debug(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {std_stock_code} {quarter}")
             return
@@ -323,23 +361,35 @@ class KLineDownloader:
     # -------------------------------------------------------------------------
     # 【类内唯一对外入口】主下载流程
     # -------------------------------------------------------------------------
-    def download_kline(self, start_year: int, end_year: int, time_frame: KLinePeriod):
+    def continue_download_kline(self, start_year: int, end_year: int, time_frame: KLinePeriod):
         """
         类内核心下载接口：无列表、动态查找、断点续传
+        :return: True 表示全部下载完成，False 表示未完成
         """
-        self.func_name = "download_kline"
+        self.func_name = "continue_download_kline"
         logger.debug(f"[{__name__}.{self.func_name}] 启动下载: {start_year}-{end_year} {time_frame.value}")
 
-        # 预先计算总区块数（仅计算一次）
+        # 步骤0：检查下载状态
+        status = self._get_download_status()
+        if status == DlTaskStatus.COMPLETED:
+            logger.info(f"[{__name__}.{self.func_name}] 下载已完成，无需重复执行")
+            return True
+        elif status == DlTaskStatus.IN_PROGRESS:
+            logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
+        else:  # 下载未开始
+            logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
+            self._set_download_status(DlTaskStatus.IN_PROGRESS)
+
+        # 步骤1：计算总区块数
         block_total = self._calc_total_blocks(start_year, end_year, time_frame)
 
-        # 步骤1：优先恢复中断的下载区块
+        # 步骤2：优先恢复中断的下载区块
         next_block = self._get_downloading_block()
         logger.debug(f"[{__name__}.{self.func_name}] 启动前：当前下载区块: {next_block}")
 
-        # 步骤2：无中断区块则获取第一个待下载区块
+        # 步骤3：无中断区块则获取第一个待下载区块
         if not next_block:
-            next_block = self._get_next_block(start_year, end_year, None, None, time_frame)
+            next_block = self._get_first_block(start_year, end_year, time_frame)
         logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
 
         # 核心循环：有下一个区块则执行下载
@@ -363,17 +413,78 @@ class KLineDownloader:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {quarter} {std_stock_code}, {str(e)}")
                 raise  # 异常向上抛出
 
-        logger.debug(f"[{__name__}.{self.func_name}] 全部下载完成")
+        # 下载完成，清空下载指针并设置状态为完成
+        self.progress_manager.clear_download_pointer(DlTaskType.KLINE)
+        self._set_download_status(DlTaskStatus.COMPLETED)
+        logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
+        return True
+
+    def start_new_kline_download(self, start_year: int, end_year: int, time_frame: KLinePeriod):
+        """
+        从头开始下载（删除之前的下载记录）
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
+        :param time_frame: K线周期枚举
+        :return: True 表示全部下载完成，False 表示未完成
+        """
+        self.func_name = "start_new_kline_download"
+        logger.info(f"[{__name__}.{self.func_name}] 开始从头下载: {start_year}-{end_year} {time_frame.value}")
+        
+        # 步骤1：设置状态为未开始
+        self._set_download_status(DlTaskStatus.NOT_STARTED)
+        logger.debug(f"[{__name__}.{self.func_name}] 已设置状态为未开始")
+        
+        # 步骤2：调用继续下载方法
+        return self.continue_download_kline(start_year, end_year, time_frame)
 
 # ===================== 全局唯一对外接口函数 =====================
-def download_kline(db_conn, start_year: int, end_year: int, time_frame: KLinePeriod):
+def continue_download_kline(db_conn, start_year: int, end_year: int, time_frame: KLinePeriod):
     """
-    【全局唯一对外接口】
-    使用者只需调用此函数，无需关心内部类实现
+    【全局唯一对外接口】继续下载K线数据（支持断点续传）
+    
+    功能说明：
+    - 从上次中断的位置继续下载K线数据
+    - 支持断点续传，自动恢复下载进度
+    - 按照季度和股票代码的顺序下载数据
+    - 自动处理下载过程中的异常
+    
+    下载流程：
+    1. 检查下载状态（未开始、进行中、已完成）
+    2. 计算总区块数
+    3. 优先恢复中断的下载区块
+    4. 按顺序下载所有区块
+    5. 完成后清空下载指针并设置状态为完成
+    
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（不包含）
     :param time_frame: K线周期枚举
+    :return: True 表示全部下载完成，False 表示未完成
     """
     downloader = KLineDownloader(db_conn)
-    downloader.download_kline(start_year, end_year, time_frame)
+    return downloader.continue_download_kline(start_year, end_year, time_frame)
+
+def start_new_kline_download(db_conn, start_year: int, end_year: int, time_frame: KLinePeriod):
+    """
+    【全局唯一对外接口】开始新的K线数据下载任务（清空之前的下载进度）
+    
+    功能说明：
+    - 清空之前的下载进度记录
+    - 从头开始下载指定年份范围的K线数据
+    - 按照季度和股票代码的顺序下载数据
+    - 自动处理下载过程中的异常
+    
+    下载流程：
+    1. 设置任务状态为未开始
+    2. 调用继续下载方法开始新的下载任务
+    3. 按照季度和股票代码的顺序下载所有区块
+    4. 完成后清空下载指针并设置状态为完成
+    
+    :param db_conn: 使用者创建的数据库连接
+    :param start_year: 起始年份（包含）
+    :param end_year: 结束年份（不包含）
+    :param time_frame: K线周期枚举
+    :return: True 表示全部下载完成，False 表示未完成
+    """
+    downloader = KLineDownloader(db_conn)
+    return downloader.start_new_kline_download(start_year, end_year, time_frame)

@@ -1,4 +1,5 @@
 # xrxd_downloader.py
+from KitchenBase.download_enums import DlTaskType
 from KitchenBase.stock_enums import DlTaskStatus
 import pandas as pd
 from datetime import datetime
@@ -317,19 +318,19 @@ class XrxdDownloader:
         except Exception as e:
             logger.error(f"[{__name__}._save_download_progress] 保存进度失败: {str(e)}")
 
-    def _get_download_status(self) -> str:
+    def _get_download_status(self) -> DlTaskStatus:
         """
         获取当前下载状态
-        :return: 下载状态描述
+        :return: 下载状态
         """
-        return self.progress_manager.get_task_status('xrxd')
+        return self.progress_manager.get_task_status(DlTaskType.XRXD)
     
     def _set_download_status(self, status: DlTaskStatus):
         """
         设置当前下载状态
-        :param status: 下载状态描述
+        :param status: 下载状态
         """
-        self.progress_manager.set_task_status('xrxd', status)
+        self.progress_manager.set_task_status(DlTaskType.XRXD, status)
 
     def _get_download_pointer_position(self, start_year: int, end_year: int) -> Optional[int]:
         """
@@ -351,7 +352,7 @@ class XrxdDownloader:
         # 步骤1：检查下载状态
         status = self._get_download_status()
         
-        if status == "下载未开始":
+        if status == DlTaskStatus.NOT_STARTED:
             logger.debug(f"[{__name__}.{self.func_name}] 下载未开始，返回None")
             return None
         
@@ -453,7 +454,7 @@ class XrxdDownloader:
                 raise  # 异常向上抛出
 
         # 下载完成，清空下载指针
-        self.progress_manager.clear_download_pointer('xrxd')
+        self.progress_manager.clear_download_pointer(DlTaskType.XRXD)
         logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True
 

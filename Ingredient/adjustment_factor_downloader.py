@@ -1,4 +1,5 @@
 # adjustment_factor_downloader.py
+from KitchenBase.download_enums import DlTaskType
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple
@@ -294,19 +295,19 @@ class AdjustmentFactorDownloader:
             logger.error(f"[{__name__}._save_download_progress] 保存进度失败: {str(e)}")
 
 
-    def _get_download_status(self) -> str:
+    def _get_download_status(self) -> DlTaskStatus:
         """
         获取当前下载状态
-        :return: 下载状态描述
+        :return: 下载状态
         """
-        return self.progress_manager.get_task_status('adjustment_factor')
+        return self.progress_manager.get_task_status(DlTaskType.ADJUSTMENT_FACTOR)
 
     def _set_download_status(self, status: DlTaskStatus):
         """
         设置当前下载状态
-        :param status: 下载状态描述
-        """
-        self.progress_manager.set_task_status('adjustment_factor', status)
+        :param status: 下载状态
+        """ 
+        self.progress_manager.set_task_status(DlTaskType.ADJUSTMENT_FACTOR, status)
 
 
     def _get_download_pointer_position(self, start_year: int, end_year: int) -> Optional[int]:
@@ -329,7 +330,7 @@ class AdjustmentFactorDownloader:
         # 步骤1：检查下载状态
         status = self._get_download_status()
         
-        if status == "下载未开始":
+        if status == DlTaskStatus.NOT_STARTED:
             logger.debug(f"[{__name__}.{self.func_name}] 下载未开始，返回None")
             return None
         
@@ -431,8 +432,8 @@ class AdjustmentFactorDownloader:
                 raise  # 异常向上抛出
 
         # 下载完成，设置任务状态为completed并清空下载指针
-        self.progress_manager.set_task_status('adjustment_factor', DlTaskStatus.COMPLETED)
-        self.progress_manager.clear_download_pointer('adjustment_factor')
+        self._set_download_status(DlTaskStatus.COMPLETED)
+        self.progress_manager.clear_download_pointer(DlTaskType.ADJUSTMENT_FACTOR)
         logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True
 
@@ -448,7 +449,7 @@ class AdjustmentFactorDownloader:
         
         # 步骤1：删除任务记录
         #self.progress_manager.delete_task('adjustment_factor')
-        self.progress_manager.set_task_status('adjustment_factor', DlTaskStatus.NOT_STARTED)
+        self.progress_manager.set_task_status(DlTaskType.ADJUSTMENT_FACTOR, DlTaskStatus.NOT_STARTED)
         logger.debug(f"[{__name__}.{self.func_name}] 已删除任务记录")
         
         # 步骤2：调用普通下载方法
