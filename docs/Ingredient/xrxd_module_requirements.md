@@ -1,188 +1,218 @@
 # XRXD Module Requirements Document
 
-## 1. Module Overview
+## 1. Project Background and Objectives
 
-The XRXD module is a dividend and bonus data downloader responsible for fetching stock dividend and bonus data from the Baostock API and storing it in the database.
+### 1.1 Project Background
+Campsis is an enterprise-grade data intelligence platform aimed at empowering business decisions through data. To achieve this goal, the platform needs to obtain various financial data from multiple data sources, including stock dividend and bonus data.
 
-## 2. Terminology
+### 1.2 Project Objectives
+The objectives of the XRXD module are:
+- Reliably obtain stock dividend and bonus data from the Baostock API
+- Clean and process data to ensure data quality
+- Store processed data in the database for use by other platform modules
+- Support breakpoint resume and fresh download functions to improve download reliability
+- Provide a clear state management mechanism for monitoring and maintenance
 
-### 2.1 Task
-- **Definition**: A task represents a collection of download blocks within a specific range
-- **Scope**: Typically corresponds to a complete download operation, containing multiple blocks across different years and stocks
-- **Identification**: Each task is identified by a task type (e.g., 'xrxd', 'kline')
-- **State Management**: Task state is tracked through download pointers, which indicate the current progress
+## 2. Basic Concept Definitions
 
-### 2.2 Block
-- **Definition**: A block is a collection of data for one stock in one year
-- **Uniqueness**: Each block is uniquely identified by (year, stock_code)
-- **Ordering**: Blocks are ordered first by year (ascending), then by stock code order in the `stock_fixed_seq` table
-- **Processing**: Each block is processed as a single unit during download
+| Concept | Definition | Description |
+|---------|------------|-------------|
+| **Task** | Represents a collection of download blocks within a specific range | Typically corresponds to a complete download operation, containing multiple blocks across different years and stocks |
+| **Block** | Represents data for one stock in one year | Uniquely identified by (year, stock_code), the minimum download unit |
+| **Pointer** | Used to track current download progress | Contains primary pointer (year), secondary pointer (stock code), and tertiary pointer (empty) |
+| **Download Status** | Current status of the task | Includes: Not Started, In Progress, Completed |
 
-### 2.3 Pointer
-- **Definition**: A pointer is a reference to the current download block
-- **Purpose**: Tracks the progress of the download task
-- **State Indicator**: The pointer's value indicates the current download state:
-  - Empty pointer: Download completed
-  - Non-empty pointer: Download in progress, pointing to the current block
-- **Update**: The pointer is updated before each block download to ensure breakpoint resume capability
+## 3. Functional Requirements (What to Do)
 
-## 3. Core Functional Requirements
+### 3.1 Core Functions
+1. **Data Download**: Obtain raw dividend and bonus data from the Baostock API
+2. **Data Cleaning**: Handle null values, outliers, and convert data formats
+3. **Data Storage**: Save cleaned data to the `stock_xrxd` table
+4. **Breakpoint Resume**: Support resuming downloads from interruption points to avoid duplicate downloads
+5. **Fresh Download**: Support clearing previous download records and starting from scratch
 
-### 3.1 Data Download
-- Support downloading dividend and bonus data by year and stock code
-- Use Baostock API to retrieve raw data
-- Support data cleaning and processing
-- Support data storage to database
+### 3.2 Auxiliary Functions
+1. **Status Management**: Track and manage the status of download tasks
+2. **Progress Calculation**: Calculate total blocks and current download progress
+3. **Error Handling**: Capture and handle exceptions during download
+4. **Logging**: Record detailed information about the download process
 
-### 3.2 Download Order
-- Adopt year-first, stock-code-second download order
-- Years arranged in ascending order
-- Stock code order based on the fixed sequence in the `stock_fixed_seq` table
+## 4. Non-Functional Requirements (Performance / Security / Compatibility)
 
-### 3.3 Resume from Breakpoint
-- Support resuming downloads from interruption points
-- Record current progress during download
-- Support continuing from last interruption point after program restart
+### 4.1 Performance Requirements
+- **Batch Operations**: Use batch insert/update to reduce database operations
+- **Data Processing**: Use Pandas for efficient data processing
+- **Status Management**: Centralized status management to avoid duplicate queries
+- **Response Time**: Single block download time should not exceed 5 seconds
 
-### 3.4 Download from Scratch
-- Support clearing previous download records and starting from scratch
-- Provide dedicated interface for downloading from scratch
+### 4.2 Security Requirements
+- **Exception Handling**: Comprehensive exception capture and handling mechanism
+- **Transaction Management**: Use database transactions to ensure data consistency
+- **Error Recovery**: Support resuming downloads from breakpoints
+- **Data Validation**: Validate data integrity and validity
 
-## 4. State Management Requirements
+### 4.3 Compatibility Requirements
+- **Environment Compatibility**: Support different running environments (development/production)
+- **API Compatibility**: Compatible with Baostock API interface changes
+- **Database Compatibility**: Compatible with different versions of MySQL
+- **Extensibility**: Support adding new task types and data sources
 
-### 4.1 State Definitions
+## 5. Business Process / Use Cases
 
-| State | Condition | Description |
-|------|------|------|
-| **Download Not Started** | No corresponding task type record exists in database | Task record does not exist |
-| **Download Completed** | Task record exists and all three-level pointers are empty | Primary, secondary, and tertiary pointer values are all empty strings |
-| **Download In Progress** | Task record exists and pointer points to valid download block | Pointer value is not empty, pointing to specific download task |
+### 5.1 Download Process
 
-### 4.2 State Management Interfaces
+**Main Download Process**:
+1. **Check Status**: Call `_get_download_status()` to get current download status
+2. **Determine Status**:
+   - If completed, return directly
+   - If in progress, resume from breakpoint
+   - If not started, set status to in progress
+3. **Calculate Total Blocks**: Call `_calc_total_blocks()` to calculate total blocks
+4. **Get Download Block**:
+   - Priority to resume interrupted download block
+   - If no interrupted block, get first pending download block
+5. **Loop Download**:
+   - Update download pointer
+   - Download block data
+   - Clean data
+   - Save data
+   - Get next block
+   - Record progress
+6. **Download Complete**:
+   - Clear download pointer
+   - Set status to completed
+   - Return success
 
-#### 4.2.1 Core Interfaces
-- `task_exists(task_type)`: Query whether a task of specified type exists
-- `is_download_pointer_empty(task_type)`: Determine if download pointer is empty
-- `clear_download_pointer(task_type)`: Set download pointer to empty
-- `delete_task(task_type)`: Delete task record of specified type
+### 5.2 Status Transition Diagram
 
-#### 4.2.2 State Query Flow
-1. Check if task exists: call `task_exists`
-2. If task does not exist, state is "Download Not Started"
-3. If task exists, check if pointer is empty: call `is_download_pointer_empty`
-4. If pointer is empty, state is "Download Completed"
-5. If pointer is not empty, state is "Download In Progress"
+```
+┌─────────────────┐
+│  NOT_STARTED    │  ← Initial state
+│  (Not Started)  │
+└────────┬────────┘
+         │ Call continue_download_xrxd()
+         │ Set status to IN_PROGRESS
+         ↓
+┌─────────────────┐
+│  IN_PROGRESS    │  ← Downloading
+│  (In Progress)  │
+└────────┬────────┘
+         │ All blocks downloaded
+         │ 1. clear_download_pointer()
+         │ 2. set_task_status(COMPLETED)
+         ↓
+┌─────────────────┐
+│  COMPLETED      │  ← Download completed
+│  (Completed)    │
+└─────────────────┘
+         ↑
+         │ Call start_new_xrxd_download()
+         │ Set status to NOT_STARTED
+         └───────────────────────┘
+```
 
-### 4.3 State Transitions
+### 5.3 Use Cases
 
-1. **Initial State**: No task record → Download Not Started
-2. **Start Download**: Create task record, pointer points to first task → Download In Progress
-3. **Downloading**: Pointer continuously updates, pointing to current task → Download In Progress
-4. **Download Completed**: Clear all pointers → Download Completed
-5. **Restart Download**: Delete task record → Download Not Started
+**Use Case 1: First-time Download**
+- **Trigger**: Call `start_new_xrxd_download()`
+- **Process**: Set status to not started → Call `continue_download_xrxd()` → Set status to in progress → Download all blocks → Set status to completed
+- **Expected Result**: Successfully download all dividend and bonus data for the specified year range
 
-## 5. Interface Design
+**Use Case 2: Breakpoint Resume**
+- **Trigger**: Call `continue_download_xrxd()` after download interruption
+- **Process**: Detect status as in progress → Resume download from breakpoint → Complete remaining blocks → Set status to completed
+- **Expected Result**: Resume download from breakpoint, avoid re-downloading completed blocks
 
-### 5.1 Class Methods
+**Use Case 3: Avoid Duplicate Download**
+- **Trigger**: Call `continue_download_xrxd()` after download completion
+- **Process**: Detect status as completed → Return directly without executing download
+- **Expected Result**: No duplicate download, improve efficiency
 
-#### XrxdDownloader Class
-- `__init__(db_conn)`: Initialize downloader
-- `download_xrxd(start_year, end_year)`: Core download method, supports resume from breakpoint
-- `download_xrxd_from_scratch(start_year, end_year)`: Download from scratch
-- `get_download_status()`: Get current download status
+## 6. Data and Interfaces
 
-### 5.2 Global Interfaces
+### 6.1 Data Structure
 
-- `continue_download_xrxd(db_conn, start_year, end_year)`: Continue download interface provided externally (supports resume from breakpoint)
-- `start_new_xrxd_download(db_conn, start_year, end_year)`: Start new download interface provided externally (clears previous progress)
+**`stock_xrxd` Table Structure**:
+| Field Name | Type | Description |
+|------------|------|-------------|
+| `std_stock_code` | VARCHAR | Stock code |
+| `xrxd_year` | INT | Dividend and bonus year |
+| `xrxd_pre_notice_date` | DATE | Pre-announcement date |
+| `xrxd_agm_pum_date` | DATE | AGM announcement date |
+| `xrxd_plan_announce_date` | DATE | Plan announcement date |
+| `xrxd_plan_date` | DATE | Plan date |
+| `xrxd_regist_date` | DATE | Registration date |
+| `xrxd_operate_date` | DATE | Ex-dividend date |
+| `xrxd_pay_date` | DATE | Payment date |
+| `xrxd_stock_market_date` | DATE | Stock listing date |
+| `xrxd_cash_ps_before_tax` | DECIMAL | Cash dividend per share (before tax) |
+| `xrxd_cash_ps_after_tax` | DECIMAL | Cash dividend per share (after tax) |
+| `xrxd_stocks_ps` | DECIMAL | Stock dividend per share |
+| `xrxd_cash_stock` | VARCHAR | Capitalization per share |
+| `xrxd_reserve_to_stock_ps` | DECIMAL | Capital reserve to stock per share |
 
-### 5.3 State Management Interfaces
+### 6.2 Core Interfaces
 
-#### GlobalDlCtrlBlockManager Class
-- `task_exists(task_type)`: Query if task exists
-- `is_download_pointer_empty(task_type)`: Determine if pointer is empty
-- `clear_download_pointer(task_type)`: Clear pointer
-- `delete_task(task_type)`: Delete task record
-- `set_xrxd_progress(year, stock_code)`: Set XRXD download progress
-- `get_xrxd_progress()`: Get XRXD download progress
+**External Interfaces**:
+1. **`continue_download_xrxd(db_conn, start_year, end_year)`**
+   - **Function**: Continue downloading dividend and bonus data (supports breakpoint resume)
+   - **Parameters**:
+     - `db_conn`: Database connection
+     - `start_year`: Start year (inclusive)
+     - `end_year`: End year (inclusive)
+   - **Return**: `True` indicates all downloads completed, `False` indicates not completed
 
-## 6. Implementation Details
+2. **`start_new_xrxd_download(db_conn, start_year, end_year)`**
+   - **Function**: Start a new dividend and bonus data download task (clear previous progress)
+   - **Parameters**:
+     - `db_conn`: Database connection
+     - `start_year`: Start year (inclusive)
+     - `end_year`: End year (inclusive)
+   - **Return**: `True` indicates all downloads completed, `False` indicates not completed
 
-### 6.1 Data Download Flow
-1. Check download status
-2. If download completed, return directly
-3. If download in progress, resume from breakpoint
-4. If download not started, start from scratch
-5. Loop through each download block
-6. Update download pointer before each block download
-7. Get next block after download completion
-8. Clear download pointer after all blocks completed
+**Internal Interfaces**:
+1. **`XrxdDownloader.continue_download_xrxd(start_year, end_year)`**
+2. **`XrxdDownloader.start_new_xrxd_download(start_year, end_year)`**
+3. **`XrxdManager.save_xrxd_data(df)`**
+4. **`GlobalDlCtrlBlockManager.set_xrxd_progress(year, stock_code)`**
+5. **`GlobalDlCtrlBlockManager.get_xrxd_progress()`**
 
-### 6.2 Data Processing
-- Retrieve raw data from Baostock API
-- Clean data, handle null values and anomalies
-- Transform data format to ensure compatibility with database table structure
-- Store data to `stock_xrxd` table
+## 7. Acceptance Criteria
 
-### 6.3 Error Handling
-- Capture exceptions during download process
-- Record detailed error logs
-- Propagate exceptions upward for caller to handle
+### 7.1 Functional Acceptance
+- ✅ Can successfully download dividend and bonus data from Baostock API
+- ✅ Can correctly clean and process data, handling null values and outliers
+- ✅ Can save data to the database
+- ✅ Supports breakpoint resume functionality
+- ✅ Supports fresh download functionality
+- ✅ Can correctly manage download status
+- ✅ Can calculate and display download progress
 
-## 7. Workflow
+### 7.2 Performance Acceptance
+- ✅ Single block download time does not exceed 5 seconds
+- ✅ Batch operations reduce database operations
+- ✅ Data processing efficiency meets requirements
 
-### 7.1 Resume from Breakpoint Flow
-1. Call `continue_download_xrxd` method
-2. Check download status
-3. If status is "Download Completed", return directly
-4. If status is "Download In Progress", resume from breakpoint
-5. If status is "Download Not Started", start from scratch
-6. Execute download blocks one by one
-7. Clear download pointer after all blocks completed
+### 7.3 Reliability Acceptance
+- ✅ Can resume download from breakpoint after network interruption
+- ✅ Can rollback transactions after database operation failure
+- ✅ Comprehensive exception handling mechanism
+- ✅ Detailed logging
 
-### 7.2 Download from Scratch Flow
-1. Call `start_new_xrxd_download` method
-2. Delete task record
-3. Call `continue_download_xrxd` method (status is now "Download Not Started")
-4. Start downloading all blocks from scratch
+### 7.4 Maintainability Acceptance
+- ✅ Clear code structure, modular design
+- ✅ Complete documentation, detailed comments
+- ✅ Reasonable interface design, easy to extend
+- ✅ Comprehensive error handling and logging
 
-## 8. Database Design
+### 7.5 Compatibility Acceptance
+- ✅ Supports different running environments
+- ✅ Compatible with Baostock API interface changes
+- ✅ Compatible with different versions of MySQL
+- ✅ Strong extensibility, supports adding new task types and data sources
 
-### 8.1 Table Structure
+## 8. Summary
 
-#### `stock_xrxd` Table
-- Stores dividend and bonus data
-- Contains stock code, year, dividend and bonus related fields
+The XRXD download module is an important component of the Campsis platform, responsible for obtaining stock dividend and bonus data from the Baostock API and storing it in the database. The module is well-designed, fully functional, and supports core features such as breakpoint resume and fresh download, with good performance, reliability, and extensibility.
 
-#### `global_dl_ctrl_block` Table
-- Stores download control information
-- Contains task type, pointer information, startup parameters, block count, etc.
-
-### 8.2 Index Design
-- `global_dl_ctrl_block` table has unique index on `task_type` field
-- Ensures uniqueness of task types
-
-## 9. Performance Optimization
-
-### 9.1 Download Optimization
-- Download by year and stock code order to avoid duplicate downloads
-- Utilize fixed sequence in `stock_fixed_seq` table to reduce database queries
-
-### 9.2 State Management Optimization
-- Centralize download state management to avoid repeated queries
-- Use database transactions to ensure atomicity of state updates
-
-## 10. Extensibility
-
-- Support adding new task types
-- Support custom download order
-- Support adding new data processing logic
-- Support integration with other modules
-
-## 11. Testing Recommendations
-
-- Test resume from breakpoint functionality
-- Test download from scratch functionality
-- Test state management logic
-- Test exception handling
-- Test performance and reliability
+By implementing this module, the Campsis platform can obtain complete stock dividend and bonus data, providing more comprehensive data support for business decisions. At the same time, the design ideas and implementation methods of this module can also serve as a reference for other similar data download modules.
