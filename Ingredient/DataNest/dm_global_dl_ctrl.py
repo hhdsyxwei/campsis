@@ -1,4 +1,5 @@
 # dm_global_dl_ctrl.py
+from KitchenBase.download_enums import DlTaskType
 """
 全局下载控制块管理模块
 集中管理对 global_dl_ctrl_block 表的访问
@@ -22,7 +23,8 @@
 from typing import Optional, Tuple, Dict, Any
 import pymysql
 from KitchenBase.logger_config import get_logger
-from KitchenBase.stock_enums import KLinePeriod, DlTaskStatus
+from KitchenBase.stock_enums import KLinePeriod
+from KitchenBase.download_enums import DlTaskStatus, DlTaskType
 
 logger = get_logger(__name__)
 
@@ -34,7 +36,7 @@ class GlobalDlCtrlBlockManager:
         self.conn = conn
 
     # -------------------------------------------------------------------------   
-    def write_progress(self, task_type: str, pointers: Dict[str, str], 
+    def write_progress(self, task_type: DlTaskType, pointers: Dict[str, str], 
                       startup_params: Optional[Dict] = None, 
                       completed_blocks: int = 0, 
                       total_blocks: int = 0) -> bool:
@@ -76,10 +78,10 @@ class GlobalDlCtrlBlockManager:
                     completed_blocks = VALUES(completed_blocks),
                     total_blocks = VALUES(total_blocks),
                     update_time = CURRENT_TIMESTAMP
-            """, (task_type, primary_name, primary_value, secondary_name, secondary_value,
+            """, (task_type.value, primary_name, primary_value, secondary_name, secondary_value,
                   tertiary_name, tertiary_value, startup_params, completed_blocks, total_blocks))
             self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] 进度写入成功: {task_type}")
+            logger.debug(f"[{__name__}.{func_name}] 进度写入成功: {task_type.value}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 进度写入失败: {str(e)}")
@@ -88,7 +90,7 @@ class GlobalDlCtrlBlockManager:
             if cursor:
                 cursor.close()
 
-    def read_progress(self, task_type: str) -> Optional[Dict[str, Any]]:
+    def read_progress(self, task_type: DlTaskType) -> Optional[Dict[str, Any]]:
         """
         完整进度读取接口
         :param task_type: 任务类型
@@ -106,7 +108,7 @@ class GlobalDlCtrlBlockManager:
                 FROM global_dl_ctrl_block 
                 WHERE task_type = %s 
                 LIMIT 1
-            """, (task_type,))
+            """, (task_type.value,))
             result = cursor.fetchone()
             if result:
                 progress = {
@@ -266,19 +268,19 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': 'time_frame',
             'tertiary_value': time_frame.value
         }
-        return self.write_progress('kline', pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_progress(DlTaskType.KLINE, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_kline_progress(self) -> Optional[Tuple[str, str, KLinePeriod, Optional[Dict], int, int]]:
         """
         获取K线下载进度
         :return: (季度, 股票代码, 时间周期, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_progress('kline')
+        progress = self.read_progress(DlTaskType.KLINE)
         if progress:
             try:
                 quarter = progress['primary_value']
                 stock_code = progress['secondary_value']
-                time_frame = KLinePeriod(progress['tertiary_value']) if progress['tertiary_value'] else KLinePeriod.MIN5
+                time_frame = KLinePeriod(progress['tertiary_value']) if progress['tertiary_value'] else KLinePeriod.MIN_5
                 startup_params = progress['startup_params']
                 completed_blocks = progress['completed_blocks']
                 total_blocks = progress['total_blocks']
@@ -310,14 +312,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_progress('xrxd', pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_progress(DlTaskType.XRXD, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_xrxd_progress(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
         """
         获取XRXD下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_progress('xrxd')
+        progress = self.read_progress(DlTaskType.XRXD)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
@@ -353,14 +355,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_progress('adjustment_factor', pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_progress(DlTaskType.ADJUSTMENT_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_adjustment_factor_progress(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
         """
         获取复权因子下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_progress('adjustment_factor')
+        progress = self.read_progress(DlTaskType.ADJUSTMENT_FACTOR)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
@@ -374,7 +376,7 @@ class GlobalDlCtrlBlockManager:
                 return None
         return None
 
-    def clear_download_pointer(self, task_type: str) -> bool:
+    def clear_download_pointer(self, task_type: DlTaskType) -> bool:
         """
         将下载指针设置为空
         :param task_type: 任务类型
@@ -413,7 +415,7 @@ class GlobalDlCtrlBlockManager:
             logger.error(f"[{__name__}.{func_name}] 任务删除失败: {str(e)}")
             return False
 
-    def task_exists(self, task_type: str) -> bool:
+    def task_exists(self, task_type: DlTaskType) -> bool:
         """
         查询指定类型的任务是否存在
         
@@ -434,7 +436,7 @@ class GlobalDlCtrlBlockManager:
             logger.error(f"[{__name__}.{func_name}] 查询任务是否存在失败: {str(e)}")
             return False
 
-    def is_download_pointer_empty(self, task_type: str) -> bool:
+    def is_download_pointer_empty(self, task_type: DlTaskType) -> bool:
         """
         判断当前下载指针是否为空
         :param task_type: 任务类型
@@ -454,7 +456,7 @@ class GlobalDlCtrlBlockManager:
             logger.error(f"[{__name__}.{func_name}] 判断下载指针失败: {str(e)}")
             return False
 
-    def set_task_status(self, task_type: str, status: DlTaskStatus) -> bool:
+    def set_task_status(self, task_type: DlTaskType, status: DlTaskStatus) -> bool:
         """
         设置指定任务类型的状态
         :param task_type: 任务类型
@@ -482,9 +484,12 @@ class GlobalDlCtrlBlockManager:
             if 'cursor' in locals() and cursor:
                 cursor.close()
 
-    def get_task_status(self, task_type: str) -> Optional[DlTaskStatus]:
+    def get_task_status(self, task_type: DlTaskType) -> DlTaskStatus:
         """
         获取指定任务类型的状态
+        如果任务不存在，或者状态值异常，返回DlTaskStatus.NOT_STARTED
+        如果发生其它未知异常，则异常向外抛出
+        因此，该方法正常返回时返回值永不为None
         :param task_type: 任务类型
         :return: 任务状态或None
         """
@@ -496,18 +501,18 @@ class GlobalDlCtrlBlockManager:
                 FROM global_dl_ctrl_block 
                 WHERE task_type = %s 
                 LIMIT 1
-            """, (task_type,))
+            """, (task_type.value,))
             result = cursor.fetchone()
             if result and result['task_status']:
                 try:
                     return DlTaskStatus(result['task_status'])
                 except ValueError:
                     logger.warning(f"[{__name__}.{func_name}] 任务状态值无效: {result['task_status']}")
-                    return None
-            return None
+                    return DlTaskStatus.NOT_STARTED
+            return DlTaskStatus.NOT_STARTED
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 任务状态获取失败: {str(e)}")
-            return None
+            raise e
         finally:
             if 'cursor' in locals() and cursor:
                 cursor.close()

@@ -1,4 +1,5 @@
 # dm_db_init.py
+from pymysql import Connect
 import os
 import pymysql
 from typing import Dict
@@ -9,7 +10,11 @@ from .dm_config import DB_CONFIG
 
 logger = get_logger(__name__)
 
-def create_database_if_not_exists():
+def create_database_if_not_exists() -> Connect:
+    """
+    创建数据库（如果不存在）并返回连接对象
+    :return: 数据库连接对象
+    """
     func_name = "create_database_if_not_exists"
     config_no_db = {k: v for k, v in DB_CONFIG.items() if k != 'database'}
     try:
@@ -93,7 +98,11 @@ def create_all_tables_if_not_exist(conn) -> bool:
     logger.info(f"[{func_name}] 全部执行完毕，结果：{'成功' if overall_success else '失败'}")
     return overall_success
 
-def create_database_and_tables() -> bool:
+def create_database_and_tables() -> Connect:
+    """
+    创建数据库（如果不存在）并返回连接对象
+    :return: 数据库连接对象
+    """
     func_name = "create_database_and_tables"
     try:
         conn = create_database_if_not_exists()

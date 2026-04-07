@@ -49,16 +49,34 @@ def calculate_pre_close(close_price_str: str, change_rate_str: str) -> float:
     """
     根据收盘价和涨跌幅计算昨收价。
     公式: close = pre_close * (1 + pctChg / 100)，则 pre_close = close / (1 + pctChg / 100)
+    
+    Args:
+        close_price_str: 收盘价字符串
+        change_rate_str: 涨跌幅字符串（百分比）
+        
+    Returns:
+        计算得到的昨收价
+        
+    Raises:
+        ValueError: 当输入参数为空或无法转换为浮点数时
+        ZeroDivisionError: 当涨跌幅为 -100% 时
     """
+    if not close_price_str:
+        raise ValueError("收盘价不能为空")
+    if not change_rate_str:
+        raise ValueError("涨跌幅不能为空")
+    
     try:
-        close_val = float(close_price_str) if close_price_str else None
-        change_rate_val = float(change_rate_str) if change_rate_str else None
-        if close_val is not None and change_rate_val is not None and change_rate_val != -100:
-            pre_close_val = close_val / (1 + change_rate_val / 100.0)
-            return round(pre_close_val, 2)
-    except (ValueError, ZeroDivisionError):
-        pass
-    return None
+        close_val = float(close_price_str)
+        change_rate_val = float(change_rate_str)
+        
+        if change_rate_val == -100:
+            raise ZeroDivisionError("涨跌幅不能为 -100%，否则会导致除以零")
+            
+        pre_close_val = close_val / (1 + change_rate_val / 100.0)
+        return round(pre_close_val, 2)
+    except ValueError as e:
+        raise ValueError(f"输入参数格式错误: {e}")
 
 def baostock_code_to_market(baostock_code: str) -> MarketType:
     if not baostock_code:

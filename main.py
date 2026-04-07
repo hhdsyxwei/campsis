@@ -12,7 +12,7 @@ import pymysql
 import baostock as bs
 import time
 from Ingredient.DataNest import create_database_and_tables
-from Ingredient.kline_unified_downloader import download_kline
+from Ingredient.kline_unified_downloader import start_new_kline_download, continue_download_kline
 from Ingredient.daily_data_downloader import download_all_stocks_daily_data
 from Ingredient.trade_date_map_downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
@@ -63,7 +63,8 @@ def main():
         # 5. 第三步：下载5分钟K线数据（示例）
         # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
         #bs_client = bs  # 已登录的 Baostock 客户端
-        #download_kline(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+        start_new_kline_download(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+        # continue_download_kline(conn, 2024, 2025, KLinePeriod.MIN_5)  # 继续下载2024-2025年的5分钟K线数据
 
         # 6. 第四步：下载分红送配数据
         start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  

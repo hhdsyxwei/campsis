@@ -1,10 +1,13 @@
 # dm_unified.py
+from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
 from .dm_kline import KLineUnifiedQuarterlyExtendedManager
 from .dm_stock_basic import BasicStockDataManager
 from .dm_stock_seq import StockFixedSeqManager
+from .dm_xrxd import XrxdManager
+from .dm_adjustment_factor import AdjustmentFactorManager
 
 logger = get_logger(__name__)
 
@@ -89,7 +92,7 @@ class UnifiedDataManager:
             return False
 
     @staticmethod
-    def get_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> str:
+    def get_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> DlBlockStatus:
         """
         获取K线下载状态
         
@@ -100,18 +103,18 @@ class UnifiedDataManager:
             quarter: 季度，格式如 '2024-Q1'
         
         Returns:
-            状态字符串: 'completed' 或 'not_completed'
+            状态枚举值，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
         """
         func_name = "get_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_kline_block_status(quarter, std_stock_code, time_frame)
+            return manager.get_block_status(quarter, std_stock_code, time_frame)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
-            return 'not_completed'
+            raise
 
     @staticmethod
-    def update_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: str):
+    def update_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: DlBlockStatus):
         """
         更新K线下载进度（统一格式）
         
@@ -120,12 +123,12 @@ class UnifiedDataManager:
             std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
-            status: 状态，'completed' 或 'not_completed'
+            status: 状态，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
         """
         func_name = "update_kline_block_status"
         try:
             manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.update_kline_block_status(quarter, std_stock_code, time_frame, status)
+            return manager.update_block_status(quarter, std_stock_code, time_frame, status)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return None
@@ -153,21 +156,61 @@ class UnifiedDataManager:
             return 0
 
     @staticmethod
-    def get_completed_block_total_count(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, time_frame: Optional[str] = None) -> int:
-        """查询kline_block_status表中状态为completed的区块总数
-        支持按年份范围过滤（仅匹配quarter字段中的年份部分）
-        Args:
-            db_conn: 数据库连接
-            start_year: 可选，起始年份（如2024），不传则不限制起始年份
-            end_year: 可选，结束年份（如2025），不传则不限制结束年份
-            time_frame: 可选，时间周期，不传则不限制
-        Returns:
-            状态为completed的区块总数
+    def get_data_manager(db_conn, task_type: DlTaskType):
         """
-        func_name = "get_completed_block_total_count"
+        工厂方法：根据任务类型返回对应的数据管理器实例
+        """
+        if task_type == DlTaskType.KLINE:
+            return KLineUnifiedQuarterlyExtendedManager(db_conn)
+        elif task_type == DlTaskType.XRXD:
+            return XrxdManager(db_conn)
+        elif task_type == DlTaskType.ADJUSTMENT_FACTOR:
+            return AdjustmentFactorManager(db_conn)
+        else:
+            raise ValueError(f"不支持的任务类型: {task_type}")
+
+    @staticmethod
+    def get_completed_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
+        """
+        统一获取已完成区块总数的接口
+        """
+        func_name = "get_completed_block_count"
         try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_completed_block_total_count(start_year, end_year, time_frame)
+            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
+            return manager.get_completed_block_count(start_year, end_year, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return 0
+
+    @staticmethod
+    def get_skipped_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
+        """
+        统一获取跳过区块总数的接口
+        """
+        func_name = "get_skipped_block_count"
+        try:
+            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
+            return manager.get_skipped_block_count(start_year, end_year, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return 0
+
+    @staticmethod
+    def get_skipped_block_total_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
+        """
+        统一获取跳过区块总数的接口（兼容旧接口）
+        """
+        return UnifiedDataManager.get_skipped_block_count(db_conn, task_type, start_year, end_year, *args, **kwargs)
+
+    @staticmethod
+    def get_total_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
+        """
+        统一获取区块总数的接口
+        """
+        func_name = "get_total_block_count"
+        try:
+            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
+            return manager.get_total_block_count(start_year, end_year, *args, **kwargs)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return 0
@@ -215,7 +258,7 @@ class UnifiedDataManager:
         """
         【对外标准接口】获取当前下载的区块信息（股票代码、时间周期、季度）
         :param db_conn: 数据库连接
-        :return: 元组(downloading_stock_code, downloading_time_frame, downloading_quarter) | None
+        :return: 元组(downloading_quarter, downloading_stock_code, downloading_time_frame) | None
         """
         func_name = "get_downloading_block"
         try:
