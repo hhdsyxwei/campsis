@@ -394,7 +394,7 @@ class AdjustmentFactorDownloader:
             logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
         else:  # 下载未开始
             logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
-        self._set_download_status(DlTaskStatus.IN_PROGRESS)
+            self._set_download_status(DlTaskStatus.IN_PROGRESS)
 
         # 步骤1：计算总区块数
         total_blocks = self._calc_total_blocks(start_year, end_year)

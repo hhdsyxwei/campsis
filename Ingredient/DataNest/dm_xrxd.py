@@ -270,7 +270,7 @@ class XrxdManager(BaseDataManager):
             if cursor:
                 cursor.close()
 
-    def get_completed_block_count(self, start_year: int, end_year: int) -> int:
+    def get_completed_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
         根据指针位置计算已完成的XRXD区块数
         支持按年份范围过滤
@@ -278,6 +278,8 @@ class XrxdManager(BaseDataManager):
         Args:
             start_year: 起始年份
             end_year: 结束年份
+            *args: 其他参数，用于过滤当前股票和年份的区块数
+            **kwargs: 其他参数，用于过滤当前股票和年份的区块数
 
         Returns:
             已完成的区块总数
@@ -286,36 +288,29 @@ class XrxdManager(BaseDataManager):
         logger.debug(
             f"[{__name__}.{func_name}] 根据指针位置计算已完成区块数，年份范围："
             f"start_year={start_year}, end_year={end_year}"
+            f", 其他参数：{args}"
         )
 
         cursor = None
         try:
-            # 获取当前下载指针
-            from .dm_unified import UnifiedDataManager
-            cursor = self.db_conn.cursor()
+            # 从args中解包获取下载指针
+            current_year = None
+            current_stock = None
+            if len(args) >= 2:
+                current_year = args[0]
+                current_stock = args[1]
             
-            # 查询当前下载指针
-            query = """
-            SELECT primary_pointer_value, secondary_pointer_value 
-            FROM global_dl_ctrl_block 
-            WHERE task_type = 'XRXD'
-            """
-            cursor.execute(query)
-            result = cursor.fetchone()
-            
-            if not result:
-                # 没有下载记录，返回0
+            # 如果没有提供下载指针，则返回0
+            if not current_year or not current_stock:
                 return 0
-            
-            current_year = int(result[0])  # 主指针：年份
-            current_stock = result[1]       # 次指针：股票代码
-            
+
             # 计算已处理的年份数
             years_processed = current_year - start_year
             if years_processed < 0:
                 return 0
             
             # 计算当前年份已处理的股票数
+            from .dm_unified import UnifiedDataManager
             stock_position = UnifiedDataManager.get_stock_position(self.db_conn, current_stock)
             if stock_position is None:
                 stock_position = 0
