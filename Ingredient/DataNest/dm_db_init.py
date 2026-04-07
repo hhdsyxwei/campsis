@@ -45,19 +45,21 @@ def create_all_tables_if_not_exist(conn) -> bool:
         # 库
         # "database": "./init/00_database.sql",
         # 基础表
-        "trade_date_map": f"{database_dir}/init/01_table_trade_date_map.sql.j2",
-        "stock_basic": f"{database_dir}/init/02_table_stock_basic.sql.j2",
-        "stock_daily": f"{database_dir}/init/03_table_stock_daily.sql.j2",
-        "stock_xrxd": f"{database_dir}/init/04_table_stock_xrxd.sql.j2",
-        "stock_adjustment_factor": f"{database_dir}/init/05_table_stock_adjustment_factor.sql.j2",
+        "trade_date_map": f"{database_dir}/init/base/01_table_trade_date_map.sql.j2",
+        # 股票相关表
+        "stock_basic": f"{database_dir}/init/stock/02_table_stock_basic.sql.j2",
+        "stock_daily": f"{database_dir}/init/stock/03_table_stock_daily.sql.j2",
+        "stock_xrxd": f"{database_dir}/init/stock/04_table_stock_xrxd.sql.j2",
+        "stock_adjustment_factor": f"{database_dir}/init/stock/05_table_stock_adjustment_factor.sql.j2",
 
-        # "kline_1min": "./init/04_table_kline_1min.sql",
-        # 统一K线表
-        "kline_unified": f"{database_dir}/init/UnifiedKLine/01_table_kline_unified.sql.j2",
-        "kline_block_status": f"{database_dir}/init/UnifiedKLine/02_table_kline_block_status.sql.j2",
-        "stock_fixed_seq": f"{database_dir}/init/UnifiedKLine/03_stock_fixed_seq.sql.j2",
-        "global_dl_ctrl_block": f"{database_dir}/init/UnifiedKLine/04_global_dl_ctrl_block.sql.j2",
-        "download_task_config": f"{database_dir}/init/UnifiedKLine/05_download_task_config.sql.j2",
+        # 下载控制相关表
+        "stock_fixed_seq": f"{database_dir}/init/download/05_stock_fixed_seq.sql.j2",
+        "global_dl_ctrl_block": f"{database_dir}/init/download/06_global_dl_ctrl_block.sql.j2",
+        "download_task_config": f"{database_dir}/init/download/07_download_task_config.sql.j2",
+        
+        # K线相关表
+        "kline_unified": f"{database_dir}/init/kline/01_table_kline_unified.sql.j2",
+        "kline_block_status": f"{database_dir}/init/kline/02_table_kline_block_status.sql.j2",
     }
 
     cursor = None
