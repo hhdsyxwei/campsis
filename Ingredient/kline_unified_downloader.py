@@ -336,8 +336,8 @@ class KLineDownloader:
         s_date, e_date = self._quarter_to_date_range(quarter)
         is_ok, real_s, real_e = self._is_time_range_overlap_with_listing_period(std_stock_code, s_date, e_date)
         if not is_ok or not real_s or not real_e:
-            dm.update_kline_block_status(self.db_conn, quarter, std_stock_code, time_frame, BLOCK_COMPLETED)
-            logger.debug(f"[{__name__}.{self.func_name}] 无有效数据，标记完成: {std_stock_code} {quarter}")
+            dm.update_kline_block_status(self.db_conn, quarter, std_stock_code, time_frame, DlBlockStatus.SKIPPED)
+            logger.debug(f"[{__name__}.{self.func_name}] 无有效数据，标记跳过: {std_stock_code} {quarter}")
             return
 
         # ========== 4. 下载数据（假定已登录baostock） ==========
@@ -398,7 +398,7 @@ class KLineDownloader:
             self._set_download_status(DlTaskStatus.IN_PROGRESS)
 
         # 步骤1：计算总区块数
-        block_total = self._calc_total_blocks(start_year, end_year, time_frame)
+        block_total = dm.get_total_block_count(self.db_conn, DlTaskType.KLINE, start_year, end_year, time_frame)
 
         # 步骤2：优先恢复中断的下载区块
         next_block = self._get_downloading_block()
@@ -420,12 +420,16 @@ class KLineDownloader:
                 # 获取下一个区块
                 next_block = self._get_next_block(start_year, end_year, quarter, std_stock_code, time_frame)
                 # 记录进度
-                completed_blocks = dm.get_completed_block_total_count(self.db_conn, start_year, end_year, time_frame)
+                completed_blocks = dm.get_completed_block_count(self.db_conn, DlTaskType.KLINE, start_year, end_year, time_frame)
+                skipped_blocks = dm.get_skipped_block_count(self.db_conn, DlTaskType.KLINE, start_year, end_year, time_frame)
+                processed_blocks = completed_blocks + skipped_blocks
                 if block_total > 0:
-                    progress = completed_blocks / block_total * 100
+                    progress = processed_blocks / block_total * 100
                 else:
                     progress = 0.0
-                logger.info(f"已下载区块总数：{completed_blocks}/{block_total}({progress:.2f}%) | 当前区块: {quarter} {std_stock_code} {time_frame.value}")
+                logger.info(f"已处理区块总数：{processed_blocks}/{block_total}({progress:.2f}%) | 已完成: {completed_blocks} | 已跳过: {skipped_blocks} | 当前区块: {quarter} {std_stock_code} {time_frame.value}")
+                if processed_blocks >= block_total:
+                    break
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {quarter} {std_stock_code}, {str(e)}")
                 raise  # 异常向上抛出

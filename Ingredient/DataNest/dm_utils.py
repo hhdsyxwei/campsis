@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 def _get_sql_statements_from_file(
     sql_file_path: str,
-    jinja_vars: Dict[str, Any] = None  # 模板变量（可选）
+    jinja_vars: Dict[str, Any] = {}  # 模板变量（可选）
 ) -> List[str]:
     """
     增强升级版：支持 Jinja2 模板渲染的 SQL 文件读取器

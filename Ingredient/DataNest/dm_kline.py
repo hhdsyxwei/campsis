@@ -6,6 +6,7 @@ from datetime import datetime
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
 from KitchenBase.download_enums import DlBlockStatus
+from .dm_base import BaseDataManager
 from .dm_columns import (
     STD_STOCK_CODE, TIME_FRAME, TIMESTAMP,
     OPEN_PRICE, HIGH_PRICE, LOW_PRICE, CLOSE_PRICE, VOLUME, TURNOVER,
@@ -17,10 +18,10 @@ from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
 
 logger = get_logger(__name__)
 
-class KLineUnifiedQuarterlyExtendedManager:
-    def __init__(self, conn):
-        self.conn = conn
-        self.progress_manager = GlobalDlCtrlBlockManager(conn)
+class KLineUnifiedQuarterlyExtendedManager(BaseDataManager):
+    def __init__(self, db_conn):
+        super().__init__(db_conn)
+        self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
 
     def set_downloading_block(self, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
         """
@@ -104,21 +105,21 @@ class KLineUnifiedQuarterlyExtendedManager:
                 {KUC.TURNOVER} = VALUES({KUC.TURNOVER}),
                 update_time = CURRENT_TIMESTAMP
             """
-            cursor = self.conn.cursor()
+            cursor = self.db_conn.cursor()
             cursor.executemany(sql, records)
-            self.conn.commit()
+            self.db_conn.commit()
             
             logger.debug(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条K线数据 for {std_stock_code}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 保存数据失败 for {std_stock_code}: {str(e)}")
-            self.conn.rollback()
+            self.db_conn.rollback()
             return False
         finally:
             if cursor:
                 cursor.close()
 
-    def get_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> DlBlockStatus:
+    def get_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> DlBlockStatus:
         """
         获取K线下载状态
         
@@ -128,14 +129,14 @@ class KLineUnifiedQuarterlyExtendedManager:
             time_frame: 时间周期
         
         Returns:
-            状态枚举: BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED
+            状态枚举: BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
         """
-        func_name = "get_kline_block_status"
+        func_name = "get_block_status"
         logger.debug(f"[{__name__}.{func_name}] 查询 {std_stock_code} {time_frame.value} {quarter} 的下载状态")
         
         cursor = None
         try:
-            cursor = self.conn.cursor()
+            cursor = self.db_conn.cursor()
             query = f"""
             SELECT status FROM kline_block_status 
             WHERE quarter = %s AND std_stock_code = %s AND time_frame = %s
@@ -156,7 +157,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def update_kline_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: DlBlockStatus):
+    def update_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: DlBlockStatus):
         """
         更新K线下载进度（统一格式）
         
@@ -164,14 +165,14 @@ class KLineUnifiedQuarterlyExtendedManager:
             std_stock_code: 股票代码
             time_frame: 时间周期
             quarter: 季度，格式如 '2024-Q1'
-            status: 状态，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED
+            status: 状态，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
         """
-        func_name = "update_kline_block_status"
+        func_name = "update_block_status"
         logger.debug(f"[{__name__}.{func_name}] 更新 {quarter} {std_stock_code} {time_frame.value}  的状态为: {status.value}")
         
         cursor = None
         try:
-            cursor = self.conn.cursor()
+            cursor = self.db_conn.cursor()
             # 使用INSERT ... ON DUPLICATE KEY UPDATE来处理记录存在与否的情况
             query = f"""
             INSERT INTO kline_block_status (quarter, std_stock_code, time_frame,  status, completed_at) 
@@ -186,12 +187,12 @@ class KLineUnifiedQuarterlyExtendedManager:
 
             completed_at = datetime.now() if status == DlBlockStatus.COMPLETED else None
             cursor.execute(query, (quarter, std_stock_code, time_frame.value, status.value, completed_at))
-            self.conn.commit()
+            self.db_conn.commit()
             
             logger.debug(f"[{__name__}.{func_name}] {quarter} {std_stock_code} {time_frame.value}  的状态已更新为: {status}")
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 更新进度失败: {str(e)}")
-            self.conn.rollback()
+            self.db_conn.rollback()
             raise
         finally:
             if cursor:
@@ -235,7 +236,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         
         cursor = None
         try:
-            cursor = self.conn.cursor()
+            cursor = self.db_conn.cursor()
             sql = f"""
             SELECT COUNT(*) FROM kline_unified_quarterly_extended 
             WHERE std_stock_code = %s AND time_frame = %s 
@@ -253,7 +254,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_completed_block_total_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
+    def get_completed_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
         """
         查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
@@ -266,7 +267,7 @@ class KLineUnifiedQuarterlyExtendedManager:
         Returns:
             状态为completed的区块总数
         """
-        func_name = "get_completed_block_total_count"
+        func_name = "get_completed_block_count"
         logger.debug(
             f"[{__name__}.{func_name}] 查询completed状态区块总数，年份范围："
             f"start_year={start_year}, end_year={end_year}, time_frame={time_frame.value}"
@@ -274,10 +275,14 @@ class KLineUnifiedQuarterlyExtendedManager:
 
         cursor = None
         try:
-            # 基础SQL：查询completed状态的总数
+            # 基础SQL：查询completed状态的总数，过滤掉不在stock_fixed_seq表中的股票代码
             sql = """
-            SELECT COUNT(*) FROM kline_block_status 
-            WHERE status = 'completed'
+            SELECT COUNT(*) FROM kline_block_status kbs
+            WHERE kbs.status = 'completed'
+            AND EXISTS (
+                SELECT 1 FROM stock_fixed_seq sfs
+                WHERE sfs.std_stock_code = kbs.std_stock_code
+            )
             """
             params = []
             conditions = []
@@ -300,7 +305,7 @@ class KLineUnifiedQuarterlyExtendedManager:
                 sql += " AND " + " AND ".join(conditions)
 
             # 执行查询
-            cursor = self.conn.cursor()
+            cursor = self.db_conn.cursor()
             cursor.execute(sql, params)
             count = cursor.fetchone()[0]
 
@@ -315,5 +320,112 @@ class KLineUnifiedQuarterlyExtendedManager:
         finally:
             if cursor:
                 cursor.close()
+
+    def get_skipped_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
+        """
+        查询kline_block_status表中状态为skipped的区块总数
+        支持按年份范围过滤（仅匹配quarter字段中的年份部分）
+
+        Args:
+            start_year: 可选，起始年份（如2024），不传则不限制起始年份
+            end_year: 可选，结束年份（如2025），不传则不限制结束年份
+            time_frame: 可选，时间周期，不传则不限制
+
+        Returns:
+            状态为skipped的区块总数
+        """
+        func_name = "get_skipped_block_count"
+        logger.debug(
+            f"[{__name__}.{func_name}] 查询skipped状态区块总数，年份范围："
+            f"start_year={start_year}, end_year={end_year}, time_frame={time_frame.value}"
+        )
+
+        cursor = None
+        try:
+            # 基础SQL：查询skipped状态的总数，过滤掉不在stock_fixed_seq表中的股票代码
+            sql = """
+            SELECT COUNT(*) FROM kline_block_status kbs
+            WHERE kbs.status = 'skipped'
+            AND EXISTS (
+                SELECT 1 FROM stock_fixed_seq sfs
+                WHERE sfs.std_stock_code = kbs.std_stock_code
+            )
+            """
+            params = []
+            conditions = []
+
+            # 动态添加年份范围过滤条件（解析quarter字段的年份部分）
+            # 注意：包含 start_year，不包含 end_year（惯例：[start_year, end_year)）
+            if start_year is not None:
+                conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) >= %s")
+                params.append(start_year)
+            if end_year is not None:
+                conditions.append("CAST(SUBSTRING(quarter, 1, 4) AS UNSIGNED) < %s")
+                params.append(end_year)
+            
+            # 动态添加time_frame过滤条件
+            if time_frame is not None:
+                conditions.append("time_frame = %s")
+                params.append(time_frame.value)
+
+            if conditions:
+                sql += " AND " + " AND ".join(conditions)
+
+            # 执行查询
+            cursor = self.db_conn.cursor()
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+
+            logger.debug(
+                f"[{__name__}.{func_name}] 查询完成，skipped状态区块总数：{count} "
+                f"(年份范围：{start_year or '不限'} - {end_year or '不限'})"
+            )
+            return count
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询skipped状态区块总数失败: {str(e)}")
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_total_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
+        """
+        计算K线数据的区块总数
+        计算逻辑：季度总数 × 股票总数 = 总区块数
+
+        Args:
+            start_year: 起始年份（包含）
+            end_year: 结束年份（不包含）
+            time_frame: K线周期
+
+        Returns:
+            区块总数
+        """
+        func_name = "get_total_block_count"
+        logger.debug(
+            f"[{__name__}.{func_name}] 计算区块总数，年份范围："
+            f"start_year={start_year}, end_year={end_year}, time_frame={time_frame.value}"
+        )
+
+        try:
+            # 计算年份范围内的季度总数
+            year_diff = end_year - start_year
+            quarter_count = year_diff * 4
+            
+            # 统计股票总数
+            from .dm_unified import UnifiedDataManager
+            stock_count = UnifiedDataManager.count_stocks_in_fixed_seq(self.db_conn)
+            
+            # 计算总区块数
+            total_blocks = quarter_count * stock_count
+            
+            logger.info(
+                f"[{__name__}.{func_name}] 计算完成，区块总数：{total_blocks} "
+                f"(年份范围：{start_year} - {end_year}, 季度数：{quarter_count}, 股票数：{stock_count})"
+            )
+            return total_blocks
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 计算区块总数失败: {str(e)}")
+            raise
 
 

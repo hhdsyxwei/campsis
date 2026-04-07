@@ -25,3 +25,4 @@ class DlBlockStatus(Enum):
     """
     COMPLETED = "completed"  # 已完成
     NOT_COMPLETED = "not_completed"  # 未完成
+    SKIPPED = "skipped"  # 跳过（未上市或已退市）
