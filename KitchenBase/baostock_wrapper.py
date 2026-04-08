@@ -160,6 +160,9 @@ class BaostockWrapper:
                 frequency=frequency,
                 adjustflag=adjustflag
             )
+            if result and result.error_code == 10054:
+                raise ConnectionRefusedError(f"查询K线数据失败: {result.error_msg}")
+
             logger.debug(f"[{current_func}->{inner_func}] 接口调用完成，error_code: {result.error_code if result is not None else 'None'}")
             return result
 
@@ -274,6 +277,9 @@ def query_adjust_factor(
             start_date=start_date,
             end_date=end_date
         )
+
+        if result.error_code == 10054:
+            raise ConnectionRefusedError(f"查询复权因子失败: {result.error_msg}")
     
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
         return result
@@ -331,6 +337,10 @@ def query_dividend_data(
             year=year,
             yearType=yearType
         )
+
+        if result.error_code == 10054:
+            raise ConnectionRefusedError(f"查询分红送配数据失败: {result.error_msg}")
+    
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
         return result
     except Exception as e:
@@ -409,7 +419,10 @@ def query_trade_dates(
             start_date=start_date,
             end_date=end_date
         )
-            
+        
+        if result.error_code == 10054:
+            raise ConnectionRefusedError(f"查询交易日数据失败: {result.error_msg}")
+    
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
         return result
     except Exception as e:

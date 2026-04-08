@@ -38,11 +38,11 @@ class XrxdDownloader:
         """
         获取当前年份的下一个年份
         :param current_year: 当前年份
-        :param end_year: 结束年份
+        :param end_year: 结束年份，不包含
         :return: 下一个年份或None
         """
         next_year = current_year + 1
-        return next_year if next_year <= end_year else None
+        return next_year if next_year < end_year else None
 
     # -------------------------------------------------------------------------
     # 【核心】动态查找：下一个待下载区块（无列表、纯数据库驱动）
@@ -121,7 +121,7 @@ class XrxdDownloader:
             
             # 检查API返回状态
             if rs.error_code != "0":
-                logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误: {rs.error_msg}")
+                logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误(error_code={rs.error_code}):  {rs.error_msg}")
                 return None
             
             # 获取数据
@@ -349,8 +349,7 @@ class XrxdDownloader:
                 self._set_xrxd_dl_pointer(year, stock_code)
                 # 执行下载
                 self._fetch_xrxd_block(year, stock_code)
-                # 获取下一个区块
-                next_block = self._get_next_block(start_year, end_year, year, stock_code)
+
                 # 记录进度
                 logger.info(f"XRXD数据下载完成区块: {year} {stock_code}")
                 
@@ -362,6 +361,9 @@ class XrxdDownloader:
                 if completed_block_count is not None and total_blocks > 0:
                     progress_percent = (completed_block_count / total_blocks) * 100
                     logger.info(f"XRXD数据下载进度: {progress_percent:.2f}% ({completed_block_count}/{total_blocks})")
+
+                # 获取下一个区块
+                next_block = self._get_next_block(start_year, end_year, year, stock_code)
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出

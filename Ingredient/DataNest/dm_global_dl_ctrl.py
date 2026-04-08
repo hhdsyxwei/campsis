@@ -49,7 +49,7 @@ class GlobalDlCtrlBlockManager:
         :param total_blocks: 区块总数量
         :return: 是否成功
         """
-        func_name = "write_progress"
+        func_name = "write_dl_pointer"
         primary_name = pointers.get('primary_name', '')
         primary_value = pointers.get('primary_value', '')
         secondary_name = pointers.get('secondary_name', '')

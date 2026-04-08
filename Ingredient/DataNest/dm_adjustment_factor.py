@@ -244,7 +244,9 @@ class AdjustmentFactorManager(BaseDataManager):
             
             # 计算已处理的总区块数
             stock_count = UnifiedDataManager.count_stocks_in_fixed_seq(self.db_conn)
-            processed_blocks = years_processed * stock_count + stock_position
+
+            # stock_position 从0开始，需要加1才能得到正确的区块数
+            processed_blocks = years_processed * stock_count + stock_position + 1
             
             logger.debug(
                 f"[{__name__}.{func_name}] 计算完成，已完成区块数：{processed_blocks} "
