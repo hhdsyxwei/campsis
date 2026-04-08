@@ -22,32 +22,6 @@ class AdjustmentFactorDownloader:
         self.func_name = ""
         self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
 
-    def _calc_total_blocks(self, start_year: int, end_year: int) -> int:
-        """
-        内部函数：计算指定时间范围下需要下载的区块总数
-        计算逻辑：(结束年份 - 起始年份) × 股票总数 = 总区块数
-        :param start_year: 起始年份（包含）
-        :param end_year: 结束年份（不包含）
-        :return: 需要下载的区块总数
-        """
-        self.func_name = "_calc_total_blocks"
-
-        # 步骤1：统计指定时间范围内的年份总数（不包含end_year）
-        year_count = end_year - start_year
-
-        # 步骤2：统计stock_fixed_seq表中的股票总数
-        stock_count = self._count_stocks_in_fixed_seq()
-
-        # 步骤3：计算总区块数（年份数 × 股票数）
-        total_blocks = year_count * stock_count
-
-        logger.debug(
-            f"[{__name__}.{self.func_name}] 统计结果："
-            f"年份范围[{start_year}-{end_year-1}] | 年份数={year_count} "
-            f"| 股票数={stock_count} | 总区块数={total_blocks}"
-        )
-        return total_blocks
-
     def _count_stocks_in_fixed_seq(self) -> int:
         """
         统计stock_fixed_seq表中的股票总数
@@ -310,9 +284,9 @@ class AdjustmentFactorDownloader:
         self.progress_manager.set_task_status(DlTaskType.ADJUSTMENT_FACTOR, status)
 
 
-    def _get_download_pointer_position(self, start_year: int, end_year: int) -> Optional[int]:
+    def _get_completed_block_count(self, start_year: int, end_year: int) -> int:
         """
-        获取当前下载指针的位置（区块序号）
+        获取当前下载已完成的区块数）
         
         区块排序规则：
         1. 先按年份升序（从start_year到end_year-1）
@@ -332,19 +306,19 @@ class AdjustmentFactorDownloader:
         
         if status == DlTaskStatus.NOT_STARTED:
             logger.debug(f"[{__name__}.{self.func_name}] 下载未开始，返回None")
-            return None
+            raise Exception("下载未开始")
         
         # 步骤2：获取股票总数
         total_stocks = self._count_stocks_in_fixed_seq()
         if total_stocks == 0:
             logger.warning(f"[{__name__}.{self.func_name}] 股票序列表为空")
-            return None
+            raise Exception("股票序列表为空")
         
         # 步骤3：计算总区块数
         total_blocks = (end_year - start_year) * total_stocks
         
         # 步骤4：如果下载已完成，返回总区块数
-        if status == "下载已完成":
+        if status == DlTaskStatus.COMPLETED:
             logger.debug(f"[{__name__}.{self.func_name}] 下载已完成，返回总区块数: {total_blocks}")
             return total_blocks
         
@@ -352,29 +326,22 @@ class AdjustmentFactorDownloader:
         block = self._get_downloading_block()
         if not block:
             logger.warning(f"[{__name__}.{self.func_name}] 无法获取当前下载区块")
-            return None
+            raise Exception("无法获取当前下载区块")
         
         year, stock_code = block
         
         # 步骤6：验证年份范围
         if year < start_year or year >= end_year:
             logger.warning(f"[{__name__}.{self.func_name}] 当前年份{year}不在范围[{start_year}, {end_year})内")
-            return None
+            raise Exception("当前年份不在下载范围")
         
         # 步骤7：获取股票在序列中的位置
-        stock_position = dm.get_stock_position(self.db_conn, stock_code)
-        if stock_position is None:
-            logger.warning(f"[{__name__}.{self.func_name}] 股票{stock_code}不在固定序列中")
-            return None
+        completed_block_count = dm.get_completed_block_count(self.db_conn, 
+                                                                     DlTaskType.ADJUSTMENT_FACTOR, 
+                                                                     start_year, end_year, 
+                                                                     year, stock_code)
         
-        # 步骤8：计算区块序号
-        year_offset = year - start_year
-        block_position = year_offset * total_stocks + stock_position
-        
-        logger.debug(f"[{__name__}.{self.func_name}] 计算结果: 年份{year}(偏移{year_offset}), "
-                    f"股票{stock_code}(位置{stock_position}), 区块序号={block_position}")
-        
-        return block_position
+        return completed_block_count
 
 
     def continue_download_adjustment_factor(self, start_year: int, end_year: int) -> bool:
@@ -394,10 +361,10 @@ class AdjustmentFactorDownloader:
             logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
         else:  # 下载未开始
             logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
-        self._set_download_status(DlTaskStatus.IN_PROGRESS)
+            self._set_download_status(DlTaskStatus.IN_PROGRESS)
 
         # 步骤1：计算总区块数
-        total_blocks = self._calc_total_blocks(start_year, end_year)
+        total_blocks = dm.get_total_block_count(self.db_conn, DlTaskType.ADJUSTMENT_FACTOR, start_year, end_year)
         logger.info(f"[{__name__}.{self.func_name}] 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
 
         # 步骤2：优先恢复中断的下载区块
@@ -422,11 +389,11 @@ class AdjustmentFactorDownloader:
                 # 记录进度
                 logger.info(f"[复权因子数据] 区块{year} {stock_code} 下载完成")
                 
-                # 输出下载进度（基于当前下载指针位置）
-                current_position = self._get_download_pointer_position(start_year, end_year)
-                if current_position is not None and total_blocks > 0:
-                    progress_percent = (current_position / total_blocks) * 100
-                    logger.info(f"复权因子数据下载进度: {progress_percent:.2f}% ({current_position}/{total_blocks})")
+                # 输出下载进度（基于已完成区块数）
+                completed_block_count = self._get_completed_block_count(start_year, end_year)
+                if  total_blocks > 0:
+                    progress_percent = (completed_block_count / total_blocks) * 100
+                    logger.info(f"复权因子数据下载进度: {progress_percent:.2f}% ({completed_block_count}/{total_blocks})")
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出

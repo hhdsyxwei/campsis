@@ -473,9 +473,9 @@ class GlobalDlCtrlBlockManager:
                 ON DUPLICATE KEY UPDATE
                     task_status = VALUES(task_status),
                     update_time = CURRENT_TIMESTAMP
-            """, (task_type, status.value))
+            """, (task_type.name, status.value))
             self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] 任务状态设置成功: {task_type} -> {status.value}")
+            logger.info(f"[{__name__}.{func_name}] 任务状态设置成功: {task_type} -> {status.value}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 任务状态设置失败: {str(e)}")
@@ -501,7 +501,7 @@ class GlobalDlCtrlBlockManager:
                 FROM global_dl_ctrl_block 
                 WHERE task_type = %s 
                 LIMIT 1
-            """, (task_type.value,))
+            """, (task_type.name,))
             result = cursor.fetchone()
             if result and result['task_status']:
                 try:
