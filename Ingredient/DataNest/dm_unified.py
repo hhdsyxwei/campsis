@@ -1,4 +1,5 @@
 # dm_unified.py
+from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
@@ -8,6 +9,7 @@ from .dm_stock_basic import BasicStockDataManager
 from .dm_stock_seq import StockFixedSeqManager
 from .dm_xrxd import XrxdManager
 from .dm_adjustment_factor import AdjustmentFactorManager
+from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager as dl_ctrl_manager
 
 logger = get_logger(__name__)
 
@@ -231,7 +233,7 @@ class UnifiedDataManager:
             return None
 
     @staticmethod
-    def set_downloading_block(db_conn, stock_id: str, time_frame: KLinePeriod, quarter: str) -> bool:
+    def set_dl_pointer(db_conn, stock_id: str, time_frame: KLinePeriod, quarter: str) -> bool:
         """
         【对外标准接口】设置当前下载的区块信息（股票代码、时间周期、季度）
         Args:
@@ -243,10 +245,10 @@ class UnifiedDataManager:
         Returns:
             设置是否成功
         """
-        func_name = "set_downloading_block"
+        func_name = "set_dl_pointer"
         try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            result = manager.set_downloading_block(stock_id, time_frame, quarter)
+            dl_ctrl_manager = GlobalDlCtrlBlockManager(db_conn)
+            result = dl_ctrl_manager.set_kline_dl_pointer(stock_id, quarter, time_frame)
             logger.debug(f"[{__name__}.{func_name}] 对外接口调用完成，返回结果: {result}")
             return result
         except Exception as e:
@@ -254,18 +256,19 @@ class UnifiedDataManager:
             return False
 
     @staticmethod
-    def get_downloading_block(db_conn) -> Optional[Tuple[str, str, KLinePeriod]]:
+    def get_dl_pointer(db_conn) -> Optional[Tuple[str, str, KLinePeriod]]:
         """
         【对外标准接口】获取当前下载的区块信息（股票代码、时间周期、季度）
         :param db_conn: 数据库连接
         :return: 元组(downloading_quarter, downloading_stock_code, downloading_time_frame) | None
         """
-        func_name = "get_downloading_block"
+        func_name = "get_dl_pointer"
         try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            result = manager.get_downloading_block()
+            dl_ctrl_manager = GlobalDlCtrlBlockManager(db_conn)
+            result = dl_ctrl_manager.get_kline_dl_pointer()
             logger.debug(f"[{__name__}.{func_name}] 对外接口调用完成，返回结果: {result}")
-            return result
+            if result:
+                return result[0], result[1], result[2]
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 对外接口调用失败: {str(e)}")
             return None

@@ -38,11 +38,11 @@ class XrxdDownloader:
         """
         获取当前年份的下一个年份
         :param current_year: 当前年份
-        :param end_year: 结束年份
+        :param end_year: 结束年份，不包含
         :return: 下一个年份或None
         """
         next_year = current_year + 1
-        return next_year if next_year <= end_year else None
+        return next_year if next_year < end_year else None
 
     # -------------------------------------------------------------------------
     # 【核心】动态查找：下一个待下载区块（无列表、纯数据库驱动）
@@ -121,13 +121,13 @@ class XrxdDownloader:
             
             # 检查API返回状态
             if rs.error_code != "0":
-                logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误: {rs.error_msg}")
+                logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误(error_code={rs.error_code}):  {rs.error_msg}")
                 return None
             
             # 获取数据
             df = rs.get_data()
             if df.empty:
-                logger.debug(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
+                logger.warning(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
                 return None
             
             return df
@@ -261,7 +261,7 @@ class XrxdDownloader:
         :return: (year, stock_code) 或 None（无正在下载的区块）
         """
         try:
-            result = self.progress_manager.get_xrxd_progress()
+            result = self.progress_manager.get_xrxd_dl_pointer()
             if result:
                 year, stock_code, _, _, _ = result
                 if year > 0 and stock_code:
@@ -271,18 +271,7 @@ class XrxdDownloader:
             logger.error(f"[{__name__}._get_downloading_block] 获取下载区块失败: {str(e)}")
             return None
 
-    def _save_download_progress(self, year: int, stock_code: str):
-        """
-        保存下载进度
-        :param year: 年份
-        :param stock_code: 股票代码
-        """
-        try:
-            self.progress_manager.set_xrxd_progress(year, stock_code)
-        except Exception as e:
-            logger.error(f"[{__name__}._save_download_progress] 保存进度失败: {str(e)}")
-
-    def _set_downloading_block(self, year: int, stock_code: str) -> bool:
+    def _set_xrxd_dl_pointer(self, year: int, stock_code: str) -> bool:
         """
         设置当前正在下载的区块
         
@@ -295,11 +284,11 @@ class XrxdDownloader:
         :return: 是否设置成功
         """
         try:
-            result = self.progress_manager.set_xrxd_progress(year, stock_code)
-            logger.debug(f"[{__name__}._set_downloading_block] 设置下载区块成功: {year} {stock_code}")
+            result = self.progress_manager.set_xrxd_dl_pointer(year, stock_code)
+            logger.debug(f"[{__name__}._set_xrxd_dl_pointer] 设置下载区块成功: {year} {stock_code}")
             return result
         except Exception as e:
-            logger.error(f"[{__name__}._set_downloading_block] 设置下载区块失败: {str(e)}")
+            logger.error(f"[{__name__}._set_xrxd_dl_pointer] 设置下载区块失败: {str(e)}")
             return False
 
     def _get_download_status(self) -> DlTaskStatus:
@@ -357,11 +346,10 @@ class XrxdDownloader:
             year, stock_code = next_block
             try:
                 # 先更新下载指针，确保中断后能从正确位置恢复
-                self._save_download_progress(year, stock_code)
+                self._set_xrxd_dl_pointer(year, stock_code)
                 # 执行下载
                 self._fetch_xrxd_block(year, stock_code)
-                # 获取下一个区块
-                next_block = self._get_next_block(start_year, end_year, year, stock_code)
+
                 # 记录进度
                 logger.info(f"XRXD数据下载完成区块: {year} {stock_code}")
                 
@@ -373,6 +361,9 @@ class XrxdDownloader:
                 if completed_block_count is not None and total_blocks > 0:
                     progress_percent = (completed_block_count / total_blocks) * 100
                     logger.info(f"XRXD数据下载进度: {progress_percent:.2f}% ({completed_block_count}/{total_blocks})")
+
+                # 获取下一个区块
+                next_block = self._get_next_block(start_year, end_year, year, stock_code)
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出

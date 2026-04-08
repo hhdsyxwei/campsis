@@ -23,38 +23,6 @@ class KLineUnifiedQuarterlyExtendedManager(BaseDataManager):
         super().__init__(db_conn)
         self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
 
-    def set_downloading_block(self, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> bool:
-        """
-        设置当前下载的区块信息（更新global_dl_ctrl_block表）
-        委托给 GlobalDlCtrlBlockManager 处理
-        Args:
-            std_stock_code: 股票代码
-            time_frame: 时间周期
-            quarter: 季度，格式如 '2024-Q1'
-        
-        Returns:
-            设置是否成功
-        """
-        func_name = "set_downloading_block"
-        logger.debug(f"[{__name__}.{func_name}] 委托设置下载区块: {std_stock_code} {time_frame.value} {quarter}")
-        return self.progress_manager.set_kline_progress(quarter, std_stock_code, time_frame)
-
-    def get_downloading_block(self) -> Optional[Tuple[str, str, KLinePeriod]]:
-        """
-        获取当前下载的区块信息（股票代码、时间周期、季度）
-        委托给 GlobalDlCtrlBlockManager 处理
-        """
-        func_name = "get_downloading_block"
-        logger.debug(f"[{__name__}.{func_name}] 委托获取下载区块")
-        result = self.progress_manager.get_kline_progress()
-        if result:
-            quarter, stock_code, time_frame, _, _, _ = result
-            # 当所有字段都存在时，返回元组
-            if quarter and stock_code and time_frame:
-                return (quarter, stock_code, time_frame)
-        return None
-
-
     def save_kline_data_unified(self, std_stock_code: str, df: pd.DataFrame) -> bool:
         """
         保存统一格式的K线数据
