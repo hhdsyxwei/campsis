@@ -376,7 +376,7 @@ class AdjustmentFactorDownloader:
             next_block = self._get_next_block(start_year, end_year, None, None)
         logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
 
-        # 核心循环：有下一个区块则执行下载
+        # 核心循环：有下一个区块则执行下载，否则退出循环
         while next_block:
             year, stock_code = next_block
             try:
@@ -394,15 +394,21 @@ class AdjustmentFactorDownloader:
                 if  total_blocks > 0:
                     progress_percent = (completed_block_count / total_blocks) * 100
                     logger.info(f"复权因子数据下载进度: {progress_percent:.2f}% ({completed_block_count}/{total_blocks})")
+            except ConnectionError as e:
+                # 网络连接异常，记录错误日志，退出循环体，中止整个下载任务
+                logger.error(f"[{__name__}.{self.func_name}] 下载失败 - {type(e).__name__}: {str(e)}")
+                return False
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出
 
-        # 下载完成，设置任务状态为completed并清空下载指针
-        self._set_download_status(DlTaskStatus.COMPLETED)
-        self.progress_manager.clear_download_pointer(DlTaskType.ADJUSTMENT_FACTOR)
-        logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
-        return True
+        if completed_block_count >= total_blocks:
+            self._set_download_status(DlTaskStatus.COMPLETED)
+            self.progress_manager.clear_download_pointer(DlTaskType.ADJUSTMENT_FACTOR)
+            logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
+            return True
+        
+        return False
 
     def start_new_adjustment_factor_download(self, start_year: int, end_year: int) -> bool:
         """

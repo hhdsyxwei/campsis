@@ -259,6 +259,7 @@ def query_adjust_factor(
     - adjustFactor: 本次复权因子
     
     返回值：原生ResultData对象
+    异常：网络连接异常时抛出ConnectionError异常
     """
     current_func = "query_adjust_factor"
     logger.debug(
@@ -267,14 +268,18 @@ def query_adjust_factor(
         f"| 时间范围: {start_date or '2015-01-01'} - {end_date or '当前日期'}"
     )
     
-    result = bs.query_adjust_factor(
-        code=code,
-        start_date=start_date,
-        end_date=end_date
-    )
+    try:
+        result = bs.query_adjust_factor(
+            code=code,
+            start_date=start_date,
+            end_date=end_date
+        )
     
-    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-    return result
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+    except Exception as e:
+        logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
+        raise ConnectionError(f"查询复权因子失败: {str(e)}") from e
 
 
 def query_dividend_data(
