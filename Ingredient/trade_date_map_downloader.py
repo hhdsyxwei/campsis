@@ -1,10 +1,10 @@
 # trade_date_map_downloader.py
 from KitchenBase.logger_config import get_logger
-import baostock as bs
 import pandas as pd
 from datetime import datetime
 from typing import Optional
 from Ingredient.DataNest import TradeDateMapManager
+from KitchenBase.baostock_wrapper import query_trade_dates,login, logout
 
 logger = get_logger(__name__)
 
@@ -37,24 +37,24 @@ def _download_raw_trade_dates(start_date: str, end_date: str) -> Optional[pd.Dat
     # 避免重复登录（若已登录则复用）
     try:
         # 先尝试获取登录状态（Baostock无直接获取状态接口，用查询兜底）
-        test_rs = bs.query_trade_dates(start_date=start_date, end_date=start_date)
+        test_rs = query_trade_dates(start_date=start_date, end_date=start_date)
         if test_rs.error_code == '0':
             logger.debug("Baostock已登录，复用现有连接")
         else:
-            lg = bs.login()
+            lg = login()
             if lg.error_code != '0':
                 logger.error(f"Baostock登录失败：{lg.error_msg}")
                 return None
     except:
         # 首次登录
-        lg = bs.login()
+        lg = login()
         if lg.error_code != '0':
             logger.error(f"Baostock登录失败：{lg.error_msg}")
             return None
 
     try:
         # 调用接口获取原始数据
-        rs = bs.query_trade_dates(start_date=start_date, end_date=end_date)
+        rs = query_trade_dates(start_date=start_date, end_date=end_date)
         if rs.error_code != '0':
             logger.error(f"下载交易日数据失败：{rs.error_msg}")
             return None

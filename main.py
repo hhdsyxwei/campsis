@@ -8,9 +8,7 @@ setup_logging()
 PackageManager.install_missing_requirements()
 
 import os
-import pymysql
-import baostock as bs
-import time
+import KitchenBase.baostock_wrapper as bs
 from Ingredient.DataNest import create_database_and_tables
 from Ingredient.kline_unified_downloader import start_new_kline_download, continue_download_kline
 from Ingredient.daily_data_downloader import download_all_stocks_daily_data
@@ -52,7 +50,7 @@ def main():
     conn = create_database_and_tables()
 
     try:
-        download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
+        # download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
         # 3. 第一步：同步并更新股票的基础信息表 (stock_basic)
         #download_stock_basic(conn)  # 下载股票详细信息（行业、上市日期等）
 
@@ -63,12 +61,12 @@ def main():
         # 5. 第三步：下载5分钟K线数据（示例）
         # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
         #bs_client = bs  # 已登录的 Baostock 客户端
-        start_new_kline_download(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
-        # continue_download_kline(conn, 2024, 2025, KLinePeriod.MIN_5)  # 继续下载2024-2025年的5分钟K线数据
+        # start_new_kline_download(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+        continue_download_kline(conn, 2024, 2025, KLinePeriod.MIN_5)  # 继续下载2024-2025年的5分钟K线数据
 
         # 6. 第四步：下载分红送配数据
-        start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
-        # continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
+        # start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
+        continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
 
         # 7. 第五步：下载复权因子数据
         start_new_adjustment_factor_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的复权因子数据

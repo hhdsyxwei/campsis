@@ -247,7 +247,7 @@ class AdjustmentFactorDownloader:
         :return: (year, stock_code) 或 None（无正在下载的区块）
         """
         try:
-            result = self.progress_manager.get_adjustment_factor_progress()
+            result = self.progress_manager.get_adj_fct_dl_pointer()
             if result:
                 year, stock_code, _, _, _ = result
                 if year > 0 and stock_code:
@@ -264,7 +264,7 @@ class AdjustmentFactorDownloader:
         :param stock_code: 股票代码
         """
         try:
-            self.progress_manager.set_adjustment_factor_progress(year, stock_code)
+            self.progress_manager.set_adj_fct_dl_pointer(year, stock_code)
         except Exception as e:
             logger.error(f"[{__name__}._save_download_progress] 保存进度失败: {str(e)}")
 

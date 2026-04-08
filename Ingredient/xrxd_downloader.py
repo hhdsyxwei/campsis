@@ -127,7 +127,7 @@ class XrxdDownloader:
             # 获取数据
             df = rs.get_data()
             if df.empty:
-                logger.debug(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
+                logger.warning(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
                 return None
             
             return df
@@ -261,7 +261,7 @@ class XrxdDownloader:
         :return: (year, stock_code) 或 None（无正在下载的区块）
         """
         try:
-            result = self.progress_manager.get_xrxd_progress()
+            result = self.progress_manager.get_xrxd_dl_pointer()
             if result:
                 year, stock_code, _, _, _ = result
                 if year > 0 and stock_code:
@@ -271,18 +271,7 @@ class XrxdDownloader:
             logger.error(f"[{__name__}._get_downloading_block] 获取下载区块失败: {str(e)}")
             return None
 
-    def _save_download_progress(self, year: int, stock_code: str):
-        """
-        保存下载进度
-        :param year: 年份
-        :param stock_code: 股票代码
-        """
-        try:
-            self.progress_manager.set_xrxd_progress(year, stock_code)
-        except Exception as e:
-            logger.error(f"[{__name__}._save_download_progress] 保存进度失败: {str(e)}")
-
-    def _set_downloading_block(self, year: int, stock_code: str) -> bool:
+    def _set_xrxd_dl_pointer(self, year: int, stock_code: str) -> bool:
         """
         设置当前正在下载的区块
         
@@ -295,11 +284,11 @@ class XrxdDownloader:
         :return: 是否设置成功
         """
         try:
-            result = self.progress_manager.set_xrxd_progress(year, stock_code)
-            logger.debug(f"[{__name__}._set_downloading_block] 设置下载区块成功: {year} {stock_code}")
+            result = self.progress_manager.set_xrxd_dl_pointer(year, stock_code)
+            logger.debug(f"[{__name__}._set_xrxd_dl_pointer] 设置下载区块成功: {year} {stock_code}")
             return result
         except Exception as e:
-            logger.error(f"[{__name__}._set_downloading_block] 设置下载区块失败: {str(e)}")
+            logger.error(f"[{__name__}._set_xrxd_dl_pointer] 设置下载区块失败: {str(e)}")
             return False
 
     def _get_download_status(self) -> DlTaskStatus:
@@ -357,7 +346,7 @@ class XrxdDownloader:
             year, stock_code = next_block
             try:
                 # 先更新下载指针，确保中断后能从正确位置恢复
-                self._save_download_progress(year, stock_code)
+                self._set_xrxd_dl_pointer(year, stock_code)
                 # 执行下载
                 self._fetch_xrxd_block(year, stock_code)
                 # 获取下一个区块

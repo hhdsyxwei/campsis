@@ -36,7 +36,7 @@ class GlobalDlCtrlBlockManager:
         self.conn = conn
 
     # -------------------------------------------------------------------------   
-    def write_progress(self, task_type: DlTaskType, pointers: Dict[str, str], 
+    def write_dl_pointer(self, task_type: DlTaskType, pointers: Dict[str, str], 
                       startup_params: Optional[Dict] = None, 
                       completed_blocks: int = 0, 
                       total_blocks: int = 0) -> bool:
@@ -90,7 +90,7 @@ class GlobalDlCtrlBlockManager:
             if cursor:
                 cursor.close()
 
-    def read_progress(self, task_type: DlTaskType) -> Optional[Dict[str, Any]]:
+    def read_dl_pointer(self, task_type: DlTaskType) -> Optional[Dict[str, Any]]:
         """
         完整进度读取接口
         :param task_type: 任务类型
@@ -246,7 +246,7 @@ class GlobalDlCtrlBlockManager:
                 cursor.close()
 
     # -------------------------------------------------------------------------   
-    def set_kline_progress(self, quarter: str, stock_code: str, time_frame: KLinePeriod, 
+    def set_kline_dl_pointer(self, quarter: str, stock_code: str, time_frame: KLinePeriod, 
                           startup_params: Optional[Dict] = None, 
                           completed_blocks: int = 0, 
                           total_blocks: int = 0) -> bool:
@@ -268,14 +268,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': 'time_frame',
             'tertiary_value': time_frame.value
         }
-        return self.write_progress(DlTaskType.KLINE, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_pointer(DlTaskType.KLINE, pointers, startup_params, completed_blocks, total_blocks)
 
-    def get_kline_progress(self) -> Optional[Tuple[str, str, KLinePeriod, Optional[Dict], int, int]]:
+    def get_kline_dl_pointer(self) -> Optional[Tuple[str, str, KLinePeriod, Optional[Dict], int, int]]:
         """
         获取K线下载进度
         :return: (季度, 股票代码, 时间周期, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_progress(DlTaskType.KLINE)
+        progress = self.read_dl_pointer(DlTaskType.KLINE)
         if progress:
             try:
                 quarter = progress['primary_value']
@@ -291,7 +291,7 @@ class GlobalDlCtrlBlockManager:
         return None
 
     # -------------------------------------------------------------------------   
-    def set_xrxd_progress(self, year: int, stock_code: str, 
+    def set_xrxd_dl_pointer(self, year: int, stock_code: str, 
                          startup_params: Optional[Dict] = None, 
                          completed_blocks: int = 0, 
                          total_blocks: int = 0) -> bool:
@@ -312,14 +312,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_progress(DlTaskType.XRXD, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_pointer(DlTaskType.XRXD, pointers, startup_params, completed_blocks, total_blocks)
 
-    def get_xrxd_progress(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
+    def get_xrxd_dl_pointer(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
         """
         获取XRXD下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_progress(DlTaskType.XRXD)
+        progress = self.read_dl_pointer(DlTaskType.XRXD)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
@@ -334,7 +334,7 @@ class GlobalDlCtrlBlockManager:
         return None
 
     # -------------------------------------------------------------------------
-    def set_adjustment_factor_progress(self, year: int, stock_code: str, 
+    def set_adj_fct_dl_pointer(self, year: int, stock_code: str, 
                                      startup_params: Optional[Dict] = None, 
                                      completed_blocks: int = 0, 
                                      total_blocks: int = 0) -> bool:
@@ -355,14 +355,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_progress(DlTaskType.ADJUSTMENT_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_pointer(DlTaskType.ADJUSTMENT_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
 
-    def get_adjustment_factor_progress(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
+    def get_adj_fct_dl_pointer(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
         """
         获取复权因子下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_progress(DlTaskType.ADJUSTMENT_FACTOR)
+        progress = self.read_dl_pointer(DlTaskType.ADJUSTMENT_FACTOR)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
@@ -392,7 +392,7 @@ class GlobalDlCtrlBlockManager:
                 'tertiary_name': '',
                 'tertiary_value': ''
             }
-            return self.write_progress(task_type, pointers)
+            return self.write_dl_pointer(task_type, pointers)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 清空下载指针失败: {str(e)}")
             return False
@@ -430,7 +430,7 @@ class GlobalDlCtrlBlockManager:
         """
         func_name = "task_exists"
         try:
-            progress = self.read_progress(task_type)
+            progress = self.read_dl_pointer(task_type)
             return progress is not None
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询任务是否存在失败: {str(e)}")
@@ -444,7 +444,7 @@ class GlobalDlCtrlBlockManager:
         """
         func_name = "is_download_pointer_empty"
         try:
-            progress = self.read_progress(task_type)
+            progress = self.read_dl_pointer(task_type)
             if progress:
                 primary_value = progress['primary_value']
                 secondary_value = progress['secondary_value']
@@ -473,7 +473,7 @@ class GlobalDlCtrlBlockManager:
                 ON DUPLICATE KEY UPDATE
                     task_status = VALUES(task_status),
                     update_time = CURRENT_TIMESTAMP
-            """, (task_type.name, status.value))
+            """, (task_type.value, status.value))
             self.conn.commit()
             logger.info(f"[{__name__}.{func_name}] 任务状态设置成功: {task_type} -> {status.value}")
             return True
@@ -501,7 +501,7 @@ class GlobalDlCtrlBlockManager:
                 FROM global_dl_ctrl_block 
                 WHERE task_type = %s 
                 LIMIT 1
-            """, (task_type.name,))
+            """, (task_type.value,))
             result = cursor.fetchone()
             if result and result['task_status']:
                 try:
