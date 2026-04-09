@@ -16,6 +16,10 @@ class BaostockErrorCode:
     IP_BLACKLIST = "10001011"        #baostock错误消息：IP被黑名单限制。
 
 class BaostockWrapper:
+
+
+
+
     """
     Baostock数据查询包装类
     提供带重试、自动重登、超时控制等功能的封装
@@ -209,6 +213,46 @@ class BaostockWrapper:
 default_wrapper = BaostockWrapper()
 
 
+def login() -> Any:
+    """
+    简单封装baostock.login接口
+    登录Baostock系统
+    
+    返回值：原生登录结果对象
+    异常：网络连接异常时抛出ConnectionError异常
+    """
+    current_func = "login"
+    logger.debug(f"[{current_func}] 登录Baostock系统")
+    
+    try:
+        result = bs.login()
+        logger.debug(f"[{current_func}] 登录完成，error_code: {result.error_code}")
+        return result
+    except Exception as e:
+        logger.error(f"[{current_func}] 登录失败 - {type(e).__name__}: {str(e)}")
+        raise ConnectionError(f"登录Baostock系统失败: {str(e)}") from e 
+
+
+def logout() -> Any:
+    """
+    简单封装baostock.logout接口
+    退出Baostock系统
+    
+    返回值：原生登出结果对象
+    异常：网络连接异常时抛出ConnectionError异常
+    """
+    current_func = "logout"
+    logger.debug(f"[{current_func}] 退出Baostock系统")
+    
+    try:
+        result = bs.logout()
+        error_code = result.error_code if result is not None else 'None'
+        logger.debug(f"[{current_func}] 登出完成，error_code: {error_code}")
+        return result
+    except Exception as e:
+        logger.error(f"[{current_func}] 登出失败 - {type(e).__name__}: {str(e)}")
+        raise ConnectionError(f"退出Baostock系统失败: {str(e)}") from e
+
 # 为了向后兼容，保留原有的函数接口
 def query_history_k_data_plus(
     code: str,
@@ -352,47 +396,6 @@ def query_dividend_data(
     except Exception as e:
         logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
         raise ConnectionError(f"查询分红送配数据失败: {str(e)}") from e
-
-
-def login() -> Any:
-    """
-    简单封装baostock.login接口
-    登录Baostock系统
-    
-    返回值：原生登录结果对象
-    异常：网络连接异常时抛出ConnectionError异常
-    """
-    current_func = "login"
-    logger.debug(f"[{current_func}] 登录Baostock系统")
-    
-    try:
-        result = bs.login()
-        logger.debug(f"[{current_func}] 登录完成，error_code: {result.error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 登录失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"登录Baostock系统失败: {str(e)}") from e 
-
-
-def logout() -> Any:
-    """
-    简单封装baostock.logout接口
-    退出Baostock系统
-    
-    返回值：原生登出结果对象
-    异常：网络连接异常时抛出ConnectionError异常
-    """
-    current_func = "logout"
-    logger.debug(f"[{current_func}] 退出Baostock系统")
-    
-    try:
-        result = bs.logout()
-        error_code = result.error_code if result is not None else 'None'
-        logger.debug(f"[{current_func}] 登出完成，error_code: {error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 登出失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"退出Baostock系统失败: {str(e)}") from e
 
 
 def query_trade_dates(

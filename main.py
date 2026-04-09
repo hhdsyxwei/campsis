@@ -63,7 +63,8 @@ def main():
         # download_all_stocks_daily_data(conn, start_date="2023-01-01", end_date="2026-03-17") 
 
         # 5. 第三步：下载行业分类数据
-        start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
+        # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
+        # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
         # 6. 第四步：下载5分钟K线数据（示例）
         # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
@@ -71,11 +72,11 @@ def main():
         # start_new_kline_download(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
         continue_download_kline(conn, 2024, 2025, KLinePeriod.MIN_5)  # 继续下载2024-2025年的5分钟K线数据
 
-        # 7. 第四步：下载分红送配数据
+        # 7. 第五步：下载分红送配数据
         # start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
         continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
 
-        # 8. 第五步：下载复权因子数据
+        # 8. 第六步：下载复权因子数据
         # start_new_adjustment_factor_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的复权因子数据
         continue_download_adjustment_factor(conn, 2020, 2025)  # 继续下载2020-2025年的复权因子数据
 

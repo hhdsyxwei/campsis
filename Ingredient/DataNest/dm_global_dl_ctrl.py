@@ -67,21 +67,22 @@ class GlobalDlCtrlBlockManager:
                  tertiary_pointer_name, tertiary_pointer_value, 
                  startup_params, completed_blocks, total_blocks, update_time)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                AS new_values
                 ON DUPLICATE KEY UPDATE
-                    primary_pointer_name = VALUES(primary_pointer_name),
-                    primary_pointer_value = VALUES(primary_pointer_value),
-                    secondary_pointer_name = VALUES(secondary_pointer_name),
-                    secondary_pointer_value = VALUES(secondary_pointer_value),
-                    tertiary_pointer_name = VALUES(tertiary_pointer_name),
-                    tertiary_pointer_value = VALUES(tertiary_pointer_value),
-                    startup_params = VALUES(startup_params),
-                    completed_blocks = VALUES(completed_blocks),
-                    total_blocks = VALUES(total_blocks),
+                    primary_pointer_name = new_values.primary_pointer_name,
+                    primary_pointer_value = new_values.primary_pointer_value,
+                    secondary_pointer_name = new_values.secondary_pointer_name,
+                    secondary_pointer_value = new_values.secondary_pointer_value,
+                    tertiary_pointer_name = new_values.tertiary_pointer_name,
+                    tertiary_pointer_value = new_values.tertiary_pointer_value,
+                    startup_params = new_values.startup_params,
+                    completed_blocks = new_values.completed_blocks,
+                    total_blocks = new_values.total_blocks,
                     update_time = CURRENT_TIMESTAMP
             """, (task_type.value, primary_name, primary_value, secondary_name, secondary_value,
                   tertiary_name, tertiary_value, startup_params, completed_blocks, total_blocks))
             self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] 进度写入成功: {task_type.value}")
+            logger.info(f"[{__name__}.{func_name}] 进度写入成功: {task_type.value}")
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 进度写入失败: {str(e)}")
@@ -149,8 +150,9 @@ class GlobalDlCtrlBlockManager:
                 INSERT INTO global_dl_ctrl_block 
                 (task_type, startup_params, update_time)
                 VALUES (%s, %s, CURRENT_TIMESTAMP)
+                AS new_values
                 ON DUPLICATE KEY UPDATE
-                    startup_params = VALUES(startup_params),
+                    startup_params = new_values.startup_params,
                     update_time = CURRENT_TIMESTAMP
             """, (task_type, startup_params))
             self.conn.commit()
@@ -205,9 +207,10 @@ class GlobalDlCtrlBlockManager:
                 INSERT INTO global_dl_ctrl_block 
                 (task_type, completed_blocks, total_blocks, update_time)
                 VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                AS new_values
                 ON DUPLICATE KEY UPDATE
-                    completed_blocks = VALUES(completed_blocks),
-                    total_blocks = VALUES(total_blocks),
+                    completed_blocks = new_values.completed_blocks,
+                    total_blocks = new_values.total_blocks,
                     update_time = CURRENT_TIMESTAMP
             """, (task_type, completed_blocks, total_blocks))
             self.conn.commit()
@@ -514,8 +517,9 @@ class GlobalDlCtrlBlockManager:
                 INSERT INTO global_dl_ctrl_block 
                 (task_type, task_status, update_time)
                 VALUES (%s, %s, CURRENT_TIMESTAMP)
+                AS new_values
                 ON DUPLICATE KEY UPDATE
-                    task_status = VALUES(task_status),
+                    task_status = new_values.task_status,
                     update_time = CURRENT_TIMESTAMP
             """, (task_type.value, status.value))
             self.conn.commit()
