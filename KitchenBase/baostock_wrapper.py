@@ -11,10 +11,9 @@ logger = get_logger(__name__)
 
 class BaostockErrorCode:
     """Baostock 错误码常量"""
-    SUCCESS = "0"
-    CONNECTION_REFUSED = "10054"
-    IP_BLACKLIST = "10001011"
-
+    SUCCESS = "0"                     #baostock成功码
+    CONNECTION_REFUSED = "10002007"   #baostock错误消息：网络接收错误。远程主机强迫关闭了一个现有的连接。接收数据异常，请稍后再试。
+    IP_BLACKLIST = "10001011"        #baostock错误消息：IP被黑名单限制。
 
 class BaostockWrapper:
     """
@@ -285,7 +284,7 @@ def query_adjust_factor(
             end_date=end_date
         )
 
-        if result.error_code != BaostockErrorCode.SUCCESS:
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
             raise ConnectionRefusedError(f"查询复权因子失败: {result.error_code}=={result.error_msg}")
 
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
@@ -345,7 +344,7 @@ def query_dividend_data(
             yearType=yearType
         )
 
-        if result.error_code != BaostockErrorCode.SUCCESS:
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
             raise ConnectionRefusedError(f"查询分红送配数据失败: {result.error_msg}")
     
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
@@ -466,7 +465,7 @@ def query_stock_industry(
             date=date
         )
 
-        if result.error_code != BaostockErrorCode.SUCCESS:
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
             raise ConnectionRefusedError(f"查询行业分类失败: {result.error_msg}")
     
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
