@@ -1,0 +1,46 @@
+/* ====================== 8. 通用区块状态管理表 ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('generic_block_status') | safe }}` (
+  -- 区块标识字段（最多3个，支持联合主键）
+  `{{ col_block_key_1 | default('block_key_1') | safe }}` VARCHAR(50) NOT NULL COMMENT '区块主键字段1',
+  `{{ col_block_key_2 | default('block_key_2') | safe }}` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '区块主键字段2',
+  `{{ col_block_key_3 | default('block_key_3') | safe }}` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '区块主键字段3',
+  
+  -- 区块元信息
+  `{{ col_block_name | default('block_name') | safe }}` VARCHAR(100) DEFAULT NULL COMMENT '区块名称',
+  `{{ col_task_type | default('task_type') | safe }}` VARCHAR(50) NOT NULL COMMENT '任务类型',
+  
+  -- 核心状态字段（4种状态）
+  `{{ col_status | default('status') | safe }}` ENUM('not_completed', 'skipped', 'completed', 'error') 
+    NOT NULL DEFAULT 'not_completed' 
+    COMMENT '状态：not_completed-未完成，skipped-已跳过，completed-已完成，error-下载异常',
+  
+  -- 统计信息
+  `{{ col_total_items | default('total_items') | safe }}` INT UNSIGNED DEFAULT 0 COMMENT '区块内总项目数',
+  `{{ col_success_count | default('success_count') | safe }}` INT UNSIGNED DEFAULT 0 COMMENT '成功处理数量',
+  `{{ col_fail_count | default('fail_count') | safe }}` INT UNSIGNED DEFAULT 0 COMMENT '失败处理数量',
+  
+  -- 时间戳
+  `{{ col_completed_at | default('completed_at') | safe }}` TIMESTAMP NULL COMMENT '完成时间',
+  `{{ col_created_at | default('created_at') | safe }}` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `{{ col_updated_at | default('updated_at') | safe }}` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  
+  -- 错误信息
+  `{{ col_error_message | default('error_message') | safe }}` TEXT DEFAULT NULL COMMENT '错误信息',
+  `{{ col_retry_count | default('retry_count') | safe }}` TINYINT UNSIGNED DEFAULT 0 COMMENT '重试次数',
+  
+  -- 扩展字段
+  `{{ col_extra_data | default('extra_data') | safe }}` JSON DEFAULT NULL COMMENT '扩展数据',
+  
+  -- 联合主键：支持1-3个字段
+  PRIMARY KEY (`{{ pk_col1 | default('block_key_1') | safe }}`, `{{ pk_col2 | default('block_key_2') | safe }}`, `{{ pk_col3 | default('block_key_3') | safe }}`, `{{ pk_col4 | default('task_type') | safe }}`),
+  
+  -- 索引
+  INDEX `{{ idx_status | default('idx_status') | safe }}` (`{{ idx_col_status | default('status') | safe }}`),
+  INDEX `{{ idx_task_type | default('idx_task_type') | safe }}` (`{{ idx_col_task_type | default('task_type') | safe }}`),
+  INDEX `{{ idx_status_type | default('idx_status_type') | safe }}` (`{{ idx_col_status | default('status') | safe }}`, `{{ idx_col_task_type | default('task_type') | safe }}`),
+  INDEX `{{ idx_updated_at | default('idx_updated_at') | safe }}` (`{{ idx_col_updated_at | default('updated_at') | safe }}`)
+  
+) ENGINE={{ engine | default('InnoDB') | safe }}
+DEFAULT CHARSET={{ charset | default('utf8mb4') | safe }}
+COLLATE={{ collate | default('utf8mb4_unicode_ci') | safe }}
+COMMENT='{{ table_comment | default('通用区块状态管理表 | 支持最多3字段联合主键 | 4种状态：not_completed/skipped/completed/error') | safe }}';

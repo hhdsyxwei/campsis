@@ -51,11 +51,14 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "stock_daily": f"{database_dir}/init/stock/03_table_stock_daily.sql.j2",
         "stock_xrxd": f"{database_dir}/init/stock/04_table_stock_xrxd.sql.j2",
         "stock_adjustment_factor": f"{database_dir}/init/stock/05_table_stock_adjustment_factor.sql.j2",
+        "stock_industry": f"{database_dir}/init/stock/06_table_stock_industry.sql.j2",
+        "stock_industry_history": f"{database_dir}/init/stock/07_table_stock_industry_history.sql.j2",
 
         # 下载控制相关表
         "stock_fixed_seq": f"{database_dir}/init/download/05_stock_fixed_seq.sql.j2",
         "global_dl_ctrl_block": f"{database_dir}/init/download/06_global_dl_ctrl_block.sql.j2",
         "download_task_config": f"{database_dir}/init/download/07_download_task_config.sql.j2",
+        "generic_block_status": f"{database_dir}/init/download/08_generic_block_status.sql.j2",
         
         # K线相关表
         "kline_unified": f"{database_dir}/init/kline/01_table_kline_unified.sql.j2",

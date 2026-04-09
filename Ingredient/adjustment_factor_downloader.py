@@ -406,7 +406,7 @@ class AdjustmentFactorDownloader:
 
         if completed_block_count >= total_blocks:
             self._set_download_status(DlTaskStatus.COMPLETED)
-            self.progress_manager.clear_download_pointer(DlTaskType.ADJUSTMENT_FACTOR)
+            self.progress_manager.clear_dl_pointer(DlTaskType.ADJUSTMENT_FACTOR)
             logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
             return True
         

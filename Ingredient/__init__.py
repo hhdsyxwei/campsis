@@ -15,6 +15,7 @@ from .DataNest import (
     StockBasicColumns,
     StockDailyColumns,
     StockXrxdColumns,
+    StockIndustryDataManager,
     get_nearest_trade_date_before
 )
 
@@ -31,6 +32,7 @@ __all__ = [
     'DailyDataManager',
     'BasicStockDataManager',
     'XrxdManager',
+    'StockIndustryDataManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedColumns',
     'StockBasicColumns',

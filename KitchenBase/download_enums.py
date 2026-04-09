@@ -6,6 +6,7 @@ class DlTaskType(Enum):
     KLINE = "kline"  # K线数据
     XRXD = "xrxd"  # 分红送配数据
     ADJUSTMENT_FACTOR = "adjustment_factor"  # 复权因子
+    INDUSTRY = "industry"  # 行业数据
     STOCK_BASIC = "stock_basic"  # 股票基本信息
     TRADE_DATE = "trade_date"  # 交易日数据
 
@@ -17,6 +18,7 @@ class DlTaskStatus(Enum):
     NOT_STARTED = "not_started"  # 未开始
     IN_PROGRESS = "in_progress"  # 正在进行中
     COMPLETED = "completed"  # 已下载完成
+    ERROR = "error"  # 错误状态
 
 
 class DlBlockStatus(Enum):
@@ -26,3 +28,4 @@ class DlBlockStatus(Enum):
     COMPLETED = "completed"  # 已完成
     NOT_COMPLETED = "not_completed"  # 未完成
     SKIPPED = "skipped"  # 跳过（未上市或已退市）
+    ERROR = "error"  # 错误状态

@@ -325,7 +325,7 @@ class XrxdDownloader:
             logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
         else:  # 下载未开始
             logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
-            self.progress_manager.clear_download_pointer(DlTaskType.XRXD)
+            self.progress_manager.clear_dl_pointer(DlTaskType.XRXD)
             self._set_download_status(DlTaskStatus.IN_PROGRESS)
 
         # 步骤1：计算总区块数
@@ -369,7 +369,7 @@ class XrxdDownloader:
                 raise  # 异常向上抛出
 
         # 下载完成，清空下载指针
-        self.progress_manager.clear_download_pointer(DlTaskType.XRXD)
+        self.progress_manager.clear_dl_pointer(DlTaskType.XRXD)
         logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True
 

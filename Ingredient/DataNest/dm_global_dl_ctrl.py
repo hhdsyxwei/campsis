@@ -110,7 +110,9 @@ class GlobalDlCtrlBlockManager:
                 LIMIT 1
             """, (task_type.value,))
             result = cursor.fetchone()
-            if result:
+            # 主指针不空指才认为指针存在
+            if result and result['primary_pointer_name']:
+                # 检查主指针是否为空
                 progress = {
                     'primary_name': result['primary_pointer_name'] or '',
                     'primary_value': result['primary_pointer_value'] or '',
@@ -376,7 +378,49 @@ class GlobalDlCtrlBlockManager:
                 return None
         return None
 
-    def clear_download_pointer(self, task_type: DlTaskType) -> bool:
+    def set_stock_industry_dl_pointer(self, year: int, stock_code: str, 
+                                        startup_params: Optional[Dict] = None, 
+                                        completed_blocks: int = 0, 
+                                        total_blocks: int = 0) -> bool:
+        """
+        设置行业分类下载进度
+        :param year: 年份
+        :param stock_code: 股票代码
+        :param startup_params: 启动参数
+        :param completed_blocks: 已下载区块数量
+        :param total_blocks: 区块总数量
+        :return: 是否成功
+        """
+        pointers = {
+            'primary_name': 'year',
+            'primary_value': str(year),
+            'secondary_name': 'stock_code',
+            'secondary_value': stock_code,
+            'tertiary_name': '',
+            'tertiary_value': ''
+        }
+        return self.write_dl_pointer(DlTaskType.INDUSTRY, pointers, startup_params, completed_blocks, total_blocks)
+
+    def get_stock_industry_dl_pointer(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
+        """
+        获取行业分类下载进度
+        :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
+        """
+        progress = self.read_dl_pointer(DlTaskType.INDUSTRY)
+        if progress:
+            try:
+                year = int(progress['primary_value']) if progress['primary_value'] else 0
+                stock_code = progress['secondary_value']
+                startup_params = progress['startup_params']
+                completed_blocks = progress['completed_blocks']
+                total_blocks = progress['total_blocks']
+                return (year, stock_code, startup_params, completed_blocks, total_blocks)
+            except (ValueError, KeyError) as e:
+                logger.warning(f"[{__name__}.get_stock_industry_dl_pointer] 进度数据格式错误: {str(e)}")
+                return None
+        return None
+
+    def clear_dl_pointer(self, task_type: DlTaskType) -> bool:
         """
         将下载指针设置为空
         :param task_type: 任务类型
@@ -436,7 +480,7 @@ class GlobalDlCtrlBlockManager:
             logger.error(f"[{__name__}.{func_name}] 查询任务是否存在失败: {str(e)}")
             return False
 
-    def is_download_pointer_empty(self, task_type: DlTaskType) -> bool:
+    def is_dl_pointer_empty(self, task_type: DlTaskType) -> bool:
         """
         判断当前下载指针是否为空
         :param task_type: 任务类型
@@ -449,8 +493,8 @@ class GlobalDlCtrlBlockManager:
                 primary_value = progress['primary_value']
                 secondary_value = progress['secondary_value']
                 tertiary_value = progress['tertiary_value']
-                # 三级指针都为空时，认为指针为空
-                return not (primary_value or secondary_value or tertiary_value)
+                # 主指针为空时，认为指针为空
+                return not primary_value
             return True
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 判断下载指针失败: {str(e)}")

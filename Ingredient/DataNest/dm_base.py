@@ -1,6 +1,8 @@
 # dm_base.py
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
+from .dm_generic_block_status import GenericBlockStatusManager
+
 
 
 class BaseDataManager(ABC):
@@ -8,6 +10,7 @@ class BaseDataManager(ABC):
     
     def __init__(self, db_conn):
         self.db_conn = db_conn
+        self.block_status_manager = GenericBlockStatusManager(db_conn)
     
     @abstractmethod
     def get_completed_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:

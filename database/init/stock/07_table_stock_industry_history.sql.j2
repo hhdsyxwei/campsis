@@ -1,0 +1,17 @@
+/* ====================== 7. 股票行业分类历史 ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('stock_industry_history') | safe }}` (
+  `{{ col_std_stock_code | default('std_stock_code') | safe }}` varchar(20) NOT NULL COMMENT '股票代码',
+  `{{ col_stock_name | default('stock_name') | safe }}` varchar(100) DEFAULT NULL COMMENT '股票名称',
+  `{{ col_industry | default('industry') | safe }}` varchar(100) DEFAULT NULL COMMENT '行业名称',
+  `{{ col_industry_classification | default('industry_classification') | safe }}` varchar(100) DEFAULT NULL COMMENT '行业分类',
+  `{{ col_industry_source | default('industry_source') | safe }}` varchar(50) DEFAULT 'baostock' COMMENT '行业分类来源',
+  `{{ col_update_date | default('update_date') | safe }}` date NOT NULL COMMENT '数据更新日期',
+  `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`{{ pk_col1 | default('std_stock_code') | safe }}`, `{{ pk_col2 | default('update_date') | safe }}`),
+  INDEX `{{ idx_industry | default('idx_industry') | safe }}` (`{{ idx_col_industry | default('industry') | safe }}`),
+  INDEX `{{ idx_industry_classification | default('idx_industry_classification') | safe }}` (`{{ idx_col_industry_classification | default('industry_classification') | safe }}`),
+  INDEX `{{ idx_update_date | default('idx_update_date') | safe }}` (`{{ idx_col_update_date | default('update_date') | safe }}`)
+) ENGINE={{ engine | default('InnoDB') | safe }}
+DEFAULT CHARSET={{ charset | default('utf8mb4') | safe }}
+COLLATE={{ collate | default('utf8mb4_unicode_ci') | safe }}
+COMMENT='{{ table_comment | default('股票行业分类历史表') | safe }}';
