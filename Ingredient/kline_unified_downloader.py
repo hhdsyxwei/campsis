@@ -435,7 +435,7 @@ class KLineDownloader:
                 raise  # 异常向上抛出
 
         # 下载完成，清空下载指针并设置状态为完成
-        self.progress_manager.clear_download_pointer(DlTaskType.KLINE)
+        self.progress_manager.clear_dl_pointer(DlTaskType.KLINE)
         self._set_download_status(DlTaskStatus.COMPLETED)
         logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True

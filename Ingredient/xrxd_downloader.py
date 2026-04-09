@@ -325,7 +325,7 @@ class XrxdDownloader:
             logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
         else:  # 下载未开始
             logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
-            self.progress_manager.clear_download_pointer(DlTaskType.XRXD)
+            self.progress_manager.clear_dl_pointer(DlTaskType.XRXD)
             self._set_download_status(DlTaskStatus.IN_PROGRESS)
 
         # 步骤1：计算总区块数
@@ -368,8 +368,10 @@ class XrxdDownloader:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 raise  # 异常向上抛出
 
-        # 下载完成，清空下载指针
-        self.progress_manager.clear_download_pointer(DlTaskType.XRXD)
+        if completed_block_count >= total_blocks:
+            # 下载完成，清空下载指针
+            self.progress_manager.clear_dl_pointer(DlTaskType.XRXD)
+            self._set_download_status(DlTaskStatus.COMPLETED)
         logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True
 
@@ -395,20 +397,20 @@ class XrxdDownloader:
 def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
     """
     【全局唯一对外接口】继续下载分红送配数据（支持断点续传）
-    
+
     功能说明：
     - 从上次中断的位置继续下载分红送配数据
     - 支持断点续传，自动恢复下载进度
     - 按照年份和股票代码的顺序下载数据
     - 自动处理下载过程中的异常
-    
+
     下载流程：
     1. 检查下载状态（未开始、进行中、已完成）
     2. 计算总区块数
     3. 优先恢复中断的下载区块
     4. 按顺序下载所有区块
     5. 完成后清空下载指针
-    
+
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
@@ -416,26 +418,26 @@ def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = N
     """
     if end_year is None:
         end_year = datetime.now().year
-    
+
     downloader = XrxdDownloader(db_conn)
     return downloader.continue_download_xrxd(start_year, end_year)
 
 def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
     """
     【全局唯一对外接口】开始新的分红送配数据下载任务（清空之前的下载进度）
-    
+
     功能说明：
     - 清空之前的下载进度记录
     - 从头开始下载指定年份范围的分红送配数据
     - 按照年份和股票代码的顺序下载数据
     - 自动处理下载过程中的异常
-    
+
     下载流程：
     1. 删除之前的任务记录
     2. 调用继续下载方法开始新的下载任务
     3. 按照年份和股票代码的顺序下载所有区块
     4. 完成后清空下载指针
-    
+
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
@@ -443,6 +445,6 @@ def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = 
     """
     if end_year is None:
         end_year = datetime.now().year
-    
+
     downloader = XrxdDownloader(db_conn)
     return downloader.start_new_xrxd_download(start_year, end_year)

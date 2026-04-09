@@ -9,7 +9,17 @@ from KitchenBase.stock_enums import KLinePeriod
 logger = get_logger(__name__)
 
 
+class BaostockErrorCode:
+    """Baostock 错误码常量"""
+    SUCCESS = "0"                     #baostock成功码
+    CONNECTION_REFUSED = "10002007"   #baostock错误消息：网络接收错误。远程主机强迫关闭了一个现有的连接。接收数据异常，请稍后再试。
+    IP_BLACKLIST = "10001011"        #baostock错误消息：IP被黑名单限制。
+
 class BaostockWrapper:
+
+
+
+
     """
     Baostock数据查询包装类
     提供带重试、自动重登、超时控制等功能的封装
@@ -89,7 +99,7 @@ class BaostockWrapper:
                     # 先登出（避免重复登录报错）再登录，复用已有登录态
                     bs.logout()
                     login_result = bs.login()
-                    if login_result.error_code != '0':
+                    if login_result.error_code != BaostockErrorCode.SUCCESS:
                         logger.error(f"[{current_func}] 重登失败 - error_code: {login_result.error_code}, error_msg: {login_result.error_msg}")
                     else:
                         logger.info(f"[{current_func}] 重登成功 - user_id: {login_result.user_id}")
@@ -160,7 +170,7 @@ class BaostockWrapper:
                 frequency=frequency,
                 adjustflag=adjustflag
             )
-            if result and result.error_code == 10054:
+            if result and result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
                 raise ConnectionRefusedError(f"查询K线数据失败: {result.error_msg}")
 
             logger.debug(f"[{current_func}->{inner_func}] 接口调用完成，error_code: {result.error_code if result is not None else 'None'}")
@@ -202,6 +212,46 @@ class BaostockWrapper:
 # 创建默认实例以保持向后兼容
 default_wrapper = BaostockWrapper()
 
+
+def login() -> Any:
+    """
+    简单封装baostock.login接口
+    登录Baostock系统
+    
+    返回值：原生登录结果对象
+    异常：网络连接异常时抛出ConnectionError异常
+    """
+    current_func = "login"
+    logger.debug(f"[{current_func}] 登录Baostock系统")
+    
+    try:
+        result = bs.login()
+        logger.debug(f"[{current_func}] 登录完成，error_code: {result.error_code}")
+        return result
+    except Exception as e:
+        logger.error(f"[{current_func}] 登录失败 - {type(e).__name__}: {str(e)}")
+        raise ConnectionError(f"登录Baostock系统失败: {str(e)}") from e 
+
+
+def logout() -> Any:
+    """
+    简单封装baostock.logout接口
+    退出Baostock系统
+    
+    返回值：原生登出结果对象
+    异常：网络连接异常时抛出ConnectionError异常
+    """
+    current_func = "logout"
+    logger.debug(f"[{current_func}] 退出Baostock系统")
+    
+    try:
+        result = bs.logout()
+        error_code = result.error_code if result is not None else 'None'
+        logger.debug(f"[{current_func}] 登出完成，error_code: {error_code}")
+        return result
+    except Exception as e:
+        logger.error(f"[{current_func}] 登出失败 - {type(e).__name__}: {str(e)}")
+        raise ConnectionError(f"退出Baostock系统失败: {str(e)}") from e
 
 # 为了向后兼容，保留原有的函数接口
 def query_history_k_data_plus(
@@ -278,9 +328,9 @@ def query_adjust_factor(
             end_date=end_date
         )
 
-        if result.error_code == 10054:
-            raise ConnectionRefusedError(f"查询复权因子失败: {result.error_msg}")
-    
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询复权因子失败: {result.error_code}=={result.error_msg}")
+
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
         return result
     except Exception as e:
@@ -338,7 +388,7 @@ def query_dividend_data(
             yearType=yearType
         )
 
-        if result.error_code == 10054:
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
             raise ConnectionRefusedError(f"查询分红送配数据失败: {result.error_msg}")
     
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
@@ -346,47 +396,6 @@ def query_dividend_data(
     except Exception as e:
         logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
         raise ConnectionError(f"查询分红送配数据失败: {str(e)}") from e
-
-
-def login() -> Any:
-    """
-    简单封装baostock.login接口
-    登录Baostock系统
-    
-    返回值：原生登录结果对象
-    异常：网络连接异常时抛出ConnectionError异常
-    """
-    current_func = "login"
-    logger.debug(f"[{current_func}] 登录Baostock系统")
-    
-    try:
-        result = bs.login()
-        logger.debug(f"[{current_func}] 登录完成，error_code: {result.error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 登录失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"登录Baostock系统失败: {str(e)}") from e 
-
-
-def logout() -> Any:
-    """
-    简单封装baostock.logout接口
-    退出Baostock系统
-    
-    返回值：原生登出结果对象
-    异常：网络连接异常时抛出ConnectionError异常
-    """
-    current_func = "logout"
-    logger.debug(f"[{current_func}] 退出Baostock系统")
-    
-    try:
-        result = bs.logout()
-        error_code = result.error_code if result is not None else 'None'
-        logger.debug(f"[{current_func}] 登出完成，error_code: {error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 登出失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"退出Baostock系统失败: {str(e)}") from e
 
 
 def query_trade_dates(
@@ -420,7 +429,7 @@ def query_trade_dates(
             end_date=end_date
         )
         
-        if result.error_code == 10054:
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
             raise ConnectionRefusedError(f"查询交易日数据失败: {result.error_msg}")
     
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
@@ -428,3 +437,42 @@ def query_trade_dates(
     except Exception as e:
         logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
         raise ConnectionError(f"查询交易日数据失败: {str(e)}") from e
+
+
+def query_stock_industry(
+    code: str = "",
+    date: str = ""
+) -> Any:
+    """
+    简单封装baostock.query_stock_industry接口
+    获取行业分类信息数据
+    
+    参数说明：
+    - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000，可
+以为空
+    - date: 查询日期，格式：YYYY-MM-DD，为空时默认最新日期
+    
+    返回值：原生ResultData对象
+    异常：网络连接异常时抛出ConnectionError异常
+    """
+    current_func = "query_stock_industry"
+    logger.debug(
+        f"[{current_func}] 查询行业分类 "
+        f"| 股票代码: {code or '全部'} "
+        f"| 查询日期: {date or '最新日期'}"
+    )
+    
+    try:
+        result = bs.query_stock_industry(
+            code=code,
+            date=date
+        )
+
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询行业分类失败: {result.error_msg}")
+    
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+    except Exception as e:
+        logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
+        raise ConnectionError(f"查询行业分类失败: {str(e)}") from e
