@@ -70,15 +70,15 @@ def main():
         # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
         #bs_client = bs  # 已登录的 Baostock 客户端
         # start_new_kline_download(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
-        continue_download_kline(conn, 2024, 2025, KLinePeriod.MIN_5)  # 继续下载2024-2025年的5分钟K线数据
+        # continue_download_kline(conn, 2024, 2025, KLinePeriod.MIN_5)  # 继续下载2024-2025年的5分钟K线数据
 
         # 7. 第五步：下载分红送配数据
         # start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
-        continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
+        # continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
 
         # 8. 第六步：下载复权因子数据
         # start_new_adjustment_factor_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的复权因子数据
-        continue_download_adjustment_factor(conn, 2020, 2025)  # 继续下载2020-2025年的复权因子数据
+        continue_download_adjustment_factor(conn, 2026, 2027)  # 继续下载2026-2027年的复权因子数据
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息

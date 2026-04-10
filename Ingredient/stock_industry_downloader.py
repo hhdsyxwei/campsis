@@ -223,32 +223,28 @@ class StockIndustryDownloader:
         """
         func_name = "_download_raw_stock_industry_data"
         
-        try:
-            # 构建查询日期
-            current_year = datetime.datetime.now().year
-            if year == current_year:
-                # 如果是当前年份，使用今天的日期
-                query_date = datetime.datetime.now().strftime("%Y-%m-%d")
-            else:
-                # 否则使用该年的最后一天
-                query_date = f"{year}-12-31"
-            
-            # 直接调用 query_stock_industry() 获取全市场行业数据
-            # 不传 code 参数，返回所有股票的行业分类
-            self.logger.debug(f"[{__name__}.{func_name}] 调用 API 获取 {year} 年行业数据，查询日期: {query_date}")
-            rs = query_stock_industry(date=query_date)
+        # 构建查询日期
+        current_year = datetime.datetime.now().year
+        if year == current_year:
+            # 如果是当前年份，使用今天的日期
+            query_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        else:
+            # 否则使用该年的最后一天
+            query_date = f"{year}-12-31"
+        
+        # 直接调用 query_stock_industry() 获取全市场行业数据
+        # 不传 code 参数，返回所有股票的行业分类
+        self.logger.debug(f"[{__name__}.{func_name}] 调用 API 获取 {year} 年行业数据，查询日期: {query_date}")
+        rs = query_stock_industry(date=query_date)
 
-            # 检查API返回状态
-            if rs.error_code != "0":
-                self.logger.warning(f"[{__name__}.{func_name}] Baostock API错误(error_code={rs.error_code}):  {rs.error_msg}")
-                return None
-            df = rs.get_data()
-            if not df.empty:
-                self.logger.info(f"[{__name__}.{func_name}] 获取到 {len(df)} 条原始数据")
-            return df
-        except Exception as e:
-            self.logger.error(f"[{__name__}.{func_name}] 下载原始数据失败: {str(e)}")
+        # 检查API返回状态
+        if rs.error_code != "0":
+            self.logger.warning(f"[{__name__}.{func_name}] Baostock API错误(error_code={rs.error_code}):  {rs.error_msg}")
             return None
+        df = rs.get_data()
+        if not df.empty:
+            self.logger.info(f"[{__name__}.{func_name}] 获取到 {len(df)} 条原始数据")
+        return df
     
     def _fetch_stock_industry_block(self, year: int) -> bool:
         """
@@ -261,71 +257,59 @@ class StockIndustryDownloader:
         """
         func_name = "_fetch_stock_industry_block"
         self.logger.info(f"[{__name__}.{func_name}] 开始下载 {year} 年行业分类数据")
+        # 更新区块状态为处理中
+        self.industry_manager.update_block_status(
+            year,
+            DlBlockStatus.NOT_COMPLETED,
+            block_name=f"{year}年行业分类"
+        )
         
-        try:
-            # 更新区块状态为处理中
+        # 下载原始数据
+        raw_df = self._download_raw_stock_industry_data(year)
+        
+        if raw_df is None or raw_df.empty:
+            self.logger.warning(f"[{__name__}.{func_name}] {year} 年行业数据为空")
             self.industry_manager.update_block_status(
                 year,
-                DlBlockStatus.NOT_COMPLETED,
+                DlBlockStatus.SKIPPED,
                 block_name=f"{year}年行业分类"
             )
-            
-            # 下载原始数据
-            raw_df = self._download_raw_stock_industry_data(year)
-            
-            if raw_df is None or raw_df.empty:
-                self.logger.warning(f"[{__name__}.{func_name}] {year} 年行业数据为空")
-                self.industry_manager.update_block_status(
-                    year,
-                    DlBlockStatus.SKIPPED,
-                    block_name=f"{year}年行业分类"
-                )
-                return False
-            
-            self.logger.info(f"[{__name__}.{func_name}] 获取到 {len(raw_df)} 条原始数据")
-            
-            # 清洗数据
-            cleaned_df = self._clean_industry_data(raw_df)
-            
-            if cleaned_df.empty:
-                self.logger.warning(f"[{__name__}.{func_name}] {year} 年数据清洗后为空")
-                self.industry_manager.update_block_status(
-                    year,
-                    DlBlockStatus.ERROR,
-                    error_message="数据清洗后为空",
-                    block_name=f"{year}年行业分类"
-                )
-                return False
-            
-            # 保存数据
-            if self._save_industry_data(cleaned_df):
-                # 更新区块状态为已完成
-                self.industry_manager.update_block_status(
-                    year,
-                    DlBlockStatus.COMPLETED,
-                    total_items=len(cleaned_df),
-                    success_count=len(cleaned_df),
-                    fail_count=0,
-                    block_name=f"{year}年行业分类"
-                )
-                self.logger.info(f"[{__name__}.{func_name}] {year} 年行业数据下载完成")
-                return True
-            else:
-                # 更新区块状态为错误
-                self.industry_manager.update_block_status(
-                    year,
-                    DlBlockStatus.ERROR,
-                    error_message="数据保存失败",
-                    block_name=f"{year}年行业分类"
-                )
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"[{__name__}.{func_name}] 下载 {year} 年行业数据失败: {str(e)}")
+            return False
+        
+        self.logger.info(f"[{__name__}.{func_name}] 获取到 {len(raw_df)} 条原始数据")
+        
+        # 清洗数据
+        cleaned_df = self._clean_industry_data(raw_df)
+        
+        if cleaned_df.empty:
+            self.logger.warning(f"[{__name__}.{func_name}] {year} 年数据清洗后为空")
             self.industry_manager.update_block_status(
                 year,
                 DlBlockStatus.ERROR,
-                error_message=str(e),
+                error_message="数据清洗后为空",
+                block_name=f"{year}年行业分类"
+            )
+            return False
+        
+        # 保存数据
+        if self._save_industry_data(cleaned_df):
+            # 更新区块状态为已完成
+            self.industry_manager.update_block_status(
+                year,
+                DlBlockStatus.COMPLETED,
+                total_items=len(cleaned_df),
+                success_count=len(cleaned_df),
+                fail_count=0,
+                block_name=f"{year}年行业分类"
+            )
+            self.logger.info(f"[{__name__}.{func_name}] {year} 年行业数据下载完成")
+            return True
+        else:
+            # 更新区块状态为错误
+            self.industry_manager.update_block_status(
+                year,
+                DlBlockStatus.ERROR,
+                error_message="数据保存失败",
                 block_name=f"{year}年行业分类"
             )
             return False
@@ -341,42 +325,41 @@ class StockIndustryDownloader:
         func_name = "continue_download_industry"
         self.logger.info(f"[{__name__}.{func_name}] 开始继续下载行业分类数据")
         
-        try:
-            # 设置年份范围
-            self.start_year = start_year if start_year is not None else self.default_start_year
-            self.end_year = end_year if end_year is not None else self.default_end_year
-
-            # 检查下载状态
-            status = self._get_task_status()
-            if status == DlTaskStatus.COMPLETED:
-                self.logger.info(f"[{__name__}.{func_name}] 行业分类数据下载已完成")
-                return True
-            
-            # 设置下载状态为进行中
-            if status == DlTaskStatus.NOT_STARTED:
-                self.logger.info(f"[{__name__}.{func_name}] 行业分类数据下载未开始，设置为进行中")
-                self._set_task_status(DlTaskStatus.IN_PROGRESS)
-            
-            # 计算总区块数（年份范围）
-            total_blocks = self.end_year - self.start_year + 1
-            self.logger.info(f"[{__name__}.{func_name}] 总区块数: {total_blocks} ({self.start_year}-{self.end_year})")
-            
-            # 获取下载指针
-            pointer = self._get_dl_pointer()
-            if pointer:
-                current_year, _ = pointer
-                self.logger.info(f"[{__name__}.{func_name}] 恢复下载: 从 {current_year} 年开始")
-            else:
-                # 获取第一个区块（最新年份）
-                current_year = self._get_first_block()
-                self.logger.info(f"[{__name__}.{func_name}] 开始新下载: 从 {current_year} 年开始")
-            
-            # 单层循环下载
-            completed_blocks = self.industry_manager.get_completed_block_count(
-                self.start_year, self.end_year + 1
-            )
-            
-            while current_year is not None and current_year >= self.start_year:
+        # 设置年份范围
+        self.start_year = start_year if start_year is not None else self.default_start_year
+        self.end_year = end_year if end_year is not None else self.default_end_year
+        # 检查下载状态
+        status = self._get_task_status()
+        if status == DlTaskStatus.COMPLETED:
+            self.logger.info(f"[{__name__}.{func_name}] 行业分类数据下载已完成")
+            return True
+        
+        # 设置下载状态为进行中
+        if status == DlTaskStatus.NOT_STARTED:
+            self.logger.info(f"[{__name__}.{func_name}] 行业分类数据下载未开始，设置为进行中")
+            self._set_task_status(DlTaskStatus.IN_PROGRESS)
+        
+        # 计算总区块数（年份范围）
+        total_blocks = self.end_year - self.start_year + 1
+        self.logger.info(f"[{__name__}.{func_name}] 总区块数: {total_blocks} ({self.start_year}-{self.end_year})")
+        
+        # 获取下载指针
+        pointer = self._get_dl_pointer()
+        if pointer:
+            current_year, _ = pointer
+            self.logger.info(f"[{__name__}.{func_name}] 恢复下载: 从 {current_year} 年开始")
+        else:
+            # 获取第一个区块（最新年份）
+            current_year = self._get_first_block()
+            self.logger.info(f"[{__name__}.{func_name}] 开始新下载: 从 {current_year} 年开始")
+        
+        # 单层循环下载
+        completed_blocks = self.industry_manager.get_completed_block_count(
+            self.start_year, self.end_year + 1
+        )
+        
+        while current_year is not None and current_year >= self.start_year:
+            try:
                 # 检查当前年份是否已完成
                 block_status = self.industry_manager.get_block_status(current_year)
                 if block_status == DlBlockStatus.COMPLETED:
@@ -387,32 +370,35 @@ class StockIndustryDownloader:
                 # 下载当前年份数据
                 self.logger.info(f"[{__name__}.{func_name}] 下载 {current_year} 年数据 ({completed_blocks + 1}/{total_blocks})")
                 success = self._fetch_stock_industry_block(current_year)
-                
+
                 if success:
                     completed_blocks += 1
                     # 计算进度
                     progress = (completed_blocks / total_blocks) * 100
                     self.logger.info(f"[{__name__}.{func_name}] 进度: {completed_blocks}/{total_blocks} ({progress:.1f}%)")
-                
+
                 # 获取下一个年份
                 next_year = self._get_next_block(current_year)
-                
+
                 # 保存下载指针（指向下一个年份）
                 if next_year:
                     self._set_dl_pointer(next_year, "")
-                
-                current_year = next_year
-            
-            # 完成下载
-            self._set_task_status(DlTaskStatus.COMPLETED)
-            self._clear_dl_pointer()
-            self.logger.info(f"[{__name__}.{func_name}] 行业分类数据下载完成")
-            return True
 
-        except Exception as e:
-            self.logger.error(f"[{__name__}.{func_name}] 下载失败: {str(e)}")
-            self._set_task_status(DlTaskStatus.ERROR)
-            return False
+                current_year = next_year
+            except ConnectionRefusedError as e:
+                # 网络连接异常，记录错误日志，退出循环体，中止整个下载任务
+                self.logger.error(f"[{__name__}.{func_name}] 拒绝连接，下载失败: {current_year} {str(e)}")
+                # 虽然退出循环体，但保持下载状态为IN_PROGRESS，方便后续恢复下载
+                return False
+            except Exception as e:
+                self.logger.error(f"[{__name__}.{func_name}] 下载 {current_year} 年数据失败: {str(e)}")
+                return False
+        
+        # 完成下载
+        self._set_task_status(DlTaskStatus.COMPLETED)
+        self._clear_dl_pointer()
+        self.logger.info(f"[{__name__}.{func_name}] 行业分类数据下载完成")
+        return True
     
     def start_new_industry_download(self, start_year: Optional[int] = None, end_year: Optional[int] = None) -> bool:
         """

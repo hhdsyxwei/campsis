@@ -112,28 +112,24 @@ class XrxdDownloader:
         :return: 原始数据DataFrame或None
         """
         self.func_name = "_download_raw_xrxd_data"
-        try:
-            rs = query_dividend_data(
-                code=stock_code,
-                year=str(year),
-                yearType="report"
-            )
-            
-            # 检查API返回状态
-            if rs.error_code != "0":
-                logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误(error_code={rs.error_code}):  {rs.error_msg}")
-                return None
-            
-            # 获取数据
-            df = rs.get_data()
-            if df.empty:
-                logger.warning(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
-                return None
-            
-            return df
-        except Exception as e:
-            logger.error(f"[{__name__}.{self.func_name}] 下载失败: {stock_code} {year}, {str(e)}")
+        rs = query_dividend_data(
+            code=stock_code,
+            year=str(year),
+            yearType="report"
+        )
+        
+        # 检查API返回状态
+        if rs.error_code != "0":
+            logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误(error_code={rs.error_code}):  {rs.error_msg}")
             return None
+        
+        # 获取数据
+        df = rs.get_data()
+        if df.empty:
+            logger.warning(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
+            return None
+        
+        return df
 
     def _clean_xrxd_data(self, raw_df: pd.DataFrame, stock_code: str, year: int) -> Optional[pd.DataFrame]:
         """
@@ -364,9 +360,15 @@ class XrxdDownloader:
 
                 # 获取下一个区块
                 next_block = self._get_next_block(start_year, end_year, year, stock_code)
+            except ConnectionRefusedError as e:
+                # 网络连接异常，记录错误日志，退出循环体，中止整个下载任务
+                logger.error(f"[{__name__}.{self.func_name}] 拒绝连接，下载失败: {year} {stock_code}, {str(e)}")
+                # 虽然退出循环体，但保持下载状态为IN_PROGRESS，方便后续恢复下载
+                return False
+            
             except Exception as e:
-                logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
-                raise  # 异常向上抛出
+                logger.error(f"[{__name__}.{self.func_name}] 下载失败失败: {year} {stock_code}, {str(e)}")
+                return False
 
         if completed_block_count >= total_blocks:
             # 下载完成，清空下载指针

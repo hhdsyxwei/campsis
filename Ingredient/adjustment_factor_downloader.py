@@ -1,11 +1,13 @@
 # adjustment_factor_downloader.py
+from KitchenBase.download_enums import DlBlockStatus
+from Ingredient.DataNest.dm_generic_block_status import GenericBlockStatusManager
 from KitchenBase.download_enums import DlTaskType
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_adjust_factor
-from Ingredient.DataNest import AdjustmentFactorManager, BasicStockDataManager, UnifiedDataManager as dm, GlobalDlCtrlBlockManager
+from Ingredient.DataNest import AdjustmentFactorManager, UnifiedDataManager as dm, GlobalDlCtrlBlockManager
 from KitchenBase.download_enums import DlTaskStatus
 
 # ===================== 全局配置 =====================
@@ -21,6 +23,8 @@ class AdjustmentFactorDownloader:
         self.db_conn = db_conn
         self.func_name = ""
         self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
+        self.block_status_manager = GenericBlockStatusManager(db_conn)
+        self.adj_factor_manager = AdjustmentFactorManager(db_conn)
 
     def _count_stocks_in_fixed_seq(self) -> int:
         """
@@ -122,32 +126,28 @@ class AdjustmentFactorDownloader:
         :return: 原始数据DataFrame或None
         """
         self.func_name = "_download_raw_adjustment_factor_data"
-        try:
-            # 构建日期范围
-            start_date = f"{year}-01-01"
-            end_date = f"{year}-12-31"
-            
-            rs = query_adjust_factor(
-                code=stock_code,
-                start_date=start_date,
-                end_date=end_date
-            )
 
-            # 检查API返回状态
-            if rs.error_code != "0":
-                logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误: {rs.error_msg}")
-                return None
-            
-            # 获取数据
-            df = rs.get_data()
-            if df.empty:
-                logger.debug(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
-                return None
-            
-            return df
-        except Exception as e:
-            logger.error(f"[{__name__}.{self.func_name}] 下载失败: {stock_code} {year}, {str(e)}")
+        # 构建日期范围
+        start_date = f"{year}-01-01"
+        end_date = f"{year}-12-31"
+        
+        rs = query_adjust_factor(
+            code=stock_code,
+            start_date=start_date,
+            end_date=end_date
+        )
+        # 检查API返回状态
+        if rs.error_code != "0":
+            logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误: {rs.error_msg}")
             return None
+        
+        # 获取数据
+        df = rs.get_data()
+        if df.empty:
+            logger.debug(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
+            return None
+        
+        return df
 
     def _clean_adjustment_factor_data(self, raw_df: pd.DataFrame, stock_code: str) -> Optional[pd.DataFrame]:
         """
@@ -214,29 +214,41 @@ class AdjustmentFactorDownloader:
         self.func_name = "_fetch_adjustment_factor_block"
         logger.debug(f"[{__name__}.{self.func_name}] 处理: {year} | {stock_code}")
 
-        # ========== 1. 下载数据 ==========
-        logger.debug(f"[{__name__}.{self.func_name}] 下载: {stock_code} {year}")
-        raw_df = self._download_raw_adjustment_factor_data(stock_code, year)
-        
-        if raw_df is None or raw_df.empty:
-            logger.debug(f"[{__name__}.{self.func_name}] 无数据，跳过: {stock_code} {year}")
+        # 步骤1：检查当区块是否已完成，已完成则直接返回
+        block_status = self.adj_factor_manager.get_block_status(year,stock_code)
+        if DlBlockStatus.COMPLETED == block_status:
+            logger.debug(f"[{__name__}.{self.func_name}] {year} {stock_code} 区块已完成，跳过")
             return
 
-        # ========== 2. 清洗数据 ==========
+        # 步骤2：下载原始复权因子数据
+        logger.debug(f"[{__name__}.{self.func_name}] 下载: {stock_code} {year}")
+        raw_df = self._download_raw_adjustment_factor_data(stock_code, year)
+
+        if raw_df is None or raw_df.empty:
+            logger.debug(f"[{__name__}.{self.func_name}] 无数据，跳过: {stock_code} {year}")
+            self.adj_factor_manager.update_block_status(year,stock_code, DlBlockStatus.ERROR)
+            return
+
+        # 步骤3：清洗复权因子数据
         df = self._clean_adjustment_factor_data(raw_df, stock_code)
         if df is None or df.empty:
             logger.debug(f"[{__name__}.{self.func_name}] 清洗后数据为空，跳过: {stock_code} {year}")
+            self.adj_factor_manager.update_block_status(year,stock_code, DlBlockStatus.ERROR)
             return
 
-        # ========== 3. 保存数据 ==========
-        adjustment_factor_manager = AdjustmentFactorManager(self.db_conn)
-        ok = adjustment_factor_manager.save_adjustment_factor_data(df)
+        # 步骤4：保存复权因子数据
+        ok = self.adj_factor_manager.save_adjustment_factor_data(df)
         if not ok:
-            raise Exception(f"数据保存失败: {stock_code} {year}")
-
+            logger.error(f"数据保存失败: {stock_code} {year}")
+            self.adj_factor_manager.update_block_status(year,stock_code, DlBlockStatus.ERROR)
+            return
+        
+        # 步骤5：更新区块状态为已完成
+        self.adj_factor_manager.update_block_status(year,stock_code, DlBlockStatus.COMPLETED)
+        
         logger.debug(f"[{__name__}.{self.func_name}] 完成: {stock_code} {year}")
 
-    def _get_downloading_block(self) -> Optional[Tuple[int, str]]:
+    def _get_dl_pointer(self) -> Optional[Tuple[int, str]]:
         """
         获取当前正在下载的区块（如果有）
         
@@ -249,12 +261,12 @@ class AdjustmentFactorDownloader:
         try:
             result = self.progress_manager.get_adj_fct_dl_pointer()
             if result:
-                year, stock_code, _, _, _ = result
+                year, stock_code = result
                 if year > 0 and stock_code:
                     return (year, stock_code)
             return None
         except Exception as e:
-            logger.error(f"[{__name__}._get_downloading_block] 获取下载区块失败: {str(e)}")
+            logger.error(f"[{__name__}._get_dl_pointer] 获取下载区块失败: {str(e)}")
             return None
 
     def _set_dl_pointer(self, year: int, stock_code: str):
@@ -286,62 +298,41 @@ class AdjustmentFactorDownloader:
 
     def _get_completed_block_count(self, start_year: int, end_year: int) -> int:
         """
-        获取当前下载已完成的区块数）
-        
-        区块排序规则：
-        1. 先按年份升序（从start_year到end_year-1）
-        2. 同一年内按stock_fixed_seq表的顺序
-        
-        区块序号计算公式：
-        position = (year - start_year) * total_stocks + stock_position
+        获取当前下载已完成的区块数
         
         :param start_year: 起始年份（包含）
         :param end_year: 结束年份（不包含）
-        :return: 区块序号（从0开始），如果下载未开始则返回None，如果下载已完成返回总区块数
+        :return: 已完成的区块数
         """
-        self.func_name = "get_download_pointer_position"
+        self.func_name = "_get_completed_block_count"
         
-        # 步骤1：检查下载状态
-        status = self._get_download_status()
+        try:
+            # 直接调用 AdjustmentFactorManager 的 get_completed_block_count 方法
+            completed_count = self.adj_factor_manager.get_completed_block_count(start_year, end_year)
+            logger.debug(f"[{__name__}.{self.func_name}] 已完成区块数: {completed_count}")
+            return completed_count
+        except Exception as e:
+            logger.error(f"[{__name__}.{self.func_name}] 查询失败: {str(e)}")
+            return 0
+    
+    def _get_total_block_count(self, start_year: int, end_year: int) -> int:
+        """
+        获取当前下载总区块数
         
-        if status == DlTaskStatus.NOT_STARTED:
-            logger.debug(f"[{__name__}.{self.func_name}] 下载未开始，返回None")
-            raise Exception("下载未开始")
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
+        :return: 总区块数
+        """
+        self.func_name = "_get_total_block_count"
         
-        # 步骤2：获取股票总数
-        total_stocks = self._count_stocks_in_fixed_seq()
-        if total_stocks == 0:
-            logger.warning(f"[{__name__}.{self.func_name}] 股票序列表为空")
-            raise Exception("股票序列表为空")
-        
-        # 步骤3：计算总区块数
-        total_blocks = (end_year - start_year) * total_stocks
-        
-        # 步骤4：如果下载已完成，返回总区块数
-        if status == DlTaskStatus.COMPLETED:
-            logger.debug(f"[{__name__}.{self.func_name}] 下载已完成，返回总区块数: {total_blocks}")
-            return total_blocks
-        
-        # 步骤5：获取当前下载区块
-        block = self._get_downloading_block()
-        if not block:
-            logger.warning(f"[{__name__}.{self.func_name}] 无法获取当前下载区块")
-            raise Exception("无法获取当前下载区块")
-        
-        year, stock_code = block
-        
-        # 步骤6：验证年份范围
-        if year < start_year or year >= end_year:
-            logger.warning(f"[{__name__}.{self.func_name}] 当前年份{year}不在范围[{start_year}, {end_year})内")
-            raise Exception("当前年份不在下载范围")
-        
-        # 步骤7：获取股票在序列中的位置
-        completed_block_count = dm.get_completed_block_count(self.db_conn, 
-                                                                     DlTaskType.ADJUSTMENT_FACTOR, 
-                                                                     start_year, end_year, 
-                                                                     year, stock_code)
-        
-        return completed_block_count
+        try:
+            # 直接调用 AdjustmentFactorManager 的 get_total_block_count 方法
+            total_count = self.adj_factor_manager.get_total_block_count(start_year, end_year)
+            logger.debug(f"[{__name__}.{self.func_name}] 总区块数: {total_count}")
+            return total_count
+        except Exception as e:
+            logger.error(f"[{__name__}.{self.func_name}] 查询失败: {str(e)}")
+            return 0
 
 
     def continue_download_adjustment_factor(self, start_year: int, end_year: int) -> bool:
@@ -354,21 +345,22 @@ class AdjustmentFactorDownloader:
 
         # 步骤0：检查下载状态
         status = self._get_download_status()
-        if status == DlTaskStatus.COMPLETED.value:
+        if status == DlTaskStatus.COMPLETED:
             logger.info(f"[{__name__}.{self.func_name}] 下载已完成，无需重复执行")
             return True
-        elif status == DlTaskStatus.IN_PROGRESS.value:
+        elif status == DlTaskStatus.IN_PROGRESS:
             logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
         else:  # 下载未开始
             logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
             self._set_download_status(DlTaskStatus.IN_PROGRESS)
 
-        # 步骤1：计算总区块数
-        total_blocks = dm.get_total_block_count(self.db_conn, DlTaskType.ADJUSTMENT_FACTOR, start_year, end_year)
+        # 步骤1：计算总区块数和已完成区块数
+        total_blocks = self._get_total_block_count(start_year, end_year)
+        completed_block_count = self._get_completed_block_count(start_year, end_year)
         logger.info(f"[{__name__}.{self.func_name}] 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
 
         # 步骤2：优先恢复中断的下载区块
-        next_block = self._get_downloading_block()
+        next_block = self._get_dl_pointer()
         logger.debug(f"[{__name__}.{self.func_name}] 启动前：当前下载区块: {next_block}")
 
         # 步骤3：无中断任务则获取第一个待下载区块
@@ -396,13 +388,14 @@ class AdjustmentFactorDownloader:
                 
                 # 获取下一个区块
                 next_block = self._get_next_block(start_year, end_year, year, stock_code)
-            except ConnectionError as e:
+            except ConnectionRefusedError as e:
                 # 网络连接异常，记录错误日志，退出循环体，中止整个下载任务
-                logger.error(f"[{__name__}.{self.func_name}] 下载失败 - {type(e).__name__}: {str(e)}")
+                logger.error(f"[{__name__}.{self.func_name}] 拒绝连接，下载失败 - {type(e).__name__}: {str(e)}")
+                # 虽然退出循环体，但保持下载状态为IN_PROGRESS，方便后续恢复下载
                 return False
             except Exception as e:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
-                raise  # 异常向上抛出
+                return False
 
         if completed_block_count >= total_blocks:
             self._set_download_status(DlTaskStatus.COMPLETED)

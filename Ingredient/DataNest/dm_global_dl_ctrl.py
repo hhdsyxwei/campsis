@@ -362,7 +362,7 @@ class GlobalDlCtrlBlockManager:
         }
         return self.write_dl_pointer(DlTaskType.ADJUSTMENT_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
 
-    def get_adj_fct_dl_pointer(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
+    def get_adj_fct_dl_pointer(self) -> Optional[Tuple[int, str]]:
         """
         获取复权因子下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
@@ -372,10 +372,7 @@ class GlobalDlCtrlBlockManager:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
                 stock_code = progress['secondary_value']
-                startup_params = progress['startup_params']
-                completed_blocks = progress['completed_blocks']
-                total_blocks = progress['total_blocks']
-                return (year, stock_code, startup_params, completed_blocks, total_blocks)
+                return (year, stock_code)
             except (ValueError, KeyError) as e:
                 logger.warning(f"[{__name__}.get_adjustment_factor_progress] 进度数据格式错误: {str(e)}")
                 return None

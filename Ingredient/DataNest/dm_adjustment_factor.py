@@ -1,4 +1,5 @@
 # dm_adjustment_factor.py
+from KitchenBase.download_enums import DlTaskType
 from typing import Optional, List
 import pandas as pd
 import numpy as np
@@ -198,157 +199,121 @@ class AdjustmentFactorManager(BaseDataManager):
             if cursor:
                 cursor.close()
 
-    def get_completed_block_count(self, start_year: int, end_year: int, *args) -> int:
+    def get_completed_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
-        根据指针位置计算已完成的复权因子区块数
-        支持按年份范围过滤
-
-        Args:
-            start_year: 起始年份
-            end_year: 结束年份
-            *args: 其他参数，用于过滤当前股票和年份的区块数
-
-        Returns:
-            已完成的区块总数
+        获取已完成区块数
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :return: 已完成区块数
         """
         func_name = "get_completed_block_count"
-        logger.debug(
-            f"[{__name__}.{func_name}] 根据指针位置计算已完成区块数，年份范围："
-            f"start_year={start_year}, end_year={end_year}"
-            f", 其他参数：{args}"
-        )
-
-        cursor = None
+        logger.debug(f"[{__name__}.{func_name}] 查询已完成区块数: {start_year}-{end_year}")
+        
         try:
-            # 从args中解包获取下载指针
-            current_year = None
-            current_stock = None
-            if len(args) >= 2:
-                current_year = args[0]
-                current_stock = args[1]
-            
-            # 如果没有提供下载指针，则返回0
-            if not current_year or not current_stock:
-                return 0
-
-            # 计算已处理的年份数
-            years_processed = current_year - start_year
-            if years_processed < 0:
-                return 0
-            
-            # 计算当前年份已处理的股票数
-            from .dm_unified import UnifiedDataManager
-            stock_position = UnifiedDataManager.get_stock_position(self.db_conn, current_stock)
-            if stock_position is None:
-                stock_position = 0
-            
-            # 计算已处理的总区块数
-            stock_count = UnifiedDataManager.count_stocks_in_fixed_seq(self.db_conn)
-
-            # stock_position 从0开始，需要加1才能得到正确的区块数
-            processed_blocks = years_processed * stock_count + stock_position + 1
-            
-            logger.debug(
-                f"[{__name__}.{func_name}] 计算完成，已完成区块数：{processed_blocks} "
-                f"(年份范围：{start_year or '不限'} - {end_year or '不限'})"
+            # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
+            completed_count = self.block_status_manager.get_block_count(
+                task_type=DlTaskType.ADJUSTMENT_FACTOR,
+                status=DlBlockStatus.COMPLETED
             )
-            return processed_blocks
+            logger.debug(f"[{__name__}.{func_name}] 已完成区块数: {completed_count}")
+            return completed_count
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 计算已完成区块数失败: {str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
             return 0
-        finally:
-            if cursor:
-                cursor.close()
-
-
-    def get_skipped_block_count(self, start_year: int, end_year: int) -> int:
+    
+    def get_skipped_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
-        获取跳过的复权因子区块数（固定返回0）
-
-        Args:
-            start_year: 起始年份
-            end_year: 结束年份
-
-        Returns:
-            跳过的区块总数（固定为0）
+        获取跳过区块数
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :return: 跳过区块数
         """
         func_name = "get_skipped_block_count"
-        logger.debug(
-            f"[{__name__}.{func_name}] 获取跳过区块数，年份范围："
-            f"start_year={start_year}, end_year={end_year}"
-        )
+        logger.debug(f"[{__name__}.{func_name}] 查询跳过区块数: {start_year}-{end_year}")
         
-        # 复权因子数据一般不会因为股票未上市或已退市而跳过，固定返回0
-        return 0
-
-    def get_total_block_count(self, start_year: int, end_year: int) -> int:
+        try:
+            # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
+            skipped_count = self.block_status_manager.get_block_count(
+                task_type=DlTaskType.ADJUSTMENT_FACTOR,
+                status=DlBlockStatus.SKIPPED
+            )
+            logger.debug(f"[{__name__}.{func_name}] 跳过区块数: {skipped_count}")
+            return skipped_count
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
+            return 0
+    
+    def get_total_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
-        计算复权因子数据的区块总数
-        计算逻辑：年份总数 × 股票总数 = 总区块数
-
-        Args:
-            start_year: 起始年份（包含）
-            end_year: 结束年份（不包含）
-
-        Returns:
-            区块总数
+        获取总区块数
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份，不包含在内
+        :return: 总区块数
         """
         func_name = "get_total_block_count"
-        logger.debug(
-            f"[{__name__}.{func_name}] 计算区块总数，年份范围："
-            f"start_year={start_year}, end_year={end_year}"
-        )
-
+        logger.debug(f"[{__name__}.{func_name}] 计算总区块数: {start_year}-{end_year}")
+        
         try:
-            # 计算年份范围内的年份总数
-            year_count = end_year - start_year
-            
-            # 统计股票总数
+            # 计算年份范围内的区块数（每个年份一个区块）
             from .dm_unified import UnifiedDataManager
             stock_count = UnifiedDataManager.count_stocks_in_fixed_seq(self.db_conn)
-            
-            # 计算总区块数
-            total_blocks = year_count * stock_count
-            
-            logger.debug(
-                f"[{__name__}.{func_name}] 计算完成，区块总数：{total_blocks} "
-                f"(年份范围：{start_year} - {end_year}, 年份数：{year_count}, 股票数：{stock_count})"
-            )
+            total_years = end_year - start_year
+            total_blocks = total_years * stock_count
+            logger.debug(f"[{__name__}.{func_name}] 总区块数: {total_blocks}")
             return total_blocks
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 计算区块总数失败: {str(e)}")
-            raise
-
-    def get_block_status(self, year: int, std_stock_code: str) -> DlBlockStatus:
+            logger.error(f"[{__name__}.{func_name}] 计算失败: {str(e)}")
+            return 0
+    
+    def get_block_status(self, year: int, std_stock_code: str, *args, **kwargs) -> DlBlockStatus:
         """
-        获取复权因子区块状态（固定返回COMPLETED）
+        获取区块状态
         
-        Args:
-            year: 年份
-            std_stock_code: 股票代码
-        
-        Returns:
-            固定返回DlBlockStatus.COMPLETED
+        :param year: 年份
+        :param std_stock_code: 股票代码
+        :return: 区块状态
         """
         func_name = "get_block_status"
-        logger.debug(
-            f"[{__name__}.{func_name}] 获取 {std_stock_code} {year} 的状态（固定返回COMPLETED）"
-        )
-        # 由于使用指针位置计算进度，固定返回COMPLETED
-        return DlBlockStatus.COMPLETED
-
-    def update_block_status(self, year: int, std_stock_code: str, status: DlBlockStatus):
-        """
-        更新复权因子区块状态（空实现）
+        logger.debug(f"[{__name__}.{func_name}] 获取 {std_stock_code} {year} 的复权因子区块状态")
         
-        Args:
-            year: 年份
-            std_stock_code: 股票代码
-            status: 状态
+        try:
+            # 利用父类的 block_status_manager 获取区块状态
+            # 任务类型为 DlTaskType.ADJUSTMENT_FACTOR，block_key_1 为年份字符串，block_key_2 为股票代码
+            status = self.block_status_manager.get_block_status(
+                block_key_1=str(year),
+                block_key_2=std_stock_code,
+                task_type=DlTaskType.ADJUSTMENT_FACTOR
+            )
+            logger.debug(f"[{__name__}.{func_name}] 区块状态: {status.value}")
+            return status
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 获取区块状态失败: {str(e)}")
+            return DlBlockStatus.NOT_COMPLETED
+    
+    def update_block_status(self, year: int, std_stock_code: str, status: DlBlockStatus, **kwargs):
+        """
+        更新复权因子区块状态
+        
+        :param year: 年份
+        :param std_stock_code: 股票代码
+        :param status: 区块状态
+        :param kwargs: 其他参数（block_name, total_items, success_count, fail_count, error_message等）
         """
         func_name = "update_block_status"
-        logger.debug(
-            f"[{__name__}.{func_name}] 更新 {year} {std_stock_code} 的状态为: {status.value}（空实现）"
-        )
-        # 由于使用指针位置计算进度，不需要实际更新状态
-        pass
+        logger.debug(f"[{__name__}.{func_name}] 更新 {std_stock_code} {year} 的复权因子区块状态为: {status.value}")
+        
+        try:
+            # 利用父类的 block_status_manager 更新区块状态
+            self.block_status_manager.update_block_status(
+                block_key_1=str(year),
+                block_key_2=std_stock_code,
+                task_type=DlTaskType.ADJUSTMENT_FACTOR,
+                status=status,
+                **kwargs
+            )
+            logger.debug(f"[{__name__}.{func_name}] 复权因子区块状态更新成功")
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 更新复权因子区块状态失败: {str(e)}")
