@@ -1,4 +1,5 @@
 # dm_adjustment_factor.py
+from typing import Tuple
 from KitchenBase.download_enums import DlTaskType
 from typing import Optional, List
 import pandas as pd
@@ -20,6 +21,13 @@ class AdjustmentFactorManager(BaseDataManager):
         """
         super().__init__(db_conn)
         self.func_name = ""
+    
+    def get_task_type(self) -> DlTaskType:
+        """
+        获取任务类型
+        :return: 任务类型（DlTaskType枚举）
+        """
+        return DlTaskType.ADJUSTMENT_FACTOR
 
     def save_adjustment_factor_data(self, df: pd.DataFrame) -> bool:
         """
@@ -214,7 +222,9 @@ class AdjustmentFactorManager(BaseDataManager):
             # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
             completed_count = self.block_status_manager.get_block_count(
                 task_type=DlTaskType.ADJUSTMENT_FACTOR,
-                status=DlBlockStatus.COMPLETED
+                start_year=start_year,
+                end_year=end_year,
+                status=[DlBlockStatus.COMPLETED]
             )
             logger.debug(f"[{__name__}.{func_name}] 已完成区块数: {completed_count}")
             return completed_count
@@ -237,7 +247,9 @@ class AdjustmentFactorManager(BaseDataManager):
             # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
             skipped_count = self.block_status_manager.get_block_count(
                 task_type=DlTaskType.ADJUSTMENT_FACTOR,
-                status=DlBlockStatus.SKIPPED
+                start_year=start_year,
+                end_year=end_year,
+                status=[DlBlockStatus.SKIPPED]
             )
             logger.debug(f"[{__name__}.{func_name}] 跳过区块数: {skipped_count}")
             return skipped_count
@@ -317,3 +329,46 @@ class AdjustmentFactorManager(BaseDataManager):
             logger.debug(f"[{__name__}.{func_name}] 复权因子区块状态更新成功")
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 更新复权因子区块状态失败: {str(e)}")
+    
+    def is_dl_pointer_valid(self, pointer: Optional[Tuple[int, str]], start_year: int, end_year: int) -> bool:
+        """
+        判断下载指针是否合法
+        
+        :param pointer: 下载指针，通常为 (year, stock_code) 元组
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :return: 指针是否合法
+        """
+        func_name = "is_dl_pointer_valid"
+        logger.debug(f"[{__name__}.{func_name}] 检查下载指针: {pointer}, 年份范围: {start_year}-{end_year}")
+        
+        try:
+            # 检查指针是否为 None
+            if pointer is None:
+                logger.debug(f"[{__name__}.{func_name}] 指针为 None，无效")
+                return False
+            
+            # 检查指针是否是包含两个元素的元组
+            if not isinstance(pointer, tuple) or len(pointer) != 2:
+                logger.debug(f"[{__name__}.{func_name}] 指针格式错误，应为 (year, stock_code) 元组")
+                return False
+            
+            # 解包指针
+            year, stock_code = pointer
+            
+            # 检查年份是否在范围内
+            if not (start_year <= year < end_year):
+                logger.debug(f"[{__name__}.{func_name}] 年份 {year} 不在范围 [{start_year}, {end_year}) 内")
+                return False
+            
+            # 检查股票代码是否有效（存在于 stock_fixed_seq 表中）
+            from .dm_unified import UnifiedDataManager
+            if not UnifiedDataManager.is_stock_in_fixed_seq(self.db_conn, stock_code):
+                logger.debug(f"[{__name__}.{func_name}] 股票代码 {stock_code} 不在固定顺序表中")
+                return False
+            
+            logger.debug(f"[{__name__}.{func_name}] 指针 {pointer} 有效")
+            return True
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 检查指针失败: {str(e)}")
+            return False

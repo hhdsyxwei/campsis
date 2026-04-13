@@ -218,3 +218,38 @@ class StockFixedSeqManager:
         finally:
             if cursor:
                 cursor.close()
+    
+    def stock_exists(self, stock_code: str) -> bool:
+        """
+        检查股票代码是否在 stock_fixed_seq 表中
+        
+        Args:
+            stock_code: 股票代码
+            
+        Returns:
+            股票是否存在
+        """
+        func_name = "is_stock_exists"
+        logger.debug(f"[{__name__}.{func_name}] 检查股票 {stock_code} 是否存在")
+        
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            
+            # 查询股票是否存在
+            sql = """
+                SELECT COUNT(*) FROM stock_fixed_seq WHERE std_stock_code = %s
+            """
+            cursor.execute(sql, (stock_code,))
+            count = cursor.fetchone()[0]
+            
+            exists = count > 0
+            logger.debug(f"[{__name__}.{func_name}] 股票 {stock_code} {'存在' if exists else '不存在'}")
+            return exists
+        
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 检查股票是否存在失败: {str(e)}")
+            return False
+        finally:
+            if cursor:
+                cursor.close()

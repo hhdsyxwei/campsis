@@ -62,12 +62,27 @@ class AdjustmentFactorDownloader:
     # 【核心】动态查找：下一个待下载区块（无列表、纯数据库驱动）
     #  当前排序规则：年份(旧→新) → 股票固定顺序
     # -------------------------------------------------------------------------
+    def _get_first_block(self, start_year: int, end_year: int) -> Optional[Tuple[int, str]]:
+        """
+        获取第一个待处理区块
+        
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
+        :return: (first_year, first_stock) 或 None（无股票数据）
+        """
+        self.func_name = "_get_first_block"
+        logger.debug(f"[{__name__}.{self.func_name}] 获取第一个区块: {start_year}-{end_year}")
+        
+        # 调用 _get_next_block 函数，传入 None 作为当前年份和股票，获取第一个区块
+        return self._get_next_block(start_year, end_year, None, None)
+
     def _get_next_block(
         self, 
         start_year: int, 
         end_year: int, 
         current_year: Optional[int] = None, 
-        current_stock: Optional[str] = None
+        current_stock: Optional[str] = None,
+        loop: bool = False
     ) -> Optional[Tuple[int, str]]:
         """
         仅推动区块指针向前，找到下一个待处理区块（不判断下载状态）
@@ -79,9 +94,10 @@ class AdjustmentFactorDownloader:
         
         迭代规则：年份升序 → 股票固定顺序（stock_fixed_seq表）
         :param start_year: 起始年份（包含）
-        :param end_year: 结束年份（包含）
+        :param end_year: 结束年份（不包含）
         :param current_year: 当前年份（首次调用传None，从start_year开始）
         :param current_stock: 当前股票（首次调用传None，从第一个股票开始）
+        :param loop: 是否循环到第一个区块（当处于最后一个区块时）
         :return: (next_year, next_stock) 或 None（无更多区块）
         """
         self.func_name = "_get_next_block"
@@ -102,9 +118,20 @@ class AdjustmentFactorDownloader:
                 # 当前年份股票已遍历完 → 获取下一个年份
                 next_year = self._get_next_year(current_year, end_year)
                 if not next_year:
-                    # 无下一年份 → 迭代结束
-                    logger.debug(f"[{__name__}.{self.func_name}] 无更多任务（年份范围：{start_year}-{end_year}）")
-                    return None
+                    # 无下一年份 → 检查是否需要循环
+                    if loop:
+                        # 循环到第一个区块
+                        logger.debug(f"[{__name__}.{self.func_name}] 已到达最后一个区块，循环到第一个区块（年份范围：{start_year}-{end_year}）")
+                        first_stock = self._get_next_stock(None)
+                        if first_stock:
+                            return (start_year, first_stock)
+                        else:
+                            logger.warning(f"[{__name__}.{self.func_name}] 无股票数据可用，无法循环")
+                            return None
+                    else:
+                        # 迭代结束
+                        logger.debug(f"[{__name__}.{self.func_name}] 无更多任务（年份范围：{start_year}-{end_year}）")
+                        return None
                 # 切换到下一年份，重置为第一个股票
                 current_year = next_year
                 current_stock = None
@@ -203,11 +230,11 @@ class AdjustmentFactorDownloader:
     def _fetch_adjustment_factor_block(self, year: int, stock_code: str):
         """
         处理单个复权因子数据下载区块
-        
+
         区块概念：
         - 区块是一只股票在一个年份中的数据集合
         - 每个区块由 (年份, 股票代码) 唯一标识
-        
+
         :param year: 年份
         :param stock_code: 股票代码
         """
@@ -225,14 +252,14 @@ class AdjustmentFactorDownloader:
         raw_df = self._download_raw_adjustment_factor_data(stock_code, year)
 
         if raw_df is None or raw_df.empty:
-            logger.debug(f"[{__name__}.{self.func_name}] 无数据，跳过: {stock_code} {year}")
+            logger.info(f"[{__name__}.{self.func_name}] 无数据，跳过: {stock_code} {year}")
             self.adj_factor_manager.update_block_status(year,stock_code, DlBlockStatus.ERROR)
             return
 
         # 步骤3：清洗复权因子数据
         df = self._clean_adjustment_factor_data(raw_df, stock_code)
         if df is None or df.empty:
-            logger.debug(f"[{__name__}.{self.func_name}] 清洗后数据为空，跳过: {stock_code} {year}")
+            logger.info(f"[{__name__}.{self.func_name}] 清洗后数据为空，跳过: {stock_code} {year}")
             self.adj_factor_manager.update_block_status(year,stock_code, DlBlockStatus.ERROR)
             return
 
@@ -246,7 +273,7 @@ class AdjustmentFactorDownloader:
         # 步骤5：更新区块状态为已完成
         self.adj_factor_manager.update_block_status(year,stock_code, DlBlockStatus.COMPLETED)
         
-        logger.debug(f"[{__name__}.{self.func_name}] 完成: {stock_code} {year}")
+        logger.info(f"[{__name__}.{self.func_name}] 完成: {stock_code} {year}")
 
     def _get_dl_pointer(self) -> Optional[Tuple[int, str]]:
         """
@@ -296,21 +323,21 @@ class AdjustmentFactorDownloader:
         self.progress_manager.set_task_status(DlTaskType.ADJUSTMENT_FACTOR, status)
 
 
-    def _get_completed_block_count(self, start_year: int, end_year: int) -> int:
+    def _get_attempted_block_count(self, start_year: int, end_year: int) -> int:
         """
-        获取当前下载已完成的区块数
-        
+        获取当前下载已尝试的区块数
+
         :param start_year: 起始年份（包含）
         :param end_year: 结束年份（不包含）
-        :return: 已完成的区块数
+        :return: 已尝试的区块数
         """
-        self.func_name = "_get_completed_block_count"
-        
+        self.func_name = "_get_attempted_block_count"
+
         try:
-            # 直接调用 AdjustmentFactorManager 的 get_completed_block_count 方法
-            completed_count = self.adj_factor_manager.get_completed_block_count(start_year, end_year)
-            logger.debug(f"[{__name__}.{self.func_name}] 已完成区块数: {completed_count}")
-            return completed_count
+            # 直接调用 AdjustmentFactorManager 的 get_attempted_block_count 方法
+            attempted_count = self.adj_factor_manager.get_attempted_block_count(start_year, end_year)
+            logger.debug(f"[{__name__}.{self.func_name}] 已尝试区块数: {attempted_count}")
+            return attempted_count
         except Exception as e:
             logger.error(f"[{__name__}.{self.func_name}] 查询失败: {str(e)}")
             return 0
@@ -338,9 +365,16 @@ class AdjustmentFactorDownloader:
     def continue_download_adjustment_factor(self, start_year: int, end_year: int) -> bool:
         """
         类内核心下载接口：无列表、动态查找、断点续传
+        :param start_year: 起始年份（包含）
+        :param end_year: 结束年份（不包含）
         :return: True 表示全部下载完成，False 表示未完成
         """
         self.func_name = "continue_download_adjustment_factor"
+        
+        # 检查参数有效性
+        if start_year >= end_year:
+            raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
+        
         logger.debug(f"[{__name__}.{self.func_name}] 启动下载: {start_year}-{end_year}")
 
         # 步骤0：检查下载状态
@@ -356,20 +390,22 @@ class AdjustmentFactorDownloader:
 
         # 步骤1：计算总区块数和已完成区块数
         total_blocks = self._get_total_block_count(start_year, end_year)
-        completed_block_count = self._get_completed_block_count(start_year, end_year)
+        attempted_block_count = self._get_attempted_block_count(start_year, end_year)
+        logger.info(f"[{__name__}.{self.func_name}] 已尝试区块数: {attempted_block_count}")
         logger.info(f"[{__name__}.{self.func_name}] 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
 
         # 步骤2：优先恢复中断的下载区块
         next_block = self._get_dl_pointer()
-        logger.debug(f"[{__name__}.{self.func_name}] 启动前：当前下载区块: {next_block}")
+        logger.info(f"[{__name__}.{self.func_name}] 启动前：当前下载区块: {next_block}")
 
         # 步骤3：无中断任务则获取第一个待下载区块
-        if not next_block:
-            next_block = self._get_next_block(start_year, end_year, None, None)
-        logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
+        if not next_block or not self.adj_factor_manager.is_dl_pointer_valid(next_block, start_year, end_year):
+            next_block = self._get_first_block(start_year, end_year)
+            logger.info(f"[{__name__}.{self.func_name}] 第一个待下载区块: {next_block}")
+        logger.info(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
 
         # 核心循环：有下一个区块则执行下载，否则退出循环
-        while next_block:
+        while next_block and attempted_block_count < total_blocks:
             year, stock_code = next_block
             try:
                 # 先更新下载指针，确保中断后能从正确位置恢复
@@ -379,15 +415,15 @@ class AdjustmentFactorDownloader:
 
                 # 记录进度
                 logger.info(f"[复权因子数据] 区块{year} {stock_code} 下载完成")
-                
-                # 输出下载进度（基于已完成区块数）
-                completed_block_count = self._get_completed_block_count(start_year, end_year)
+
+                # 输出下载进度（基于已尝试区块数）
+                attempted_block_count = self._get_attempted_block_count(start_year, end_year)
                 if  total_blocks > 0:
-                    progress_percent = (completed_block_count / total_blocks) * 100
-                    logger.info(f"复权因子数据下载进度: {progress_percent:.2f}% ({completed_block_count}/{total_blocks})")
-                
+                    progress_percent = (attempted_block_count / total_blocks) * 100
+                    logger.info(f"复权因子数据下载进度: {progress_percent:.2f}% ({attempted_block_count}/{total_blocks})")
+
                 # 获取下一个区块
-                next_block = self._get_next_block(start_year, end_year, year, stock_code)
+                next_block = self._get_next_block(start_year, end_year, year, stock_code, loop=True)
             except ConnectionRefusedError as e:
                 # 网络连接异常，记录错误日志，退出循环体，中止整个下载任务
                 logger.error(f"[{__name__}.{self.func_name}] 拒绝连接，下载失败 - {type(e).__name__}: {str(e)}")
@@ -397,7 +433,7 @@ class AdjustmentFactorDownloader:
                 logger.error(f"[{__name__}.{self.func_name}] 下载失败: {year} {stock_code}, {str(e)}")
                 return False
 
-        if completed_block_count >= total_blocks:
+        if attempted_block_count >= total_blocks:
             self._set_download_status(DlTaskStatus.COMPLETED)
             self.progress_manager.clear_dl_pointer(DlTaskType.ADJUSTMENT_FACTOR)
             logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
@@ -409,12 +445,17 @@ class AdjustmentFactorDownloader:
         """
         从头开始下载（删除之前的下载记录）
         :param start_year: 起始年份（包含）
-        :param end_year: 结束年份（包含）
+        :param end_year: 结束年份（不包含）
         :return: True 表示全部下载完成，False 表示未完成
         """
         self.func_name = "start_new_adjustment_factor_download"
-        logger.info(f"[{__name__}.{self.func_name}] 开始从头下载: {start_year}-{end_year}")
         
+        # 检查参数有效性
+        if start_year >= end_year:
+            raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
+        
+        logger.info(f"[{__name__}.{self.func_name}] 开始从头下载: {start_year}-{end_year}")
+
         # 步骤1：删除任务记录
         #self.progress_manager.delete_task('adjustment_factor')
         self.progress_manager.set_task_status(DlTaskType.ADJUSTMENT_FACTOR, DlTaskStatus.NOT_STARTED)
@@ -443,11 +484,15 @@ def continue_download_adjustment_factor(db_conn, start_year: int, end_year: Opti
     
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
-    :param end_year: 结束年份（包含，默认当前年份）
+    :param end_year: 结束年份（不包含，默认当前年份+1）
     :return: True 表示全部下载完成，False 表示未完成
     """
     if end_year is None:
-        end_year = datetime.now().year
+        end_year = datetime.now().year + 1
+    
+    # 检查参数有效性
+    if start_year >= end_year:
+        raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
     
     downloader = AdjustmentFactorDownloader(db_conn)
     return downloader.continue_download_adjustment_factor(start_year, end_year)
@@ -470,11 +515,15 @@ def start_new_adjustment_factor_download(db_conn, start_year: int, end_year: Opt
     
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
-    :param end_year: 结束年份（包含，默认当前年份）
+    :param end_year: 结束年份（不包含，默认当前年份+1）
     :return: True 表示全部下载完成，False 表示未完成
     """
     if end_year is None:
-        end_year = datetime.now().year
+        end_year = datetime.now().year + 1
+    
+    # 检查参数有效性
+    if start_year >= end_year:
+        raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
     
     downloader = AdjustmentFactorDownloader(db_conn)
     return downloader.start_new_adjustment_factor_download(start_year, end_year)

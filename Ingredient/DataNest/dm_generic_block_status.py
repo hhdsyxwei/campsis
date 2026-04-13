@@ -1,5 +1,5 @@
 # dm_generic_block_status.py
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, List
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 
@@ -135,16 +135,327 @@ class GenericBlockStatusManager:
             if cursor:
                 cursor.close()
     
-    def get_block_count(self, task_type: DlTaskType, status: Optional[DlBlockStatus] = None) -> int:
+    def get_block_count(self, task_type: DlTaskType, start_year: int, end_year: int, status: List[DlBlockStatus] = []) -> int:
         """
         获取指定状态的区块数量
-        
+
         :param task_type: 任务类型（DlTaskType枚举）
-        :param status: 区块状态（None表示所有状态）
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
         :return: 区块数量
         """
         func_name = "get_block_count"
-        self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, {status.value if status else 'all'}")
+        # 处理 status 为 None 的情况，设为空列表
+        if status is None:
+            status = []
+        self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, {start_year}-{end_year}, {[s.value for s in status] if status else 'all'}")
+
+        # 根据任务类型选择调用相应的方法
+        if task_type == DlTaskType.INDUSTRY:
+            return self._get_industry_block_count(start_year, end_year, status)
+        elif task_type == DlTaskType.ADJUSTMENT_FACTOR:
+            return self._get_adjustment_factor_block_count(start_year, end_year, status)
+        elif task_type == DlTaskType.KLINE:
+            return self._get_kline_block_count(start_year, end_year, status)
+        elif task_type == DlTaskType.XRXD:
+            return self._get_xrxd_block_count(start_year, end_year, status)
+        elif task_type == DlTaskType.STOCK_BASIC:
+            return self._get_stock_basic_block_count(start_year, end_year, status)
+        elif task_type == DlTaskType.TRADE_DATE:
+            return self._get_trade_date_block_count(start_year, end_year, status)
+        else:
+            # 默认实现
+            return self._get_default_block_count(task_type, start_year, end_year, status)
+    
+    def _get_industry_block_count(self, start_year: int, end_year: int, status: List[DlBlockStatus]) -> int:
+        """
+        获取行业数据区块数量
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
+        :return: 区块数量
+        """
+        func_name = "_get_industry_block_count"
+        self.logger.debug(f"[{__name__}.{func_name}] 获取行业数据区块数量: {[s.value for s in status] if status else 'all'}, {start_year}-{end_year}")
+        
+        cursor = None
+        try:
+            cursor = self.db_conn.cursor()
+            
+            sql = """
+            SELECT COUNT(*) FROM generic_block_status
+            WHERE task_type = %s
+            """
+            params = [DlTaskType.INDUSTRY.value]
+            
+            if status:
+                placeholders = ','.join(['%s'] * len(status))
+                sql += f" AND status IN ({placeholders})"
+                params.extend([s.value for s in status])
+            
+            if start_year:
+                sql += " AND block_key_1 >= %s"
+                params.append(str(start_year))
+            
+            if end_year:
+                sql += " AND block_key_1 < %s"
+                params.append(str(end_year))
+            
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count
+        except Exception as e:
+            self.logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()
+    
+    def _get_adjustment_factor_block_count(self, start_year: int, end_year: int, status: List[DlBlockStatus]) -> int:
+        """
+        获取复权因子区块数量，限制于股票固定顺序表中的股票
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
+        :return: 区块数量
+        """
+        func_name = "_get_adjustment_factor_block_count"
+        self.logger.debug(f"[{__name__}.{func_name}] 获取复权因子区块数量: {[s.value for s in status] if status else 'all'}, {start_year}-{end_year}")
+        
+        cursor = None
+        try:
+            cursor = self.db_conn.cursor()
+            
+            # 构建查询，限制股票代码在stock_fixed_seq表中
+            sql = """
+            SELECT COUNT(*) FROM generic_block_status gbs
+            JOIN stock_fixed_seq sfs ON gbs.block_key_2 = sfs.std_stock_code
+            WHERE gbs.task_type = %s
+            """
+            params = [DlTaskType.ADJUSTMENT_FACTOR.value]
+            
+            if status:
+                placeholders = ','.join(['%s'] * len(status))
+                sql += f" AND gbs.status IN ({placeholders})"
+                params.extend([s.value for s in status])
+            
+            if start_year:
+                sql += " AND gbs.block_key_1 >= %s"
+                params.append(str(start_year))
+            
+            if end_year:
+                sql += " AND gbs.block_key_1 < %s"
+                params.append(str(end_year))
+            
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count
+        except Exception as e:
+            self.logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()
+    
+    def _get_kline_block_count(self, start_year: int, end_year: int, status: List[DlBlockStatus]) -> int:
+        """
+        获取K线数据区块数量，限制于股票固定顺序表中的股票
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
+        :return: 区块数量
+        """
+        func_name = "_get_kline_block_count"
+        self.logger.debug(f"[{__name__}.{func_name}] 获取K线数据区块数量: {[s.value for s in status] if status else 'all'}, {start_year}-{end_year}")
+        
+        cursor = None
+        try:
+            cursor = self.db_conn.cursor()
+            
+            # 构建查询，限制股票代码在stock_fixed_seq表中
+            sql = """
+            SELECT COUNT(*) FROM generic_block_status gbs
+            JOIN stock_fixed_seq sfs ON gbs.block_key_2 = sfs.std_stock_code
+            WHERE gbs.task_type = %s
+            """
+            params = [DlTaskType.KLINE.value]
+            
+            if status:
+                placeholders = ','.join(['%s'] * len(status))
+                sql += f" AND gbs.status IN ({placeholders})"
+                params.extend([s.value for s in status])
+            
+            if start_year:
+                sql += " AND gbs.block_key_1 >= %s"
+                params.append(str(start_year))
+            
+            if end_year:
+                sql += " AND gbs.block_key_1 < %s"
+                params.append(str(end_year))
+            
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count
+        except Exception as e:
+            self.logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()
+    
+    def _get_xrxd_block_count(self, start_year: int, end_year: int, status: List[DlBlockStatus]) -> int:
+        """
+        获取分红送配数据区块数量，限制于股票固定顺序表中的股票
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
+        :return: 区块数量
+        """
+        func_name = "_get_xrxd_block_count"
+        self.logger.debug(f"[{__name__}.{func_name}] 获取分红送配数据区块数量: {[s.value for s in status] if status else 'all'}, {start_year}-{end_year}")
+        
+        cursor = None
+        try:
+            cursor = self.db_conn.cursor()
+            
+            # 构建查询，限制股票代码在stock_fixed_seq表中
+            sql = """
+            SELECT COUNT(*) FROM generic_block_status gbs
+            JOIN stock_fixed_seq sfs ON gbs.block_key_2 = sfs.std_stock_code
+            WHERE gbs.task_type = %s
+            """
+            params = [DlTaskType.XRXD.value]
+            
+            if status:
+                placeholders = ','.join(['%s'] * len(status))
+                sql += f" AND gbs.status IN ({placeholders})"
+                params.extend([s.value for s in status])
+            
+            if start_year:
+                sql += " AND gbs.block_key_1 >= %s"
+                params.append(str(start_year))
+            
+            if end_year:
+                sql += " AND gbs.block_key_1 < %s"
+                params.append(str(end_year))
+            
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count
+        except Exception as e:
+            self.logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()
+    
+    def _get_stock_basic_block_count(self, start_year: int, end_year: int, status: List[DlBlockStatus]) -> int:
+        """
+        获取股票基本信息区块数量
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
+        :return: 区块数量
+        """
+        func_name = "_get_stock_basic_block_count"
+        self.logger.debug(f"[{__name__}.{func_name}] 获取股票基本信息区块数量: {[s.value for s in status] if status else 'all'}, {start_year}-{end_year}")
+        
+        cursor = None
+        try:
+            cursor = self.db_conn.cursor()
+            
+            sql = """
+            SELECT COUNT(*) FROM generic_block_status
+            WHERE task_type = %s
+            """
+            params = [DlTaskType.STOCK_BASIC.value]
+            
+            if status:
+                placeholders = ','.join(['%s'] * len(status))
+                sql += f" AND status IN ({placeholders})"
+                params.extend([s.value for s in status])
+            
+            if start_year:
+                sql += " AND block_key_1 >= %s"
+                params.append(str(start_year))
+            
+            if end_year:
+                sql += " AND block_key_1 < %s"
+                params.append(str(end_year))
+            
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count
+        except Exception as e:
+            self.logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()
+    
+    def _get_trade_date_block_count(self, start_year: int, end_year: int, status: List[DlBlockStatus]) -> int:
+        """
+        获取交易日数据区块数量
+        
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
+        :return: 区块数量
+        """
+        func_name = "_get_trade_date_block_count"
+        self.logger.debug(f"[{__name__}.{func_name}] 获取交易日数据区块数量: {[s.value for s in status] if status else 'all'}, {start_year}-{end_year}")
+        
+        cursor = None
+        try:
+            cursor = self.db_conn.cursor()
+            
+            sql = """
+            SELECT COUNT(*) FROM generic_block_status
+            WHERE task_type = %s
+            """
+            params = [DlTaskType.TRADE_DATE.value]
+            
+            if status:
+                placeholders = ','.join(['%s'] * len(status))
+                sql += f" AND status IN ({placeholders})"
+                params.extend([s.value for s in status])
+            
+            if start_year:
+                sql += " AND block_key_1 >= %s"
+                params.append(str(start_year))
+            
+            if end_year:
+                sql += " AND block_key_1 < %s"
+                params.append(str(end_year))
+            
+            cursor.execute(sql, params)
+            count = cursor.fetchone()[0]
+            return count
+        except Exception as e:
+            self.logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()
+    
+    def _get_default_block_count(self, task_type: DlTaskType, start_year: int, end_year: int, status: List[DlBlockStatus]) -> int:
+        """
+        默认的区块数量查询实现
+        
+        :param task_type: 任务类型（DlTaskType枚举）
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :param status: 区块状态列表（空列表表示所有状态）
+        :return: 区块数量
+        """
+        func_name = "_get_default_block_count"
+        self.logger.debug(f"[{__name__}.{func_name}] 获取默认区块数量: {task_type.value}, {[s.value for s in status] if status else 'all'}, {start_year}-{end_year}")
         
         cursor = None
         try:
@@ -157,8 +468,17 @@ class GenericBlockStatusManager:
             params = [task_type.value]
             
             if status:
-                sql += " AND status = %s"
-                params.append(status.value)
+                placeholders = ','.join(['%s'] * len(status))
+                sql += f" AND status IN ({placeholders})"
+                params.extend([s.value for s in status])
+            
+            if start_year:
+                sql += " AND block_key_1 >= %s"
+                params.append(str(start_year))
+            
+            if end_year:
+                sql += " AND block_key_1 < %s"
+                params.append(str(end_year))
             
             cursor.execute(sql, params)
             count = cursor.fetchone()[0]

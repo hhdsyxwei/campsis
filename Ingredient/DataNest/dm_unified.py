@@ -198,6 +198,19 @@ class UnifiedDataManager:
             return 0
 
     @staticmethod
+    def get_attempted_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
+        """
+        统一获取已尝试下载的区块总数的接口
+        """
+        func_name = "get_attempted_block_count"
+        try:
+            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
+            return manager.get_attempted_block_count(start_year, end_year, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return 0
+
+    @staticmethod
     def get_skipped_block_total_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
         统一获取跳过区块总数的接口（兼容旧接口）
@@ -320,3 +333,23 @@ class UnifiedDataManager:
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return None
+    
+    @staticmethod
+    def is_stock_in_fixed_seq(db_conn, stock_code: str) -> bool:
+        """
+        检查股票代码是否在固定顺序表中
+        
+        Args:
+            db_conn: 数据库连接
+            stock_code: 股票代码
+            
+        Returns:
+            股票是否在固定顺序表中
+        """
+        func_name = "is_stock_in_fixed_seq"
+        try:
+            manager = StockFixedSeqManager(db_conn)
+            return manager.stock_exists(stock_code)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return False
