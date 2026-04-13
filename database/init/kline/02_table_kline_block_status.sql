@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS `kline_block_status` (
   `quarter` VARCHAR(7) NOT NULL COMMENT '季度 格式：YYYY-Qn，如2024-Q1',
   
   -- 核心状态字段：仅两种状态
-  `status` ENUM('not_completed','completed') 
-    NOT NULL DEFAULT 'not_completed' COMMENT '状态：not_completed-未完成，completed-已完成',
+  `status` ENUM('not_completed', 'skipped', 'completed', 'error') 
+    NOT NULL DEFAULT 'not_completed' COMMENT '状态：not_completed-未完成，skipped-已跳过，completed-已完成，error-下载异常',
   `completed_at` TIMESTAMP NULL COMMENT '数据下载完成时间',
 
   -- 自动维护时间戳

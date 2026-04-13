@@ -246,7 +246,7 @@ class UnifiedDataManager:
             return None
 
     @staticmethod
-    def set_dl_pointer(db_conn, stock_id: str, time_frame: KLinePeriod, quarter: str) -> bool:
+    def set_dl_pointer(db_conn, quarter: str, stock_id: str, time_frame: KLinePeriod) -> bool:
         """
         【对外标准接口】设置当前下载的区块信息（股票代码、时间周期、季度）
         Args:
@@ -261,7 +261,7 @@ class UnifiedDataManager:
         func_name = "set_dl_pointer"
         try:
             dl_ctrl_manager = GlobalDlCtrlBlockManager(db_conn)
-            result = dl_ctrl_manager.set_kline_dl_pointer(stock_id, quarter, time_frame)
+            result = dl_ctrl_manager.set_kline_dl_pointer(quarter, stock_id, time_frame)
             logger.debug(f"[{__name__}.{func_name}] 对外接口调用完成，返回结果: {result}")
             return result
         except Exception as e:
@@ -306,7 +306,7 @@ class UnifiedDataManager:
             return []
 
     @staticmethod
-    def get_stock_listing_date(db_conn, std_stock_code: str):
+    def get_stock_listing_date(db_conn, std_stock_code: str) -> Tuple[Optional[str], Optional[str]]:
         """
         便捷调用BasicStockDataManager的get_stock_listing_date方法
         返回：(上市日期，退市日期)

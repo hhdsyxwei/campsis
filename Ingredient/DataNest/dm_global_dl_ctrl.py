@@ -486,7 +486,7 @@ class GlobalDlCtrlBlockManager:
         :param task_type: 任务类型
         :return: True 表示指针为空，False 表示指针不为空
         """
-        func_name = "is_download_pointer_empty"
+        func_name = "is_dl_pointer_empty"
         try:
             progress = self.read_dl_pointer(task_type)
             if progress:

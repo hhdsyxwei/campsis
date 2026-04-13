@@ -5,6 +5,7 @@ from KitchenBase.baostock_wrapper import query_history_k_data_plus
 import time
 from KitchenBase.logger_config import get_logger
 from Ingredient.DataNest import DailyDataManager, get_nearest_trade_date_before # 导入新的管理器
+from Ingredient.DataNest import UnifiedDataManager as dm_unified
 
 logger = get_logger(__name__)
 
@@ -62,13 +63,13 @@ def _check_date_range_exists(dm: DailyDataManager, ts_code: str, start_date: str
     return False
 
 
-def _calculate_download_dates(conn, dm: DailyDataManager, ts_code: str, global_start_date: str = None, end_date: str = None) -> tuple:
+def _calculate_download_dates(conn, ts_code: str, global_start_date: str, end_date: str) -> tuple:
     """
     计算某只股票日线数据下载所需的 start_date 和 end_date
     返回 (start_date, end_date) 元组，如果不需要下载则返回 (None, None)
     """
     # 1. 查询数据库中该股票的最新交易日期
-    latest_date_in_db = dm.get_latest_tradedate_for_stock(ts_code)
+    latest_date_in_db = DailyDataManager(conn).get_latest_tradedate_for_stock(ts_code)
     
     if latest_date_in_db:
         # 如果数据库中有记录，则从下一天开始下载
@@ -81,8 +82,8 @@ def _calculate_download_dates(conn, dm: DailyDataManager, ts_code: str, global_s
             s_date = global_start_date
             logger.info(f"股票 {ts_code} 无历史数据，从 {global_start_date} 开始全量下载。")
         else:
-            # 使用数据管理器获取上市日期
-            listing_date = dm.get_stock_listing_date(ts_code)
+            # 使用独立函数获取上市日期和退市日期
+            listing_date, delist_date = dm_unified.get_stock_listing_date(conn, ts_code)
             if listing_date:
                 s_date = listing_date
                 logger.info(f"股票 {ts_code} 无历史数据，从上市日期 {s_date} 开始全量下载。")
@@ -98,7 +99,7 @@ def _calculate_download_dates(conn, dm: DailyDataManager, ts_code: str, global_s
     return s_date, end_date
 
 
-def download_all_stocks_daily_data(conn, start_date=None, end_date=None):
+def download_all_stocks_daily_data(conn, start_date, end_date):
     """
     下载所有活跃股票的日线数据。
     Args:
@@ -138,7 +139,7 @@ def download_all_stocks_daily_data(conn, start_date=None, end_date=None):
             continue  # 直接进入下一只股票的循环
 
         # 计算这只股票的下载日期范围
-        s_date, e_date = _calculate_download_dates(conn, dm, ts_code, start_date, end_date)
+        s_date, e_date = _calculate_download_dates(conn, ts_code, start_date, end_date)
         if s_date is None or e_date is None:
             # 表示这只股票不需要下载
             continue
