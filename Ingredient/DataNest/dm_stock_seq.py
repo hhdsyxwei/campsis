@@ -9,6 +9,18 @@ class StockFixedSeqManager:
     def __init__(self, conn):
         self.conn = conn
 
+
+    def get_first_stock(self) -> Optional[str]:
+        """
+        获取序列中的第一只股票
+        
+        Returns:
+            第一只股票代码 | None
+        """
+        func_name = "get_first_stock"
+        logger.debug(f"[{__name__}.{func_name}] 获取序列中的第一只股票")
+        return self.get_next_stock(None)
+
     def get_next_stock(self, current_stock_code: Optional[str]) -> Optional[str]:
         """
         获取固定序列中的下一只股票代码
@@ -107,7 +119,15 @@ class StockFixedSeqManager:
             # 格式标准化：确保每个元素都是字符串类型的股票代码
             standardized_data = []
             for code in stock_data:
-                if isinstance(code, str) and code.strip():
+                # 处理元组情况，如 ('003001.SZ',)
+                if isinstance(code, tuple) and len(code) > 0:
+                    code_str = code[0]
+                    if isinstance(code_str, str) and code_str.strip():
+                        standardized_data.append((code_str.strip(),))  # 转成元组格式适配 executemany
+                    else:
+                        logger.warning(f"[{__name__}.{func_name}] 无效股票代码，跳过：{code}")
+                # 处理字符串情况
+                elif isinstance(code, str) and code.strip():
                     standardized_data.append((code.strip(),))  # 转成元组格式适配 executemany
                 else:
                     logger.warning(f"[{__name__}.{func_name}] 无效股票代码，跳过：{code}")
@@ -161,16 +181,6 @@ class StockFixedSeqManager:
             )
             return 0
 
-    def get_first_stock(self) -> Optional[str]:
-        """
-        获取序列中的第一只股票
-        
-        Returns:
-            第一只股票代码 | None
-        """
-        func_name = "get_first_stock"
-        logger.debug(f"[{__name__}.{func_name}] 获取序列中的第一只股票")
-        return self.get_next_stock(None)
 
     def get_stock_position(self, stock_code: str) -> Optional[int]:
         """
@@ -215,6 +225,41 @@ class StockFixedSeqManager:
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询股票顺序位置失败: {str(e)}")
             return None
+        finally:
+            if cursor:
+                cursor.close()
+    
+    def stock_exists(self, stock_code: str) -> bool:
+        """
+        检查股票代码是否在 stock_fixed_seq 表中
+        
+        Args:
+            stock_code: 股票代码
+            
+        Returns:
+            股票是否存在
+        """
+        func_name = "is_stock_exists"
+        logger.debug(f"[{__name__}.{func_name}] 检查股票 {stock_code} 是否存在")
+        
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            
+            # 查询股票是否存在
+            sql = """
+                SELECT COUNT(*) FROM stock_fixed_seq WHERE std_stock_code = %s
+            """
+            cursor.execute(sql, (stock_code,))
+            count = cursor.fetchone()[0]
+            
+            exists = count > 0
+            logger.debug(f"[{__name__}.{func_name}] 股票 {stock_code} {'存在' if exists else '不存在'}")
+            return exists
+        
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 检查股票是否存在失败: {str(e)}")
+            return False
         finally:
             if cursor:
                 cursor.close()

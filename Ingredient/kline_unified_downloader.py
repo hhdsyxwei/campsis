@@ -217,7 +217,7 @@ class KLineDownloader:
         :param time_frame: 当前时间周期（单个周期，非列表）
         """
         self.func_name = "_set_dl_pointer"
-        dm.set_dl_pointer(self.db_conn, std_stock_code, time_frame, quarter)
+        dm.set_dl_pointer(self.db_conn, quarter, std_stock_code, time_frame)
 
 
 
@@ -407,14 +407,14 @@ class KLineDownloader:
         # 步骤3：无中断区块则获取第一个待下载区块
         if not next_block:
             next_block = self._get_first_block(start_year, end_year, time_frame)
-        logger.debug(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
+        logger.info(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
 
         # 核心循环：有下一个区块则执行下载
         while next_block:
             quarter, std_stock_code, time_frame = next_block
             try:
                 # 先更新下载指针，确保中断后能从正确位置恢复
-                dm.set_dl_pointer(self.db_conn, std_stock_code, time_frame, quarter)
+                dm.set_dl_pointer(self.db_conn,quarter, std_stock_code, time_frame)
                 # 执行下载
                 self._fetch_kline_block(quarter, std_stock_code, time_frame)
                 # 获取下一个区块

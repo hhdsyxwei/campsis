@@ -321,21 +321,15 @@ def query_adjust_factor(
         f"| 时间范围: {start_date or '2015-01-01'} - {end_date or '当前日期'}"
     )
     
-    try:
-        result = bs.query_adjust_factor(
-            code=code,
-            start_date=start_date,
-            end_date=end_date
-        )
-
-        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-            raise ConnectionRefusedError(f"查询复权因子失败: {result.error_code}=={result.error_msg}")
-
-        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"查询复权因子失败: {str(e)}") from e
+    result = bs.query_adjust_factor(
+        code=code,
+        start_date=start_date,
+        end_date=end_date
+    )
+    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+        raise ConnectionRefusedError(f"查询复权因子失败: {result.error_code}=={result.error_msg}")
+    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+    return result
 
 
 def query_dividend_data(
@@ -381,21 +375,17 @@ def query_dividend_data(
         f"| 年份类型: {yearType}"
     )
     
-    try:
-        result = bs.query_dividend_data(
-            code=code,
-            year=year,
-            yearType=yearType
-        )
+    result = bs.query_dividend_data(
+        code=code,
+        year=year,
+        yearType=yearType
+    )
 
-        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-            raise ConnectionRefusedError(f"查询分红送配数据失败: {result.error_msg}")
-    
-        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"查询分红送配数据失败: {str(e)}") from e
+    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+        raise ConnectionRefusedError(f"查询分红送配数据失败: {result.error_msg}")
+
+    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+    return result
 
 
 def query_trade_dates(
@@ -422,21 +412,17 @@ def query_trade_dates(
         f"[{current_func}] 查询交易日数据 "
         f"| 时间范围: {start_date} - {end_date}"
     )
+
+    result = bs.query_trade_dates(
+        start_date=start_date,
+        end_date=end_date
+    )
     
-    try:
-        result = bs.query_trade_dates(
-            start_date=start_date,
-            end_date=end_date
-        )
-        
-        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-            raise ConnectionRefusedError(f"查询交易日数据失败: {result.error_msg}")
-    
-        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"查询交易日数据失败: {str(e)}") from e
+    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+        raise ConnectionRefusedError(f"查询交易日数据失败: {result.error_msg}")
+
+    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+    return result
 
 
 def query_stock_industry(
@@ -461,18 +447,12 @@ def query_stock_industry(
         f"| 股票代码: {code or '全部'} "
         f"| 查询日期: {date or '最新日期'}"
     )
-    
-    try:
-        result = bs.query_stock_industry(
-            code=code,
-            date=date
-        )
+    result = bs.query_stock_industry(
+        code=code,
+        date=date
+    )
+    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+        raise ConnectionRefusedError(f"查询行业分类失败: {result.error_msg}")
 
-        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-            raise ConnectionRefusedError(f"查询行业分类失败: {result.error_msg}")
-    
-        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 查询失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"查询行业分类失败: {str(e)}") from e
+    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+    return result

@@ -1,6 +1,7 @@
 # dm_stock_basic.py
 import pymysql
 import pandas as pd
+from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -118,7 +119,7 @@ class BasicStockDataManager:
             if cursor:
                 cursor.close()
 
-    def get_stock_listing_date(self, ts_code: str) -> tuple:
+    def get_stock_listing_date(self, ts_code: str) -> Tuple[Optional[str], Optional[str]]:
         """
         查询指定股票代码的 上市日期 和 退市日期
         Args:

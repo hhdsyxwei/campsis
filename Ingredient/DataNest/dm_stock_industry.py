@@ -13,6 +13,13 @@ class StockIndustryDataManager(BaseDataManager):
     def __init__(self, db_conn):
         super().__init__(db_conn)
     
+    def get_task_type(self) -> DlTaskType:
+        """
+        获取任务类型
+        :return: 任务类型（DlTaskType枚举）
+        """
+        return DlTaskType.INDUSTRY
+    
     def save_industry_data(self, df: pd.DataFrame) -> bool:
         """
         保存行业分类数据到数据库
@@ -189,7 +196,9 @@ class StockIndustryDataManager(BaseDataManager):
             # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
             completed_count = self.block_status_manager.get_block_count(
                 task_type=DlTaskType.INDUSTRY,
-                status=DlBlockStatus.COMPLETED
+                start_year=start_year,
+                end_year=end_year,
+                status=[DlBlockStatus.COMPLETED]
             )
             logger.debug(f"[{__name__}.{func_name}] 已完成区块数: {completed_count}")
             return completed_count
@@ -212,7 +221,9 @@ class StockIndustryDataManager(BaseDataManager):
             # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
             skipped_count = self.block_status_manager.get_block_count(
                 task_type=DlTaskType.INDUSTRY,
-                status=DlBlockStatus.SKIPPED
+                start_year=start_year,
+                end_year=end_year,
+                status=[DlBlockStatus.SKIPPED]
             )
             logger.debug(f"[{__name__}.{func_name}] 跳过区块数: {skipped_count}")
             return skipped_count

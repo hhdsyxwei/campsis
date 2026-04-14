@@ -4,11 +4,11 @@
 # 数据管理器
 from .DataNest import (
     DB_CONFIG,
-    UnifiedDataManager,
+    dm_unified,
     create_database_and_tables,
     KLineUnifiedQuarterlyExtendedManager,
     TradeDateMapManager,
-    DailyDataManager,
+    dm_daily,
     BasicStockDataManager,
     XrxdManager,
     KlineUnifiedColumns,
@@ -25,11 +25,11 @@ from .kline_unified_downloader import KLineDownloader
 __all__ = [
     # 数据管理器
     'DB_CONFIG',
-    'UnifiedDataManager',
+    'dm_unified',
     'create_database_and_tables',
     'KLineUnifiedQuarterlyExtendedManager',
     'TradeDateMapManager',
-    'DailyDataManager',
+    'dm_daily',
     'BasicStockDataManager',
     'XrxdManager',
     'StockIndustryDataManager',

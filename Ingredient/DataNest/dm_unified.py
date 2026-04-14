@@ -198,6 +198,19 @@ class UnifiedDataManager:
             return 0
 
     @staticmethod
+    def get_attempted_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
+        """
+        统一获取已尝试下载的区块总数的接口
+        """
+        func_name = "get_attempted_block_count"
+        try:
+            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
+            return manager.get_attempted_block_count(start_year, end_year, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return 0
+
+    @staticmethod
     def get_skipped_block_total_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
         统一获取跳过区块总数的接口（兼容旧接口）
@@ -233,7 +246,7 @@ class UnifiedDataManager:
             return None
 
     @staticmethod
-    def set_dl_pointer(db_conn, stock_id: str, time_frame: KLinePeriod, quarter: str) -> bool:
+    def set_dl_pointer(db_conn, quarter: str, stock_id: str, time_frame: KLinePeriod) -> bool:
         """
         【对外标准接口】设置当前下载的区块信息（股票代码、时间周期、季度）
         Args:
@@ -248,7 +261,7 @@ class UnifiedDataManager:
         func_name = "set_dl_pointer"
         try:
             dl_ctrl_manager = GlobalDlCtrlBlockManager(db_conn)
-            result = dl_ctrl_manager.set_kline_dl_pointer(stock_id, quarter, time_frame)
+            result = dl_ctrl_manager.set_kline_dl_pointer(quarter, stock_id, time_frame)
             logger.debug(f"[{__name__}.{func_name}] 对外接口调用完成，返回结果: {result}")
             return result
         except Exception as e:
@@ -293,7 +306,7 @@ class UnifiedDataManager:
             return []
 
     @staticmethod
-    def get_stock_listing_date(db_conn, std_stock_code: str):
+    def get_stock_listing_date(db_conn, std_stock_code: str) -> Tuple[Optional[str], Optional[str]]:
         """
         便捷调用BasicStockDataManager的get_stock_listing_date方法
         返回：(上市日期，退市日期)
@@ -320,3 +333,23 @@ class UnifiedDataManager:
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return None
+    
+    @staticmethod
+    def is_stock_in_fixed_seq(db_conn, stock_code: str) -> bool:
+        """
+        检查股票代码是否在固定顺序表中
+        
+        Args:
+            db_conn: 数据库连接
+            stock_code: 股票代码
+            
+        Returns:
+            股票是否在固定顺序表中
+        """
+        func_name = "is_stock_in_fixed_seq"
+        try:
+            manager = StockFixedSeqManager(db_conn)
+            return manager.stock_exists(stock_code)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return False

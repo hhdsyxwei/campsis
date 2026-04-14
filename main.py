@@ -12,7 +12,7 @@ import KitchenBase.baostock_wrapper as bs
 from KitchenBase.baostock_wrapper import BaostockErrorCode
 from Ingredient.DataNest import create_database_and_tables
 from Ingredient.kline_unified_downloader import start_new_kline_download, continue_download_kline
-from Ingredient.daily_data_downloader import download_all_stocks_daily_data
+from Ingredient.daily_data_downloader import download_all_stocks_daily_data, download_daily_data
 from Ingredient.trade_date_map_downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from Ingredient.stock_basic_downloader import download_stock_basic
@@ -53,32 +53,34 @@ def main():
     # 2. 建立与本地数据库的连接
     conn = create_database_and_tables()
 
+    start_year = 2026
+    end_year = 2027
+
     try:
         # download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
         # 3. 第一步：同步并更新股票的基础信息表 (stock_basic)
-        #download_stock_basic(conn)  # 下载股票详细信息（行业、上市日期等）
+        # download_stock_basic(conn,[MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        # download_all_stocks_daily_data(conn, start_date="2023-01-01", end_date="2026-03-17") 
+        download_daily_data(conn, "001331.SZ", "2026-01-01", "2026-03-17")
+        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
 
         # 5. 第三步：下载行业分类数据
         # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
         # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
         # 6. 第四步：下载5分钟K线数据（示例）
-        # 这里我们以 "sh.600000" 为例，实际使用中可以循环所有股票代码进行下载
-        #bs_client = bs  # 已登录的 Baostock 客户端
-        # start_new_kline_download(conn,2024,2025, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
-        continue_download_kline(conn, 2024, 2025, KLinePeriod.MIN_5)  # 继续下载2024-2025年的5分钟K线数据
+        # start_new_kline_download(conn, start_year, end_year, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+        # continue_download_kline(conn, start_year, end_year, KLinePeriod.MIN_5)  # 继续下载2026-2027年的5分钟K线数据
 
         # 7. 第五步：下载分红送配数据
-        # start_new_xrxd_download(conn, 2020, 2025)  # 下载2020-2025年的分 红送配数据  
-        continue_download_xrxd(conn, 2020, 2025)  # 下载2020-2025年的分红送配数据
+        # start_new_xrxd_download(conn, start_year, end_year)  # 下载2026-2027年的分 红送配数据  
+        # continue_download_xrxd(conn, start_year, end_year)  # 下载2026-2027年的分红送配数据
 
         # 8. 第六步：下载复权因子数据
-        # start_new_adjustment_factor_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的复权因子数据
-        continue_download_adjustment_factor(conn, 2020, 2025)  # 继续下载2020-2025年的复权因子数据
+        # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
+        # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息

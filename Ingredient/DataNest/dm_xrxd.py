@@ -1,10 +1,11 @@
 # dm_xrxd.py
+from typing import Tuple
 from typing import Optional, List
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from KitchenBase.logger_config import get_logger
-from KitchenBase.download_enums import DlBlockStatus
+from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 from .dm_base import BaseDataManager
 
 # ===================== 全局配置 =====================
@@ -19,6 +20,13 @@ class XrxdManager(BaseDataManager):
         """
         super().__init__(db_conn)
         self.func_name = ""
+    
+    def get_task_type(self) -> DlTaskType:
+        """
+        获取任务类型
+        :return: 任务类型（DlTaskType枚举）
+        """
+        return DlTaskType.XRXD
 
     def save_xrxd_data(self, df: pd.DataFrame) -> bool:
         """
@@ -422,3 +430,14 @@ class XrxdManager(BaseDataManager):
         )
         # 由于使用指针位置计算进度，不需要实际更新状态
         pass
+
+    def is_dl_pointer_valid(self, pointer: Optional[Tuple], start_year: int, end_year: int) -> bool:
+        """
+        判断下载指针是否合法
+        
+        :param pointer: 下载指针，通常为 (year, stock_code) 元组
+        :param start_year: 起始年份
+        :param end_year: 结束年份
+        :return: 指针是否合法
+        """
+        return True
