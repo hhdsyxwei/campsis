@@ -59,12 +59,12 @@ def main():
     try:
         # download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
         # 3. 第一步：同步并更新股票的基础信息表 (stock_basic)
-        download_stock_basic(conn,[MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
+        # download_stock_basic(conn,[MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        # download_daily_data(conn, "003001.SZ", "2026-01-01", "2026-03-17")
-        download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
+        download_daily_data(conn, "001331.SZ", "2026-01-01", "2026-03-17")
+        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
 
         # 5. 第三步：下载行业分类数据
         # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据

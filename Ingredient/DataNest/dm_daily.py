@@ -68,7 +68,7 @@ class DailyDataManager:
                     float(row['high']) if pd.notna(row['high']) else None,
                     float(row['low']) if pd.notna(row['low']) else None,
                     float(row['close']) if pd.notna(row['close']) else None,
-                    pre_close_val,
+                    pre_close_val if pd.notna(pre_close_val) else None,
                     float(row['pctChg']) if pd.notna(row['pctChg']) else None,
                     float(row['volume']) if pd.notna(row['volume']) else None,
                     float(row['amount']) if pd.notna(row['amount']) else None,
@@ -83,6 +83,8 @@ class DailyDataManager:
 
         if not records:
             return True
+        
+        logger.warning(f"record[0]:{records[0]}")
 
         cursor = None
         sql = """

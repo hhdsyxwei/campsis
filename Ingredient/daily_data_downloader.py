@@ -115,6 +115,9 @@ def _clean_data(bs_rs):
         if col in df.columns:
             df[col] = df[col].where(pd.notna(df[col]), None)
 
+    # 在_clean_data函数中添加
+    logger.info(f"数据清洗后第1行数据: {df.iloc[0]}")
+
     return df
 
 def _save_data(conn, ts_code: str, df):
