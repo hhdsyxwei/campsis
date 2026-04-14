@@ -10,41 +10,71 @@ class DailyDataManager:
     def __init__(self, connection):
         self.conn = connection
 
-    def save_daily_data(self, std_stock_code: str, baostock_rs) -> bool:
+    def save_daily_data(self, std_stock_code: str, data) -> bool:
+        """
+        保存日线数据到数据库
+        
+        Args:
+            std_stock_code: 股票代码
+            data: 数据，可以是 Baostock 结果对象或 DataFrame
+            
+        Returns:
+            是否保存成功
+        """
         func_name = "save_daily_data"
-        if baostock_rs is None or baostock_rs.error_code != '0':
-            err_code = baostock_rs.error_code if baostock_rs else 'None'
-            logger.error(f"[{__name__}.{func_name}] {std_stock_code} 查询失败，错误码：{err_code}")
-            return False
+        
+        # 处理不同类型的输入数据
+        if hasattr(data, 'error_code'):
+            # Baostock 结果对象
+            if data is None or data.error_code != '0':
+                err_code = data.error_code if data else 'None'
+                logger.error(f"[{__name__}.{func_name}] {std_stock_code} 查询失败，错误码：{err_code}")
+                return False
 
-        data_list = []
-        while baostock_rs.next():
-            data_list.append(baostock_rs.get_row_data())
+            data_list = []
+            while data.next():
+                data_list.append(data.get_row_data())
 
-        logger.info(f"[{__name__}.{func_name}] {std_stock_code} 获取到 {len(data_list)} 条日线数据")
-        if not data_list:
-            return True
+            logger.info(f"[{__name__}.{func_name}] {std_stock_code} 获取到 {len(data_list)} 条日线数据")
+            if not data_list:
+                return True
 
-        df = pd.DataFrame(data_list, columns=baostock_rs.fields)
+            df = pd.DataFrame(data_list, columns=data.fields)
+        else:
+            # 直接使用 DataFrame
+            df = data
+            logger.info(f"[{__name__}.{func_name}] {std_stock_code} 处理 {len(df)} 条日线数据")
+            if df.empty:
+                return True
+
         records = []
 
         for _, row in df.iterrows():
             try:
                 trade_date = row['date']
-                pre_close_val = calculate_pre_close(row['close'], row['pctChg'])
+                # 确保 trade_date 是字符串格式
+                if isinstance(trade_date, pd.Timestamp):
+                    trade_date = trade_date.strftime('%Y-%m-%d')
+                
+                # 计算前收盘价（如果没有提供）
+                if 'pre_close' in row and pd.notna(row['pre_close']):
+                    pre_close_val = row['pre_close']
+                else:
+                    pre_close_val = calculate_pre_close(row['close'], row['pctChg'])
+                    
                 records.append((
                     std_stock_code, trade_date,
-                    float(row['open']) if row['open'] else None,
-                    float(row['high']) if row['high'] else None,
-                    float(row['low']) if row['low'] else None,
-                    float(row['close']) if row['close'] else None,
+                    float(row['open']) if pd.notna(row['open']) else None,
+                    float(row['high']) if pd.notna(row['high']) else None,
+                    float(row['low']) if pd.notna(row['low']) else None,
+                    float(row['close']) if pd.notna(row['close']) else None,
                     pre_close_val,
-                    float(row['pctChg']) if row['pctChg'] else None,
-                    float(row['volume']) if row['volume'] else None,
-                    float(row['amount']) if row['amount'] else None,
-                    float(row['turn']) if row['turn'] else None,
-                    float(row['peTTM']) if row['peTTM'] else None,
-                    float(row['pbMRQ']) if row['pbMRQ'] else None,
+                    float(row['pctChg']) if pd.notna(row['pctChg']) else None,
+                    float(row['volume']) if pd.notna(row['volume']) else None,
+                    float(row['amount']) if pd.notna(row['amount']) else None,
+                    float(row['turn']) if pd.notna(row['turn']) else None,
+                    float(row['peTTM']) if pd.notna(row['peTTM']) else None,
+                    float(row['pbMRQ']) if pd.notna(row['pbMRQ']) else None,
                 ))
             except (ValueError, ZeroDivisionError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row['date']}: {str(e)}")

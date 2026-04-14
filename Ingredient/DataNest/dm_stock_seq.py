@@ -9,6 +9,18 @@ class StockFixedSeqManager:
     def __init__(self, conn):
         self.conn = conn
 
+
+    def get_first_stock(self) -> Optional[str]:
+        """
+        获取序列中的第一只股票
+        
+        Returns:
+            第一只股票代码 | None
+        """
+        func_name = "get_first_stock"
+        logger.debug(f"[{__name__}.{func_name}] 获取序列中的第一只股票")
+        return self.get_next_stock(None)
+
     def get_next_stock(self, current_stock_code: Optional[str]) -> Optional[str]:
         """
         获取固定序列中的下一只股票代码
@@ -161,16 +173,6 @@ class StockFixedSeqManager:
             )
             return 0
 
-    def get_first_stock(self) -> Optional[str]:
-        """
-        获取序列中的第一只股票
-        
-        Returns:
-            第一只股票代码 | None
-        """
-        func_name = "get_first_stock"
-        logger.debug(f"[{__name__}.{func_name}] 获取序列中的第一只股票")
-        return self.get_next_stock(None)
 
     def get_stock_position(self, stock_code: str) -> Optional[int]:
         """

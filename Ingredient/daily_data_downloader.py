@@ -6,6 +6,7 @@ import time
 from KitchenBase.logger_config import get_logger
 from Ingredient.DataNest import DailyDataManager, get_nearest_trade_date_before # 导入新的管理器
 from Ingredient.DataNest import UnifiedDataManager as dm_unified
+from Ingredient.DataNest.dm_stock_seq import StockFixedSeqManager
 
 logger = get_logger(__name__)
 
@@ -13,15 +14,51 @@ def download_daily_data(conn, ts_code: str, start_date: str, end_date: str):
     """
     下载单只股票在指定时间范围内的日线数据，并存入 stock_daily 表。
     """
-    # 将数据库格式的股票代码 (600000.SH) 转换回 Baostock 格式 (sh.600000)
+
+    # 执行流程
+    valid, bs_code = _validate_parameters(ts_code, start_date, end_date)
+    if not valid:
+        return
+    
+    rs = _download_raw_data(bs_code, start_date, end_date)
+    if rs is None:
+        return
+    
+    df = _clean_data(rs)
+    if df is None:
+        return
+    
+    _save_data(conn, ts_code, df)
+
+def _validate_parameters(ts_code: str, start_date: str, end_date: str):
+    """
+    验证参数有效性
+    """
+    # 验证股票代码格式
     parts = ts_code.split('.')
     if len(parts) != 2:
         logger.warning(f"股票代码格式错误: {ts_code}")
-        return
+        return False, None
+    
+    # 验证日期格式
+    try:
+        datetime.strptime(start_date, '%Y-%m-%d')
+        datetime.strptime(end_date, '%Y-%m-%d')
+    except ValueError:
+        logger.warning(f"日期格式错误: start_date={start_date}, end_date={end_date}")
+        return False, None
+    
+    # 转换股票代码为 Baostock 格式
     symbol, market = parts
     market_map = {'SH': 'sh', 'SZ': 'sz'}
-    bs_code = f"{market_map.get(market.lower(), market)}.{symbol}"
+    bs_code = f"{market_map.get(market.upper(), market)}.{symbol}"
+    
+    return True, bs_code
 
+def _download_raw_data(bs_code, start_date: str, end_date: str):
+    """
+    从 Baostock API 下载原始数据
+    """
     # 定义需要查询的日线数据字段
     fields = "date,code,open,high,low,close,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTtm,isST"
     # 调用 Baostock API 查询历史 K 线数据
@@ -33,70 +70,54 @@ def download_daily_data(conn, ts_code: str, start_date: str, end_date: str):
         frequency="d",      # 频率为日线
         adjustflag="3"      # 复权标志: 3=不复权, 1=前复权, 2=后复权
     )
-
     if rs is None:
-        logger.warning(f"获取 {ts_code} 数据超时或发生错误，返回结果为 None。")
-        return
-
-    logger.info(f"查询 {ts_code} 日线数据结果: {rs.error_code} - {rs.error_msg}")
-
+        logger.warning(f"获取 {bs_code} 数据超时或发生错误，返回结果为 None。")
+        return None
+    logger.info(f"查询 {bs_code} 日线数据结果: {rs.error_code} - {rs.error_msg}")
     if rs.error_code != '0':
-        logger.warning(f"获取 {ts_code} 数据失败: {rs.error_msg}")
-        return
+        logger.warning(f"获取 {bs_code} 数据失败: {rs.error_msg}")
+        return None
+    
+    return rs
 
-    # 使用数据管理器来保存数据
+def _clean_data(bs_rs):
+    """
+    清洗数据并转换为 DataFrame
+    """
+    import pandas as pd
+    
+    data_list = []
+    while bs_rs.next():
+        data_list.append(bs_rs.get_row_data())
+    
+    if not data_list:
+        logger.info(f"股票在指定日期范围内无数据")
+        return None
+    
+    # 转换为 DataFrame
+    df = pd.DataFrame(data_list, columns=bs_rs.fields)
+    
+    # 数据清洗和类型转换
+    df['date'] = pd.to_datetime(df['date'])
+    numeric_columns = ['open', 'high', 'low', 'close', 'volume', 'amount', 'turn', 'pctChg', 'peTTM', 'pbMRQ', 'psTTM', 'pcfNcfTtm']
+    for col in numeric_columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    # 计算前收盘价
+    df['pre_close'] = df['close'].shift(1)
+    
+    return df
+
+def _save_data(conn, ts_code: str, df):
+    """
+    保存数据到数据库
+    """
     manager = DailyDataManager(conn)
-    success = manager.save_daily_data(ts_code, rs)
+    # 传递股票代码和 DataFrame 给 save_daily_data 方法
+    success = manager.save_daily_data(ts_code, df)
     if not success:
         logger.warning(f"保存 {ts_code} 的数据到数据库失败。")
-
-
-def _check_date_range_exists(dm: DailyDataManager, ts_code: str, start_date: str, end_date: str) -> bool:
-    """
-    检查指定股票的指定日期范围是否已存在
-    """
-    if start_date:
-        # 如果用户指定了全局 start_date，则检查该范围是否已存在
-        if dm.check_date_range_exists(ts_code, start_date, end_date):
-            logger.info(f"股票 {ts_code} 在 {start_date} 到 {end_date} 的数据已存在，跳过下载。")
-            return True
-    return False
-
-
-def _calculate_download_dates(conn, ts_code: str, global_start_date: str, end_date: str) -> tuple:
-    """
-    计算某只股票日线数据下载所需的 start_date 和 end_date
-    返回 (start_date, end_date) 元组，如果不需要下载则返回 (None, None)
-    """
-    # 1. 查询数据库中该股票的最新交易日期
-    latest_date_in_db = DailyDataManager(conn).get_latest_tradedate_for_stock(ts_code)
-    
-    if latest_date_in_db:
-        # 如果数据库中有记录，则从下一天开始下载
-        start_date_obj = datetime.strptime(latest_date_in_db, '%Y-%m-%d')
-        s_date = (start_date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
-        logger.info(f"股票 {ts_code} 已存在数据，从 {s_date} 开始增量下载。")
-    else:
-        # 如果数据库中没有记录，且提供了全局起始日期，则使用它；否则跳过
-        if global_start_date:
-            s_date = global_start_date
-            logger.info(f"股票 {ts_code} 无历史数据，从 {global_start_date} 开始全量下载。")
-        else:
-            # 使用独立函数获取上市日期和退市日期
-            listing_date, delist_date = dm_unified.get_stock_listing_date(conn, ts_code)
-            if listing_date:
-                s_date = listing_date
-                logger.info(f"股票 {ts_code} 无历史数据，从上市日期 {s_date} 开始全量下载。")
-            else:
-                logger.warning(f"股票 {ts_code} 的上市日期未知，跳过下载。")
-                return None, None
-
-    # 再次检查：如果计算出的 s_date 已经大于 end_date，说明没有新数据需要下载
-    if datetime.strptime(s_date, '%Y-%m-%d') > datetime.strptime(end_date, '%Y-%m-%d'):
-        logger.info(f"股票 {ts_code} 已同步至最新日期，无需下载。")
-        return None, None
-
-    return s_date, end_date
+    return success
 
 
 def download_all_stocks_daily_data(conn, start_date, end_date):
@@ -112,6 +133,7 @@ def download_all_stocks_daily_data(conn, start_date, end_date):
     """
     # 初始化数据管理器
     dm = DailyDataManager(conn)
+    seq_manager = StockFixedSeqManager(conn)
 
     if end_date:
         # 如果指定了 end_date，则将其调整为最近的交易日
@@ -124,33 +146,32 @@ def download_all_stocks_daily_data(conn, start_date, end_date):
         # 如果未指定，则默认为今天
         end_date = datetime.now().strftime('%Y-%m-%d')
 
-    # 使用数据管理器获取活跃股票列表
-    stocks = dm.get_active_stocks()
-
-    logger.info(f"开始下载日线数据，结束日期: {end_date}，共 {len(stocks)} 只活跃股票。")
+    # 获取股票总数
+    total = seq_manager.count_stocks()
+    logger.info(f"开始下载日线数据，结束日期: {end_date}，共 {total} 只股票。")
 
     count = 0  # 计数器，用于显示进度
-    total = len(stocks)
+    current_stock = None
 
-    # 遍历所有活跃股票，逐个下载日线数据
-    for ts_code in stocks:
-        # 检查指定的日期范围是否已存在
-        if _check_date_range_exists(dm, ts_code, start_date, end_date):
-            continue  # 直接进入下一只股票的循环
-
-        # 计算这只股票的下载日期范围
-        s_date, e_date = _calculate_download_dates(conn, ts_code, start_date, end_date)
-        if s_date is None or e_date is None:
-            # 表示这只股票不需要下载
-            continue
+    # 通过单层循环体下载所有日线数据，每次循环下载一只股票
+    while True:
+        # 获取下一只股票
+        ts_code = seq_manager.get_next_stock(current_stock)
+        if ts_code is None:
+            # 所有股票处理完毕
+            break
 
         count += 1
         # 每处理 50 只股票，打印一次进度日志
         if count % 50 == 0:
             logger.info(f"进度: {count}/{total}，当前处理: {ts_code}")
 
-        # 调用函数，下载并保存这只股票的日线数据
-        download_daily_data(conn, ts_code, s_date, e_date)
+        # 直接使用用户指定的固定日期范围进行下载
+        # 不进行日期范围计算和存在性检查，以保证下载完整数据
+        download_daily_data(conn, ts_code, start_date, end_date)
+
+        # 更新当前股票为下一只
+        current_stock = ts_code
 
         # 可选：为避免触发 API 限流，可以在每次请求后短暂休眠
         time.sleep(0.5)
