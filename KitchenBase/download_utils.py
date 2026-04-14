@@ -45,14 +45,14 @@ def convert_baostock_code(bs_code: str) -> str:
     market_map = {'sh': 'SH', 'sz': 'SZ'}
     return f"{symbol}.{market_map.get(market.lower(), market.upper())}"
 
-def calculate_pre_close(close_price_str: str, change_rate_str: str) -> float:
+def calculate_pre_close(close_price, change_rate) -> float:
     """
     根据收盘价和涨跌幅计算昨收价。
     公式: close = pre_close * (1 + pctChg / 100)，则 pre_close = close / (1 + pctChg / 100)
     
     Args:
-        close_price_str: 收盘价字符串
-        change_rate_str: 涨跌幅字符串（百分比）
+        close_price: 收盘价（可以是字符串或浮点数）
+        change_rate: 涨跌幅（可以是字符串或浮点数，百分比）
         
     Returns:
         计算得到的昨收价
@@ -61,14 +61,20 @@ def calculate_pre_close(close_price_str: str, change_rate_str: str) -> float:
         ValueError: 当输入参数为空或无法转换为浮点数时
         ZeroDivisionError: 当涨跌幅为 -100% 时
     """
-    if not close_price_str:
+    if close_price is None:
         raise ValueError("收盘价不能为空")
-    if not change_rate_str:
+    if change_rate is None:
+        raise ValueError("涨跌幅不能为空")
+    
+    # 处理空字符串情况
+    if isinstance(close_price, str) and not close_price.strip():
+        raise ValueError("收盘价不能为空")
+    if isinstance(change_rate, str) and not change_rate.strip():
         raise ValueError("涨跌幅不能为空")
     
     try:
-        close_val = float(close_price_str)
-        change_rate_val = float(change_rate_str)
+        close_val = float(close_price)
+        change_rate_val = float(change_rate)
         
         if change_rate_val == -100:
             raise ZeroDivisionError("涨跌幅不能为 -100%，否则会导致除以零")

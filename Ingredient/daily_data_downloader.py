@@ -105,7 +105,13 @@ def _clean_data(bs_rs):
     
     # 计算前收盘价
     df['pre_close'] = df['close'].shift(1)
-    
+
+    # 处理 NaN 值
+    # 将所有数值列的 NaN 转换为 None
+    for col in numeric_columns + ['pre_close']:
+        if col in df.columns:
+            df[col] = df[col].where(pd.notna(df[col]), None)
+
     return df
 
 def _save_data(conn, ts_code: str, df):

@@ -78,6 +78,7 @@ class DailyDataManager:
                 ))
             except (ValueError, ZeroDivisionError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row['date']}: {str(e)}")
+                logger.warning(f"当前完整记录: {row}")
                 continue
 
         if not records:

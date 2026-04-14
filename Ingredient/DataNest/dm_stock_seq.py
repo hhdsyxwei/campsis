@@ -119,7 +119,15 @@ class StockFixedSeqManager:
             # 格式标准化：确保每个元素都是字符串类型的股票代码
             standardized_data = []
             for code in stock_data:
-                if isinstance(code, str) and code.strip():
+                # 处理元组情况，如 ('003001.SZ',)
+                if isinstance(code, tuple) and len(code) > 0:
+                    code_str = code[0]
+                    if isinstance(code_str, str) and code_str.strip():
+                        standardized_data.append((code_str.strip(),))  # 转成元组格式适配 executemany
+                    else:
+                        logger.warning(f"[{__name__}.{func_name}] 无效股票代码，跳过：{code}")
+                # 处理字符串情况
+                elif isinstance(code, str) and code.strip():
                     standardized_data.append((code.strip(),))  # 转成元组格式适配 executemany
                 else:
                     logger.warning(f"[{__name__}.{func_name}] 无效股票代码，跳过：{code}")

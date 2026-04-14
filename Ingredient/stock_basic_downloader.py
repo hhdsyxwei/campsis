@@ -6,7 +6,7 @@ import baostock as bs
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import MarketType
 from KitchenBase.download_utils import baostock_code_to_market, convert_baostock_code  # 导入工具函数
-from Ingredient.DataNest import BasicStockDataManager  # 确保导入
+from Ingredient.DataNest import BasicStockDataManager, UnifiedDataManager  # 确保导入
 
 # 初始化日志
 logger = get_logger(__name__)
@@ -47,13 +47,21 @@ def download_stock_basic(
         
         # 步骤4: 数据保存
         save_result = _save_data(conn, cleaned_df)
+
+        if( not save_result):
+            logger.error(f"[{func_name}] 数据保存失败")
+            return False
         
-        if save_result:
+        # 步骤5: 保存股票固定顺序表
+        stock_codes = cleaned_df['std_stock_code'].tolist()
+        seq_save_result = _save_stock_fixed_seq(conn, stock_codes)
+        
+        if seq_save_result:
             logger.info(f"[{func_name}] 股票基础信息下载&保存全流程完成 | 有效数据量: {len(cleaned_df)}")
             return True
         else:
-            logger.error(f"[{func_name}] 数据保存失败")
-            return False
+            logger.warning(f"[{func_name}] 股票基础信息保存成功，但股票固定顺序表保存失败")
+            return True  # 基础信息保存成功，返回 True
     
     except Exception as e:
         logger.error(f"[{func_name}] 下载流程执行失败: {str(e)}", exc_info=True)
@@ -282,3 +290,42 @@ def calculate_stock_code_purity(ts_code: str) -> str:
 
 def convert_market_type_to_baostock_format(market_type: MarketType) -> str:
     return market_type.value
+
+# ==================== 内部函数 - 保存股票固定顺序表 ====================
+def _save_stock_fixed_seq(conn, stock_codes: List[str]) -> bool:
+    """
+    保存股票固定顺序表数据
+    
+    Args:
+        conn: 数据库连接
+        stock_codes: 股票代码列表，格式为 ['000001.SZ', '600000.SH', ...]
+    
+    Returns:
+        保存是否成功
+    """
+    func_name = "_save_stock_fixed_seq"
+    logger.debug(f"[{func_name}] 开始保存股票固定顺序表 | 股票数量: {len(stock_codes)}")
+    
+    try:
+        # 步骤1: 清空现有表数据
+        truncate_success = UnifiedDataManager.truncate_table_stock_fixed_seq(conn)
+        if not truncate_success:
+            logger.error(f"[{func_name}] 清空股票固定顺序表失败")
+            return False
+        
+        # 步骤2: 准备数据格式
+        # 转换为 (code,) 格式的元组列表
+        stock_data = [(code,) for code in stock_codes]
+        
+        # 步骤3: 保存数据
+        save_success = UnifiedDataManager.save_stock_fixed_seq(conn, stock_data)
+        if save_success:
+            logger.info(f"[{func_name}] 股票固定顺序表保存成功 | 保存数量: {len(stock_codes)}")
+        else:
+            logger.error(f"[{func_name}] 股票固定顺序表保存失败")
+        
+        return save_success
+        
+    except Exception as e:
+        logger.error(f"[{func_name}] 保存股票固定顺序表异常: {str(e)}", exc_info=True)
+        return False
