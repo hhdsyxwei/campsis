@@ -94,6 +94,9 @@ def _clean_data(bs_rs):
         logger.info(f"股票在指定日期范围内无数据")
         return None
     
+    #logger.warning(f"第1行数据内容：{data_list[0]}")
+    #logger.warning(f"第2行数据内容：{data_list[1]}")
+    
     # 转换为 DataFrame
     df = pd.DataFrame(data_list, columns=bs_rs.fields)
     

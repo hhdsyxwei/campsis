@@ -12,7 +12,7 @@ import KitchenBase.baostock_wrapper as bs
 from KitchenBase.baostock_wrapper import BaostockErrorCode
 from Ingredient.DataNest import create_database_and_tables
 from Ingredient.kline_unified_downloader import start_new_kline_download, continue_download_kline
-from Ingredient.daily_data_downloader import download_all_stocks_daily_data
+from Ingredient.daily_data_downloader import download_all_stocks_daily_data, download_daily_data
 from Ingredient.trade_date_map_downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from Ingredient.stock_basic_downloader import download_stock_basic
@@ -63,6 +63,7 @@ def main():
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
+        # download_daily_data(conn, "003001.SZ", "2026-01-01", "2026-03-17")
         download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
 
         # 5. 第三步：下载行业分类数据
