@@ -189,3 +189,50 @@ class DailyDataManager:
         finally:
             if cursor:
                 cursor.close()
+
+    def get_price_data(self, std_stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        获取股票价格数据
+        
+        Args:
+            std_stock_code: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
+            
+        Returns:
+            pd.DataFrame: 包含日期、开盘价、最高价、最低价、收盘价、成交量等数据的DataFrame
+        """
+        func_name = "get_price_data"
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            
+            # 从stock_daily表查询数据
+            sql = """
+            SELECT trade_date, open, high, low, close, volume, amount
+            FROM stock_daily
+            WHERE std_stock_code = %s AND trade_date BETWEEN %s AND %s
+            ORDER BY trade_date
+            """
+            
+            cursor.execute(sql, (std_stock_code, start_date, end_date))
+            rows = cursor.fetchall()
+            
+            # 转换为DataFrame
+            columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+            df = pd.DataFrame(rows, columns=columns)
+            
+            # 转换日期格式
+            if not df.empty:
+                df['date'] = pd.to_datetime(df['date'])
+            
+            logger.info(f"[{__name__}.{func_name}] 获取价格数据 {std_stock_code}: {len(df)} 条")
+            return df
+            
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 获取价格数据失败 {std_stock_code}: {str(e)}")
+            return pd.DataFrame()
+        finally:
+            if cursor:
+                cursor.close()
+

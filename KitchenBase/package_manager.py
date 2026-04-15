@@ -57,7 +57,7 @@ class PackageManager:
     }
 
     # 内部模块（按项目实际情况维护）
-    INTERNAL_MODULES = {"kitchenbase", "ingredient", "tests"}
+    INTERNAL_MODULES = {"kitchenbase", "ingredient", "cookingengine", "tests"}
 
     # 标准库（可扩充）
     BUILTIN_MODULES = {

@@ -2,6 +2,8 @@
 # ==============================================
 # 1. 必须放在所有其他导入 【最前面】
 # ==============================================
+from CookingEngine.Picker.stock_scorer import StockScorer
+from CookingEngine.Picker.data_provider import HarvestDataProvider
 from KitchenBase.package_manager import PackageManager
 from KitchenBase.logger_config import setup_logging,get_logger
 setup_logging()
@@ -63,7 +65,7 @@ def main():
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        download_daily_data(conn, "001331.SZ", "2026-01-01", "2026-03-17")
+        # download_daily_data(conn, "001331.SZ", "2026-01-01", "2026-03-17")
         # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
 
         # 5. 第三步：下载行业分类数据
@@ -81,6 +83,13 @@ def main():
         # 8. 第六步：下载复权因子数据
         # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
         # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
+
+
+        data_provider = HarvestDataProvider(conn)
+        stockSccorer = StockScorer(data_provider)
+        summary = stockSccorer.score_stock("001331.SZ", "2026-01-01", "2026-03-17")
+
+        logger.info(summary)
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息
