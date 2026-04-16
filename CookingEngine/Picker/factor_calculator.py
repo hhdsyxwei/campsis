@@ -34,13 +34,29 @@ class FactorCalculator:
         try:
             # 获取股票价格数据
             price_data = self.data_provider.get_price_data(stock_code, start_date, end_date)
+            logger.debug(f"获取到价格数据 {stock_code}: {len(price_data)} 条")
+            logger.debug(f"价格数据类型: {type(price_data)}")
             if price_data.empty:
+                logger.debug(f"价格数据为空 {stock_code}")
                 return 0.0
+            
+            # 检查 close 列的数据类型
+            logger.debug(f"close 列数据类型: {price_data['close'].dtype}")
+            logger.debug(f"close 列前5行: {price_data['close'].head()}")
+            
+            # 转换为 float 类型
+            price_data['close'] = price_data['close'].astype(float)
+            logger.debug(f"转换后 close 列数据类型: {price_data['close'].dtype}")
             
             # 计算移动平均线
             price_data['ma20'] = price_data['close'].rolling(window=20).mean()
             price_data['ma60'] = price_data['close'].rolling(window=60).mean()
             price_data['ma120'] = price_data['close'].rolling(window=120).mean()
+            
+            # 检查均线计算结果
+            logger.debug(f"ma20 类型: {price_data['ma20'].dtype}, 最后值: {price_data['ma20'].iloc[-1] if len(price_data) > 0 else 'N/A'}")
+            logger.debug(f"ma60 类型: {price_data['ma60'].dtype}, 最后值: {price_data['ma60'].iloc[-1] if len(price_data) > 0 else 'N/A'}")
+            logger.debug(f"ma120 类型: {price_data['ma120'].dtype}, 最后值: {price_data['ma120'].iloc[-1] if len(price_data) > 0 else 'N/A'}")
             
             # 计算趋势强度
             # 1. 价格是否在均线上方
@@ -54,8 +70,22 @@ class FactorCalculator:
             # 3. 计算价格趋势斜率
             x = np.arange(len(price_data))
             y = price_data['close'].values
+            logger.debug(f"x 类型: {type(x)}, 长度: {len(x)}")
+            logger.debug(f"y 类型: {type(y)}, 长度: {len(y)}")
+            logger.debug(f"y 前5值: {y[:5]}")
+            
             slope = np.polyfit(x, y, 1)[0]
-            slope_normalized = (slope / price_data['close'].iloc[0]) * 100
+            logger.debug(f"slope: {slope}, 类型: {type(slope)}")
+            
+            first_close = price_data['close'].iloc[0]
+            logger.debug(f"first_close: {first_close}, 类型: {type(first_close)}")
+            
+            if first_close == 0:
+                logger.debug(f"first_close 为 0，返回 0.0")
+                return 0.0
+                
+            slope_normalized = (slope / first_close) * 100
+            logger.debug(f"slope_normalized: {slope_normalized}, 类型: {type(slope_normalized)}")
             
             # 综合计算分数
             score = 0
@@ -72,10 +102,15 @@ class FactorCalculator:
             slope_score = max(0, min(10, slope_normalized * 2))
             score += slope_score
             
-            return min(100, score)
+            final_score = min(100, score)
+            logger.debug(f"最终分数: {final_score}")
+            return final_score
             
         except Exception as e:
             logger.error(f"计算趋势因子分数失败 {stock_code}: {str(e)}")
+            logger.error(f"异常类型: {type(e)}")
+            import traceback
+            logger.error(f"异常堆栈: {traceback.format_exc()}")
             return 0.0
     
     def calculate_momentum_score(self, stock_code, start_date, end_date):
@@ -95,6 +130,9 @@ class FactorCalculator:
             price_data = self.data_provider.get_price_data(stock_code, start_date, end_date)
             if price_data.empty:
                 return 0.0
+            
+            # 转换为 float 类型
+            price_data['close'] = price_data['close'].astype(float)
             
             # 计算不同时间周期的收益率
             # 1个月收益率

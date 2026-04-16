@@ -1,6 +1,7 @@
 # dm_daily.py
 import pymysql
 import pandas as pd
+import pyarrow as pa
 from KitchenBase.download_utils import calculate_pre_close
 from KitchenBase.logger_config import get_logger
 
@@ -218,15 +219,30 @@ class DailyDataManager:
             cursor.execute(sql, (std_stock_code, start_date, end_date))
             rows = cursor.fetchall()
             
-            # 转换为DataFrame
+            if not rows:
+                # 返回空的DataFrame
+                columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+                return pd.DataFrame(columns=columns)
+            
+            # 转换为DataFrame，使用PyArrow类型
             columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
             df = pd.DataFrame(rows, columns=columns)
             
-            # 转换日期格式
-            if not df.empty:
-                df['date'] = pd.to_datetime(df['date'])
+            # 转换为PyArrow类型
+            from pandas import ArrowDtype
+            
+            df = df.astype({
+                'date': ArrowDtype(pa.date32()),
+                'open': ArrowDtype(pa.decimal128(10, 3)),
+                'high': ArrowDtype(pa.decimal128(10, 3)),
+                'low': ArrowDtype(pa.decimal128(10, 3)),
+                'close': ArrowDtype(pa.decimal128(10, 3)),
+                'volume': ArrowDtype(pa.int64()),
+                'amount': ArrowDtype(pa.decimal128(15, 2))
+            })
             
             logger.info(f"[{__name__}.{func_name}] 获取价格数据 {std_stock_code}: {len(df)} 条")
+            logger.debug(f"数据类型: {df.dtypes}")
             return df
             
         except Exception as e:

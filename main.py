@@ -57,6 +57,7 @@ def main():
 
     start_year = 2026
     end_year = 2027
+    stock_code = "001331.SZ"
 
     try:
         # download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
@@ -65,7 +66,7 @@ def main():
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        # download_daily_data(conn, "001331.SZ", "2026-01-01", "2026-03-17")
+        download_daily_data(conn, stock_code, "2025-11-01", "2026-04-15")
         # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
 
         # 5. 第三步：下载行业分类数据
@@ -84,10 +85,9 @@ def main():
         # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
         # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
-
         data_provider = HarvestDataProvider(conn)
         stockSccorer = StockScorer(data_provider)
-        summary = stockSccorer.score_stock("001331.SZ", "2026-01-01", "2026-03-17")
+        summary = stockSccorer.score_stock(stock_code, "2025-11-01", "2026-04-15")
 
         logger.info(summary)
 
