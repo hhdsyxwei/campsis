@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 from datetime import datetime
 from unittest.mock import patch, MagicMock
-from Ingredient.xrxd_downloader import XrxdDownloader
+from Ingredient.downloader.xrxd_downloader import XrxdDownloader
 
 # ---------------- 测试类 ----------------
 class TestXrxdDownloader:

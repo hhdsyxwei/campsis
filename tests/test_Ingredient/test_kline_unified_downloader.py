@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 from datetime import datetime
 from unittest.mock import patch, MagicMock
-from Ingredient.kline_unified_downloader import KLineDownloader, BLOCK_COMPLETED
+from Ingredient.downloader.kline_unified_downloader import KLineDownloader, BLOCK_COMPLETED
 from KitchenBase.stock_enums import KLinePeriod
 
 # ---------------- 测试类 ----------------

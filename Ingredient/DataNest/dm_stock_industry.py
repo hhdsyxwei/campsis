@@ -1,5 +1,5 @@
 # dm_stock_industry.py
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 import pandas as pd
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
@@ -296,3 +296,6 @@ class StockIndustryDataManager(BaseDataManager):
             logger.debug(f"[{__name__}.{func_name}] 区块状态更新成功")
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 更新区块状态失败: {str(e)}")
+
+    def is_dl_pointer_valid(self, pointer: Tuple | None, start_year: int, end_year: int) -> bool:
+        return True
