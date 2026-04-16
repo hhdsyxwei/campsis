@@ -66,7 +66,7 @@ def main():
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        download_daily_data(conn, stock_code, "2025-11-01", "2026-04-15")
+        download_daily_data(conn, stock_code, "2025-10-01", "2026-04-15")
         # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
 
         # 5. 第三步：下载行业分类数据
@@ -87,7 +87,7 @@ def main():
 
         data_provider = HarvestDataProvider(conn)
         stockSccorer = StockScorer(data_provider)
-        summary = stockSccorer.score_stock(stock_code, "2025-11-01", "2026-04-15")
+        summary = stockSccorer.score_stock(stock_code, "2025-10-01", "2026-04-15")
 
         logger.info(summary)
 
