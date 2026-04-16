@@ -103,6 +103,24 @@ def mock_db_conn():
                 UNIQUE KEY uk_stock_year (std_stock_code, xrxd_year)
             )
         """)
+        
+        # 6. 股票日线数据表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS stock_daily (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                std_stock_code VARCHAR(10),
+                trade_date DATE,
+                open DECIMAL(10,3),
+                high DECIMAL(10,3),
+                low DECIMAL(10,3),
+                close DECIMAL(10,3),
+                volume BIGINT,
+                amount DECIMAL(20,2),
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_stock_date (std_stock_code, trade_date)
+            )
+        """)
 
         # 清空测试数据
         cursor.execute("TRUNCATE TABLE stock_listing")
@@ -110,10 +128,19 @@ def mock_db_conn():
         cursor.execute("TRUNCATE TABLE global_download_progress")
         cursor.execute("TRUNCATE TABLE stock_xrxd")
         cursor.execute("TRUNCATE TABLE kline_block_status")
+        cursor.execute("TRUNCATE TABLE stock_daily")
 
         # 插入测试数据
         cursor.execute("INSERT INTO stock_listing VALUES ('sh.600000', '2000-01-01', NULL)")
         cursor.execute("INSERT INTO stock_fixed_seq (std_stock_code) VALUES ('sh.600000')")
+        
+        # 插入测试日线数据
+        cursor.execute("""
+            INSERT INTO stock_daily (std_stock_code, trade_date, open, high, low, close, volume, amount)
+            VALUES ('000001.SZ', '2025-01-02', 11.73, 11.77, 11.39, 11.43, 181959699, 2102923078.11),
+                   ('000001.SZ', '2025-01-03', 11.44, 11.54, 11.36, 11.38, 115468044, 1320520977.59),
+                   ('000001.SZ', '2025-01-06', 11.38, 11.48, 11.22, 11.44, 108553630, 1234305778.04)
+        """)
 
         conn.commit()
         yield conn
@@ -125,6 +152,7 @@ def mock_db_conn():
         cursor.execute("TRUNCATE TABLE global_download_progress")
         cursor.execute("TRUNCATE TABLE stock_xrxd")
         cursor.execute("TRUNCATE TABLE kline_block_status")
+        cursor.execute("TRUNCATE TABLE stock_daily")
         conn.commit()
         conn.close()
 

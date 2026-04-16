@@ -1,6 +1,7 @@
 # dm_daily.py
 import pymysql
 import pandas as pd
+import pyarrow as pa
 from KitchenBase.download_utils import calculate_pre_close
 from KitchenBase.logger_config import get_logger
 
@@ -189,3 +190,65 @@ class DailyDataManager:
         finally:
             if cursor:
                 cursor.close()
+
+    def get_price_data(self, std_stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        获取股票价格数据
+        
+        Args:
+            std_stock_code: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
+            
+        Returns:
+            pd.DataFrame: 包含日期、开盘价、最高价、最低价、收盘价、成交量等数据的DataFrame
+        """
+        func_name = "get_price_data"
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            
+            # 从stock_daily表查询数据
+            sql = """
+            SELECT trade_date, open, high, low, close, volume, amount
+            FROM stock_daily
+            WHERE std_stock_code = %s AND trade_date BETWEEN %s AND %s
+            ORDER BY trade_date
+            """
+            
+            cursor.execute(sql, (std_stock_code, start_date, end_date))
+            rows = cursor.fetchall()
+            
+            if not rows:
+                # 返回空的DataFrame
+                columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+                return pd.DataFrame(columns=columns)
+            
+            # 转换为DataFrame，使用PyArrow类型
+            columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+            df = pd.DataFrame(rows, columns=columns)
+            
+            # 转换为PyArrow类型
+            from pandas import ArrowDtype
+            
+            df = df.astype({
+                'date': ArrowDtype(pa.date32()),
+                'open': ArrowDtype(pa.decimal128(10, 3)),
+                'high': ArrowDtype(pa.decimal128(10, 3)),
+                'low': ArrowDtype(pa.decimal128(10, 3)),
+                'close': ArrowDtype(pa.decimal128(10, 3)),
+                'volume': ArrowDtype(pa.int64()),
+                'amount': ArrowDtype(pa.decimal128(15, 2))
+            })
+            
+            logger.info(f"[{__name__}.{func_name}] 获取价格数据 {std_stock_code}: {len(df)} 条")
+            logger.debug(f"数据类型: {df.dtypes}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 获取价格数据失败 {std_stock_code}: {str(e)}")
+            return pd.DataFrame()
+        finally:
+            if cursor:
+                cursor.close()
+
