@@ -30,6 +30,9 @@ class AbstractDownloader(ABC):
         }
         self.support_block_status = False  # 默认为不支持区块状态表
         
+        # 指针字段元组（由子类定义）
+        self.pointer_fields = ()
+        
         # 加载启动参数（如果有）
         params = self.load_startup_parameters()
         if params:
@@ -109,17 +112,28 @@ class AbstractDownloader(ABC):
         pass
     
     @abstractmethod
-    def get_next_block(self, start_year: int, end_year: int, **kwargs) -> Optional[Tuple]:
+    def get_next_block(
+        self, 
+        start_year: int, 
+        end_year: int, 
+        current_block: Optional[Tuple] = None,
+        **kwargs
+    ) -> Optional[Tuple]:
         """
         获取下一个待下载区块
         
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
-            **kwargs: 额外参数，可包含current_block等
+            current_block: 当前区块标识（首次调用传None）
+            **kwargs: 额外参数，如 time_frame、loop 等
             
         Returns:
-            Optional[Tuple]: 下一个区块的标识，如 (year, stock_code) 或 (quarter, stock_code)
+            Optional[Tuple]: 下一个区块的标识，与 set_dl_pointer 参数结构一致
+                            示例：
+                            - 行业分类: (year, stock)
+                            - K线: (quarter, stock_code, time_frame)
+                            - 复权因子: (year, stock_code)
         """
         pass
     
@@ -129,18 +143,25 @@ class AbstractDownloader(ABC):
         获取当前下载指针
         
         Returns:
-            Optional[Tuple]: 当前下载区块的标识
+            Optional[Tuple]: 当前下载区块的标识，与 set_dl_pointer 参数结构一致
+                            示例：
+                            - 行业分类: (year, stock)
+                            - K线: (quarter, stock_code, time_frame)
+                            - 复权因子: (year, stock_code)
         """
         pass
     
     @abstractmethod
-    def set_dl_pointer(self, *args, **kwargs):
+    def set_dl_pointer(self, block_identifier: Tuple):
         """
         设置当前下载指针
         
         Args:
-            *args: 位置参数
-            **kwargs: 关键字参数
+            block_identifier: 区块标识元组，与 get_next_block 返回值结构一致
+                             示例：
+                             - 行业分类: (year, stock)
+                             - K线: (quarter, stock_code, time_frame)
+                             - 复权因子: (year, stock_code)
         """
         pass
     
@@ -356,7 +377,7 @@ class AbstractDownloader(ABC):
         # 3. 获取下一个下载区块
         next_block = self.get_dl_pointer()
         if not next_block or not self.is_dl_pointer_valid(next_block, start_year, end_year):
-            next_block = self.get_next_block(start_year, end_year, **kwargs)
+            next_block = self.get_next_block(start_year, end_year, None, **kwargs)
             self.logger.info(f"{task_identifier} 下载指针无效或不存在，使用第一个区块: {next_block}")
         else:
             self.logger.info(f"{task_identifier} 启动后：第一个下载区块: {next_block}")
@@ -365,25 +386,24 @@ class AbstractDownloader(ABC):
         while next_block:
             try:
                 # 设置下载指针
-                self.set_dl_pointer(*next_block)
+                self.set_dl_pointer(next_block)
                 
                 # 下载区块
                 self.download_block(*next_block)
 
                 # 记录进度
-                dl_pointer = self.get_dl_pointer()
                 if self.support_block_status:
                     completed_blocks = self.get_completed_block_count_with_status(start_year, end_year)
                     skipped_blocks = self.get_skipped_block_count_with_status(start_year, end_year)
                 else:
-                    completed_blocks = self.get_completed_block_count_with_pointer(start_year, end_year, dl_pointer)
-                    skipped_blocks = self.get_skipped_block_count_with_pointer(start_year, end_year, dl_pointer)
+                    completed_blocks = self.get_completed_block_count_with_pointer(start_year, end_year, next_block)
+                    skipped_blocks = self.get_skipped_block_count_with_pointer(start_year, end_year, next_block)
                 if total_blocks > 0:
                     progress = self.calculate_progress(completed_blocks, skipped_blocks, total_blocks)
                     self.logger.info(f"{task_identifier} 下载进度: {progress:.2f}% ({completed_blocks + skipped_blocks}/{total_blocks}) | 当前区块: {next_block}")
 
                 # 获取下一个区块
-                next_block = self.get_next_block(start_year, end_year, **kwargs, current_block=next_block)
+                next_block = self.get_next_block(start_year, end_year, next_block, **kwargs)
             except Exception as e:
                 self.logger.error(f"{task_identifier} 下载失败: {str(e)} | 当前区块: {next_block}")
                 return False
@@ -430,6 +450,45 @@ class AbstractDownloader(ABC):
         清空下载指针
         """
         pass
+    
+    def pointer_to_dict(self, block_identifier: Tuple) -> Dict[str, Any]:
+        """
+        将指针元组转换为字段到值的映射字典
+        
+        Args:
+            block_identifier: 区块标识元组
+            
+        Returns:
+            Dict[str, Any]: 字段到值的映射字典
+        """
+        if not block_identifier:
+            return {}
+        
+        # 确保字段元组和指针元组长度一致
+        if len(self.pointer_fields) != len(block_identifier):
+            self.logger.warning(f"指针字段数量与指针值数量不一致: {len(self.pointer_fields)} vs {len(block_identifier)}")
+            # 使用默认字段名
+            return {f"field_{i}": value for i, value in enumerate(block_identifier)}
+        
+        # 构建字段到值的映射
+        return dict(zip(self.pointer_fields, block_identifier))
+    
+    def log_pointer_info(self, block_identifier: Tuple, message: str = "当前下载指针"):
+        """
+        输出指针信息到日志
+        
+        Args:
+            block_identifier: 区块标识元组
+            message: 日志消息前缀
+        """
+        if not block_identifier:
+            self.logger.info(f"{message}: None")
+            return
+        
+        pointer_dict = self.pointer_to_dict(block_identifier)
+        # 构建友好的日志消息
+        pointer_info = ", ".join([f"{k}={v}" for k, v in pointer_dict.items()])
+        self.logger.info(f"{message}: {pointer_info}")
 
     def calculate_progress(self, completed: int, skipped: int, total: int) -> float:
         """
