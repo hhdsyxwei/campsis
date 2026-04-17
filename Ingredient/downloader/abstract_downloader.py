@@ -286,58 +286,58 @@ class AbstractDownloader(ABC):
     def download_block(self, *args, **kwargs):
         """
         下载单个区块
-        
+
         Args:
             *args: 位置参数
             **kwargs: 关键字参数
         """
         pass
-    
+
     def download(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
         完整下载流程
-        
+
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
             **kwargs: 额外参数
-            
+
         Returns:
             bool: 下载是否成功
         """
         # 1. 验证参数
         if not self.validate_parameters(start_year, end_year, **kwargs):
             return False
-        
+
         # 2. 下载原始数据
         raw_data = self.download_raw_data(start_year, end_year, **kwargs)
         if raw_data is None:
             return False
-        
+
         # 3. 清洗数据
         cleaned_data = self.clean_data(raw_data)
         if cleaned_data.empty:
             return False
-        
+
         # 4. 保存数据
         return self.save_data(cleaned_data, start_year, end_year, **kwargs)
-    
+
     def continue_download(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
         继续下载（支持断点续传）
-        
+
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
             **kwargs: 额外参数
-            
+
         Returns:
             bool: 下载是否成功
         """
         # 获取任务类型标识
         task_type = self.get_task_type()
         task_identifier = f"[{task_type.value}]"
-        
+
         # 1. 检查下载状态
         status = self.get_download_status()
         if status == DlTaskStatus.COMPLETED:
@@ -369,7 +369,7 @@ class AbstractDownloader(ABC):
                 
                 # 下载区块
                 self.download_block(*next_block)
-                
+
                 # 记录进度
                 dl_pointer = self.get_dl_pointer()
                 if self.support_block_status:
@@ -381,65 +381,65 @@ class AbstractDownloader(ABC):
                 if total_blocks > 0:
                     progress = self.calculate_progress(completed_blocks, skipped_blocks, total_blocks)
                     self.logger.info(f"{task_identifier} 下载进度: {progress:.2f}% ({completed_blocks + skipped_blocks}/{total_blocks}) | 当前区块: {next_block}")
-                
+
                 # 获取下一个区块
                 next_block = self.get_next_block(start_year, end_year, **kwargs, current_block=next_block)
             except Exception as e:
                 self.logger.error(f"{task_identifier} 下载失败: {str(e)} | 当前区块: {next_block}")
                 return False
-        
+
         # 5. 下载完成
         self.set_download_status(DlTaskStatus.COMPLETED)
         self.clear_dl_pointer()
         self.logger.info(f"{task_identifier} 全部下载完成，已清空下载指针")
         return True
-    
+
     def start_new_download(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
         开始新的下载任务（清空之前的下载进度）
-        
+
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
             **kwargs: 额外的启动参数
-            
+
         Returns:
             bool: 下载是否成功
         """
         # 获取任务类型标识
         task_type = self.get_task_type()
         task_identifier = f"[{task_type.value}]"
-        
+
         self.logger.info(f"{task_identifier} 开始新的下载任务: {start_year}-{end_year}")
-        
+
         # 1. 保存启动参数
         if not self.save_startup_parameters(start_year, end_year, **kwargs):
             self.logger.error(f"{task_identifier} 保存启动参数失败")
             return False
-        
+
         # 2. 清空之前的下载进度
         self.set_download_status(DlTaskStatus.NOT_STARTED)
         self.clear_dl_pointer()
         self.logger.info(f"{task_identifier} 已清空之前的下载进度")
-        
+
         # 3. 调用继续下载方法
         return self.continue_download(start_year, end_year, **kwargs)
-    
+
     def clear_dl_pointer(self):
         """
         清空下载指针
         """
         pass
-    
+
     def calculate_progress(self, completed: int, skipped: int, total: int) -> float:
         """
         计算下载进度百分比
-        
+
         Args:
             completed: 已完成的区块数
             skipped: 已跳过的区块数
             total: 总区块数
-            
+
         Returns:
             float: 进度百分比
         """
@@ -447,16 +447,16 @@ class AbstractDownloader(ABC):
             return 0.0
         processed = completed + skipped
         return (processed / total) * 100
-    
+
     def save_startup_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
         保存启动参数到数据库
-        
+
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
             **kwargs: 额外的启动参数
-            
+
         Returns:
             bool: 保存是否成功
         """
