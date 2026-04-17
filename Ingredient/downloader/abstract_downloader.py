@@ -111,13 +111,29 @@ class AbstractDownloader(ABC):
         """
         pass
     
+    def get_first_block(self, start_year: int, end_year: int) -> Optional[Tuple]:
+        """
+        获取第一个待下载区块
+        
+        Args:
+            start_year: 开始年份（包含）
+            end_year: 结束年份（不包含）
+            
+        Returns:
+            Optional[Tuple]: 第一个区块的标识，与 set_dl_pointer 参数结构一致
+                            示例：
+                            - 行业分类: (year, stock)
+                            - K线: (quarter, stock_code, time_frame)
+                            - 复权因子: (year, stock_code)
+        """
+        return self.get_next_block(start_year, end_year, None)
+
     @abstractmethod
     def get_next_block(
         self, 
         start_year: int, 
         end_year: int, 
-        current_block: Optional[Tuple] = None,
-        **kwargs
+        current_block: Optional[Tuple] = None
     ) -> Optional[Tuple]:
         """
         获取下一个待下载区块
@@ -125,8 +141,7 @@ class AbstractDownloader(ABC):
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
-            current_block: 当前区块标识（首次调用传None）
-            **kwargs: 额外参数，如 time_frame、loop 等
+            current_block: 当前区块标识（首次调用传None，返回第一个区块）
             
         Returns:
             Optional[Tuple]: 下一个区块的标识，与 set_dl_pointer 参数结构一致
@@ -215,35 +230,46 @@ class AbstractDownloader(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_completed_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
+    def get_completed_block_count(self, start_year: int, end_year: int) -> int:
         """
         获取已完成区块数
         
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
-            **kwargs: 额外参数
             
         Returns:
             int: 已完成区块数
         """
-        pass
+        if self.support_block_status:
+            return self.get_completed_block_count_with_status(start_year, end_year)
+        else:
+            dl_pointer = self.get_dl_pointer()
+            if not dl_pointer:
+                dl_pointer = self.get_first_block(start_year, end_year)
+            
+            # 当 dl_pointer 为 None 时（区块数据库为空），返回 0
+            if not dl_pointer:
+                return 0
+                
+            return self.get_completed_block_count_with_pointer(start_year, end_year, dl_pointer)
 
-    @abstractmethod
-    def get_skipped_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
+    def get_skipped_block_count(self, start_year: int, end_year: int) -> int:
         """
         获取已跳过区块数
 
         Args:
             start_year: 开始年份（包含）
             end_year: 结束年份（不包含）
-            **kwargs: 额外参数
 
         Returns:
             int: 已跳过区块数
         """
-        pass
+        if self.support_block_status:
+            return self.get_skipped_block_count_with_status(start_year, end_year)
+        else:
+            # 当不支持区块状态管理时，无法区分区块状态，返回 0
+            return 0
 
     @abstractmethod
     def get_completed_block_count_with_status(self, start_year: int, end_year: int) -> int:
@@ -377,7 +403,7 @@ class AbstractDownloader(ABC):
         # 3. 获取下一个下载区块
         next_block = self.get_dl_pointer()
         if not next_block or not self.is_dl_pointer_valid(next_block, start_year, end_year):
-            next_block = self.get_next_block(start_year, end_year, None, **kwargs)
+            next_block = self.get_first_block(start_year, end_year)
             self.logger.info(f"{task_identifier} 下载指针无效或不存在，使用第一个区块: {next_block}")
         else:
             self.logger.info(f"{task_identifier} 启动后：第一个下载区块: {next_block}")
@@ -396,14 +422,14 @@ class AbstractDownloader(ABC):
                     completed_blocks = self.get_completed_block_count_with_status(start_year, end_year)
                     skipped_blocks = self.get_skipped_block_count_with_status(start_year, end_year)
                 else:
-                    completed_blocks = self.get_completed_block_count_with_pointer(start_year, end_year, next_block)
-                    skipped_blocks = self.get_skipped_block_count_with_pointer(start_year, end_year, next_block)
+                    completed_blocks = self.get_completed_block_count(start_year, end_year)
+                    skipped_blocks = self.get_skipped_block_count(start_year, end_year)
                 if total_blocks > 0:
                     progress = self.calculate_progress(completed_blocks, skipped_blocks, total_blocks)
                     self.logger.info(f"{task_identifier} 下载进度: {progress:.2f}% ({completed_blocks + skipped_blocks}/{total_blocks}) | 当前区块: {next_block}")
 
                 # 获取下一个区块
-                next_block = self.get_next_block(start_year, end_year, next_block, **kwargs)
+                next_block = self.get_next_block(start_year, end_year, next_block)
             except Exception as e:
                 self.logger.error(f"{task_identifier} 下载失败: {str(e)} | 当前区块: {next_block}")
                 return False
