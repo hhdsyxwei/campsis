@@ -79,7 +79,27 @@ def mock_db_conn():
             )
         """)
 
-        # 5. 分红送配数据表
+        # 5. 全局下载控制区块表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS global_dl_ctrl_block (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_type VARCHAR(20) NOT NULL,
+                primary_pointer_name VARCHAR(50),
+                primary_pointer_value VARCHAR(50),
+                secondary_pointer_name VARCHAR(50),
+                secondary_pointer_value VARCHAR(50),
+                tertiary_pointer_name VARCHAR(50),
+                tertiary_pointer_value VARCHAR(50),
+                task_status VARCHAR(20),
+                startup_params JSON,
+                completed_blocks INT DEFAULT 0,
+                total_blocks INT DEFAULT 0,
+                update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_task_type (task_type)
+            )
+        """)
+
+        # 6. 分红送配数据表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS stock_xrxd (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -104,7 +124,7 @@ def mock_db_conn():
             )
         """)
         
-        # 6. 股票日线数据表
+        # 7. 股票日线数据表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS stock_daily (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,6 +146,7 @@ def mock_db_conn():
         cursor.execute("TRUNCATE TABLE stock_listing")
         cursor.execute("TRUNCATE TABLE stock_fixed_seq")
         cursor.execute("TRUNCATE TABLE global_download_progress")
+        cursor.execute("TRUNCATE TABLE global_dl_ctrl_block")
         cursor.execute("TRUNCATE TABLE stock_xrxd")
         cursor.execute("TRUNCATE TABLE kline_block_status")
         cursor.execute("TRUNCATE TABLE stock_daily")
@@ -150,6 +171,7 @@ def mock_db_conn():
         cursor.execute("TRUNCATE TABLE stock_listing")
         cursor.execute("TRUNCATE TABLE stock_fixed_seq")
         cursor.execute("TRUNCATE TABLE global_download_progress")
+        cursor.execute("TRUNCATE TABLE global_dl_ctrl_block")
         cursor.execute("TRUNCATE TABLE stock_xrxd")
         cursor.execute("TRUNCATE TABLE kline_block_status")
         cursor.execute("TRUNCATE TABLE stock_daily")

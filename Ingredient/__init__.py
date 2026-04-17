@@ -20,7 +20,7 @@ from .DataNest import (
 )
 
 # 下载器
-from .kline_unified_downloader import KLineDownloader
+from .downloader.kline_unified_downloader import KLineDownloader
 
 __all__ = [
     # 数据管理器

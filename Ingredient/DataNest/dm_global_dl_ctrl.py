@@ -135,7 +135,7 @@ class GlobalDlCtrlBlockManager:
                 cursor.close()
 
     # -------------------------------------------------------------------------   
-    def save_startup_params(self, task_type: str, startup_params: Dict) -> bool:
+    def save_startup_params(self, task_type: DlTaskType, startup_params: Dict) -> bool:
         """
         单独保存启动参数
         :param task_type: 任务类型
@@ -154,7 +154,7 @@ class GlobalDlCtrlBlockManager:
                 ON DUPLICATE KEY UPDATE
                     startup_params = new_values.startup_params,
                     update_time = CURRENT_TIMESTAMP
-            """, (task_type, startup_params))
+            """, (task_type.value, startup_params))
             self.conn.commit()
             logger.debug(f"[{__name__}.{func_name}] 启动参数保存成功: {task_type}")
             return True
@@ -165,7 +165,7 @@ class GlobalDlCtrlBlockManager:
             if cursor:
                 cursor.close()
 
-    def read_startup_params(self, task_type: str) -> Optional[Dict]:
+    def read_startup_params(self, task_type: DlTaskType) -> Optional[Dict]:
         """
         单独读取启动参数
         :param task_type: 任务类型
@@ -180,7 +180,7 @@ class GlobalDlCtrlBlockManager:
                 FROM global_dl_ctrl_block 
                 WHERE task_type = %s 
                 LIMIT 1
-            """, (task_type,))
+            """, (task_type.value,))
             result = cursor.fetchone()
             return result['startup_params'] if result else None
         except Exception as e:
@@ -191,7 +191,7 @@ class GlobalDlCtrlBlockManager:
                 cursor.close()
 
     # -------------------------------------------------------------------------   
-    def update_block_count(self, task_type: str, completed_blocks: int, total_blocks: int) -> bool:
+    def update_block_count(self, task_type: DlTaskType, completed_blocks: int, total_blocks: int) -> bool:
         """
         更新区块计数
         :param task_type: 任务类型
@@ -212,7 +212,7 @@ class GlobalDlCtrlBlockManager:
                     completed_blocks = new_values.completed_blocks,
                     total_blocks = new_values.total_blocks,
                     update_time = CURRENT_TIMESTAMP
-            """, (task_type, completed_blocks, total_blocks))
+            """, (task_type.value, completed_blocks, total_blocks))
             self.conn.commit()
             logger.debug(f"[{__name__}.{func_name}] 区块计数更新成功: {task_type}")
             return True
@@ -223,7 +223,7 @@ class GlobalDlCtrlBlockManager:
             if cursor:
                 cursor.close()
 
-    def get_block_count(self, task_type: str) -> Tuple[int, int]:
+    def get_block_count(self, task_type: DlTaskType) -> Tuple[int, int]:
         """
         获取区块计数
         :param task_type: 任务类型
@@ -238,7 +238,7 @@ class GlobalDlCtrlBlockManager:
                 FROM global_dl_ctrl_block 
                 WHERE task_type = %s 
                 LIMIT 1
-            """, (task_type,))
+            """, (task_type.value,))
             result = cursor.fetchone()
             if result:
                 return (result['completed_blocks'] or 0, result['total_blocks'] or 0)
@@ -441,7 +441,7 @@ class GlobalDlCtrlBlockManager:
             logger.error(f"[{__name__}.{func_name}] 清空下载指针失败: {str(e)}")
             return False
 
-    def delete_task(self, task_type: str) -> bool:
+    def delete_task(self, task_type: DlTaskType) -> bool:
         """
         删除指定类型的任务记录
         :param task_type: 任务类型
@@ -451,7 +451,7 @@ class GlobalDlCtrlBlockManager:
         try:
             cursor = self.conn.cursor()
             sql = "DELETE FROM global_dl_ctrl_block WHERE task_type = %s"
-            cursor.execute(sql, (task_type,))
+            cursor.execute(sql, (task_type.value,))
             self.conn.commit()
             logger.debug(f"[{__name__}.{func_name}] 任务删除成功: {task_type}")
             return True

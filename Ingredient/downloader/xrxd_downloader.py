@@ -338,6 +338,7 @@ class XrxdDownloader:
         logger.info(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
 
         # 核心循环：有下一个区块则执行下载
+        completed_block_count = 0
         while next_block:
             year, stock_code = next_block
             try:

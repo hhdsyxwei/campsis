@@ -13,14 +13,14 @@ import os
 import KitchenBase.baostock_wrapper as bs
 from KitchenBase.baostock_wrapper import BaostockErrorCode
 from Ingredient.DataNest import create_database_and_tables
-from Ingredient.kline_unified_downloader import start_new_kline_download, continue_download_kline
-from Ingredient.daily_data_downloader import download_all_stocks_daily_data, download_daily_data
-from Ingredient.trade_date_map_downloader import download_trade_date_map
+from Ingredient.downloader import start_new_kline_download, continue_download_kline
+from Ingredient.downloader import download_all_stocks_daily_data, download_daily_data
+from Ingredient.downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
-from Ingredient.stock_basic_downloader import download_stock_basic
-from Ingredient.xrxd_downloader import start_new_xrxd_download, continue_download_xrxd
-from Ingredient.adjustment_factor_downloader import start_new_adjustment_factor_download, continue_download_adjustment_factor
-from Ingredient.stock_industry_downloader import start_new_industry_download, continue_download_industry
+from Ingredient.downloader import download_stock_basic
+from Ingredient.downloader import start_new_xrxd_download, continue_download_xrxd
+from Ingredient.downloader import start_new_adjustment_factor_download, continue_download_adjustment_factor
+from Ingredient.downloader import start_new_industry_download, continue_download_industry
 
 
 
