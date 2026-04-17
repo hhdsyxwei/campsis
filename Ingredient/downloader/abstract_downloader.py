@@ -28,6 +28,25 @@ class AbstractDownloader(ABC):
             "timeout": 60,
             "max_retry": 3
         }
+        
+        # 加载启动参数（如果有）
+        params = self.load_startup_parameters()
+        if params:
+            self.start_year, self.end_year, self.extra_params = params
+        else:
+            self.start_year = None
+            self.end_year = None
+            self.extra_params = {}
+    
+    @abstractmethod
+    def get_task_type(self) -> str:
+        """
+        获取任务类型标识
+        
+        Returns:
+            str: 任务类型标识，用于数据库存储和识别
+        """
+        pass
     
     @abstractmethod
     def validate_parameters(self, *args, **kwargs) -> bool:
@@ -264,23 +283,29 @@ class AbstractDownloader(ABC):
         self.logger.info("全部下载完成，已清空下载指针")
         return True
     
-    def start_new_download(self, *args, **kwargs) -> bool:
+    def start_new_download(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
         开始新的下载任务（清空之前的下载进度）
         
         Args:
-            *args: 位置参数
-            **kwargs: 关键字参数
+            start_year: 开始年份（包含）
+            end_year: 结束年份（不包含）
+            **kwargs: 额外的启动参数
             
         Returns:
             bool: 下载是否成功
         """
-        # 1. 清空之前的下载进度
+        # 1. 保存启动参数
+        if not self.save_startup_parameters(start_year, end_year, **kwargs):
+            self.logger.error("保存启动参数失败")
+            return False
+        
+        # 2. 清空之前的下载进度
         self.set_download_status(DlTaskStatus.NOT_STARTED)
         self.clear_dl_pointer()
         
-        # 2. 调用继续下载方法
-        return self.continue_download(*args, **kwargs)
+        # 3. 调用继续下载方法
+        return self.continue_download(start_year, end_year, **kwargs)
     
     def clear_dl_pointer(self):
         """
@@ -302,3 +327,49 @@ class AbstractDownloader(ABC):
         if total == 0:
             return 0.0
         return (completed / total) * 100
+    
+    def save_startup_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+        """
+        保存启动参数到数据库
+        
+        Args:
+            start_year: 开始年份（包含）
+            end_year: 结束年份（不包含）
+            **kwargs: 额外的启动参数
+            
+        Returns:
+            bool: 保存是否成功
+        """
+        # 构建启动参数字典
+        startup_params = {
+            "start_year": start_year,
+            "end_year": end_year
+        }
+        
+        # 添加额外参数
+        startup_params.update(kwargs)
+        
+        # 调用 GlobalDlCtrlBlockManager 的 save_startup_params 方法
+        return self.progress_manager.save_startup_params(self.get_task_type(), startup_params)
+    
+    def load_startup_parameters(self) -> Optional[Tuple[int, int, Dict]]:
+        """
+        从数据库加载启动参数
+        
+        Returns:
+            Optional[Tuple[int, int, Dict]]: (start_year, end_year, extra_params)，如果没有则返回 None
+        """
+        # 调用 GlobalDlCtrlBlockManager 的 read_startup_params 方法
+        startup_params = self.progress_manager.read_startup_params(self.get_task_type())
+        
+        if startup_params and "start_year" in startup_params and "end_year" in startup_params:
+            # 提取核心参数
+            start_year = startup_params["start_year"]
+            end_year = startup_params["end_year"]
+            
+            # 提取额外参数
+            extra_params = {k: v for k, v in startup_params.items() if k not in ["start_year", "end_year"]}
+            
+            return (start_year, end_year, extra_params)
+        
+        return None
