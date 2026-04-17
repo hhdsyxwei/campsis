@@ -418,12 +418,8 @@ class AbstractDownloader(ABC):
                 self.download_block(*next_block)
 
                 # 记录进度
-                if self.support_block_status:
-                    completed_blocks = self.get_completed_block_count_with_status(start_year, end_year)
-                    skipped_blocks = self.get_skipped_block_count_with_status(start_year, end_year)
-                else:
-                    completed_blocks = self.get_completed_block_count(start_year, end_year)
-                    skipped_blocks = self.get_skipped_block_count(start_year, end_year)
+                completed_blocks = self.get_completed_block_count(start_year, end_year)
+                skipped_blocks = self.get_skipped_block_count(start_year, end_year)
                 if total_blocks > 0:
                     progress = self.calculate_progress(completed_blocks, skipped_blocks, total_blocks)
                     self.logger.info(f"{task_identifier} 下载进度: {progress:.2f}% ({completed_blocks + skipped_blocks}/{total_blocks}) | 当前区块: {next_block}")
