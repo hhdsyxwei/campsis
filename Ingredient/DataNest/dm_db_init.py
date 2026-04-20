@@ -53,6 +53,7 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "stock_adjustment_factor": f"{database_dir}/init/stock/05_table_stock_adjustment_factor.sql.j2",
         "stock_industry": f"{database_dir}/init/stock/06_table_stock_industry.sql.j2",
         "stock_industry_history": f"{database_dir}/init/stock/07_table_stock_industry_history.sql.j2",
+        "stock_profit": f"{database_dir}/init/finance/01_table_stock_profit.sql.j2",
 
         # 下载控制相关表
         "stock_fixed_seq": f"{database_dir}/init/download/05_stock_fixed_seq.sql.j2",

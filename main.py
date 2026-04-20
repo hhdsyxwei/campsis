@@ -2,7 +2,7 @@
 # ==============================================
 # 1. 必须放在所有其他导入 【最前面】
 # ==============================================
-from CookingEngine.Picker.stock_scorer import StockScorer, score_single_stock
+
 
 from KitchenBase.package_manager import PackageManager
 from KitchenBase.logger_config import setup_logging,get_logger
@@ -15,6 +15,10 @@ from KitchenBase.baostock_wrapper import BaostockErrorCode
 from Ingredient.DataNest import create_database_and_tables
 from Ingredient.downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
+from CookingEngine.Picker.stock_scorer import score_single_stock
+from Ingredient.downloader.daily_data_downloader import download_all_stocks_daily_data
+
+
 
 
 
@@ -61,7 +65,7 @@ def main():
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
         # download_daily_data(conn, stock_code, "2025-10-01", "2026-04-15")
-        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
+        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
 
         # 5. 第三步：下载行业分类数据
         # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
