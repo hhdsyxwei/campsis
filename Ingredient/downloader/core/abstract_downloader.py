@@ -12,10 +12,6 @@ from .abs_block_manager import BlockManager
 from .abs_status_manager import StatusManager
 from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
-from .general_block_manager import GeneralBlockManager
-from .general_status_manager import GeneralStatusManager
-from .general_pointer_manager import GeneralPointerManager
-from .general_progress_manager import GeneralProgressManager
 
 class AbstractDownloader(ABC):
     """
@@ -146,6 +142,7 @@ class AbstractDownloader(ABC):
         """
         pass
     
+    @abstractmethod
     def create_block_manager(self) -> BlockManager:
         """
         创建区块管理器
@@ -153,8 +150,9 @@ class AbstractDownloader(ABC):
         Returns:
             BlockManager: 区块管理器实例
         """
-        return GeneralBlockManager(self.db_conn)
+        pass
     
+    @abstractmethod
     def create_status_manager(self) -> StatusManager:
         """
         创建状态管理器
@@ -162,8 +160,9 @@ class AbstractDownloader(ABC):
         Returns:
             StatusManager: 状态管理器实例
         """
-        return GeneralStatusManager(self.db_conn)
+        pass
     
+    @abstractmethod
     def create_pointer_manager(self) -> PointerManager:
         """
         创建指针管理器
@@ -171,10 +170,9 @@ class AbstractDownloader(ABC):
         Returns:
             PointerManager: 指针管理器实例
         """
-        manager = GeneralPointerManager(self.db_conn)
-        manager.pointer_fields = self.pointer_fields
-        return manager
+        pass
     
+    @abstractmethod
     def create_progress_manager(self) -> ProgressManager:
         """
         创建进度管理器
@@ -182,7 +180,7 @@ class AbstractDownloader(ABC):
         Returns:
             ProgressManager: 进度管理器实例
         """
-        return GeneralProgressManager(self.db_conn)
+        pass
     
     def create_simple_strategy(self):
         """

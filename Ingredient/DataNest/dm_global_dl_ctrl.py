@@ -25,6 +25,7 @@ import pymysql
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
 from KitchenBase.download_enums import DlTaskStatus, DlTaskType
+from KitchenBase.block_pointer import BlockPointer
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,7 @@ class GlobalDlCtrlBlockManager:
         self.conn = conn
 
     # -------------------------------------------------------------------------   
-    def write_dl_pointer(self, task_type: DlTaskType, pointers: Dict[str, str], 
+    def write_dl_ctrl_blk(self, task_type: DlTaskType, pointers: Dict[str, str], 
                       startup_params: Optional[Dict] = None, 
                       completed_blocks: int = 0, 
                       total_blocks: int = 0) -> bool:
@@ -91,7 +92,7 @@ class GlobalDlCtrlBlockManager:
             if cursor:
                 cursor.close()
 
-    def read_dl_pointer(self, task_type: DlTaskType) -> Optional[Dict[str, Any]]:
+    def read_dl_ctrl_blk(self, task_type: DlTaskType) -> Optional[Dict[str, Any]]:
         """
         完整进度读取接口
         :param task_type: 任务类型
@@ -273,14 +274,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': 'time_frame',
             'tertiary_value': time_frame.value
         }
-        return self.write_dl_pointer(DlTaskType.KLINE, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_ctrl_blk(DlTaskType.KLINE, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_kline_dl_pointer(self) -> Optional[Tuple[str, str, KLinePeriod, Optional[Dict], int, int]]:
         """
         获取K线下载进度
         :return: (季度, 股票代码, 时间周期, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_dl_pointer(DlTaskType.KLINE)
+        progress = self.read_dl_ctrl_blk(DlTaskType.KLINE)
         if progress:
             try:
                 quarter = progress['primary_value']
@@ -317,14 +318,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_dl_pointer(DlTaskType.XRXD, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_ctrl_blk(DlTaskType.XRXD, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_xrxd_dl_pointer(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
         """
         获取XRXD下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_dl_pointer(DlTaskType.XRXD)
+        progress = self.read_dl_ctrl_blk(DlTaskType.XRXD)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
@@ -360,14 +361,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_dl_pointer(DlTaskType.ADJUSTMENT_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_ctrl_blk(DlTaskType.ADJUSTMENT_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_adj_fct_dl_pointer(self) -> Optional[Tuple[int, str]]:
         """
         获取复权因子下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_dl_pointer(DlTaskType.ADJUSTMENT_FACTOR)
+        progress = self.read_dl_ctrl_blk(DlTaskType.ADJUSTMENT_FACTOR)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
@@ -399,14 +400,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_dl_pointer(DlTaskType.INDUSTRY, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_ctrl_blk(DlTaskType.INDUSTRY, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_stock_industry_dl_pointer(self) -> Optional[Tuple[int, str, Optional[Dict], int, int]]:
         """
         获取行业分类下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_dl_pointer(DlTaskType.INDUSTRY)
+        progress = self.read_dl_ctrl_blk(DlTaskType.INDUSTRY)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0
@@ -436,7 +437,7 @@ class GlobalDlCtrlBlockManager:
                 'tertiary_name': '',
                 'tertiary_value': ''
             }
-            return self.write_dl_pointer(task_type, pointers)
+            return self.write_dl_ctrl_blk(task_type, pointers)
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 清空下载指针失败: {str(e)}")
             return False
@@ -474,7 +475,7 @@ class GlobalDlCtrlBlockManager:
         """
         func_name = "task_exists"
         try:
-            progress = self.read_dl_pointer(task_type)
+            progress = self.read_dl_ctrl_blk(task_type)
             return progress is not None
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询任务是否存在失败: {str(e)}")
@@ -488,7 +489,7 @@ class GlobalDlCtrlBlockManager:
         """
         func_name = "is_dl_pointer_empty"
         try:
-            progress = self.read_dl_pointer(task_type)
+            progress = self.read_dl_ctrl_blk(task_type)
             if progress:
                 primary_value = progress['primary_value']
                 secondary_value = progress['secondary_value']
@@ -557,7 +558,93 @@ class GlobalDlCtrlBlockManager:
             return DlTaskStatus.NOT_STARTED
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 任务状态获取失败: {str(e)}")
-            raise e
+            raise
+
+    def write_task_pointer(self, task_type: DlTaskType, pointer: BlockPointer) -> bool:
+        """
+        更新指定类型任务的下载指针信息
+        :param task_type: 任务类型
+        :param pointer: 区块指针
+        :return: 是否成功
+        """
+        func_name = "update_task_pointer"
+        cursor = None
+        try:
+            if not isinstance(pointer, BlockPointer):
+                logger.error(f"[{__name__}.{func_name}] 指针必须是 BlockPointer 类型")
+                return False
+
+            fields = pointer.get_fields()
+            values = pointer.get_values()
+
+            if len(fields) < 1 or len(fields) > 3:
+                logger.error(f"[{__name__}.{func_name}] 指针字段数量必须在1-3之间")
+                return False
+
+            primary_name = fields[0] if len(fields) > 0 else ''
+            primary_value = str(values[0]) if len(values) > 0 else ''
+            secondary_name = fields[1] if len(fields) > 1 else ''
+            secondary_value = str(values[1]) if len(values) > 1 else ''
+            tertiary_name = fields[2] if len(fields) > 2 else ''
+            tertiary_value = str(values[2]) if len(values) > 2 else ''
+
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("""
+                INSERT INTO global_dl_ctrl_block
+                (task_type, primary_pointer_name, primary_pointer_value,
+                 secondary_pointer_name, secondary_pointer_value,
+                 tertiary_pointer_name, tertiary_pointer_value,
+                 update_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                AS new_values
+                ON DUPLICATE KEY UPDATE
+                    primary_pointer_name = new_values.primary_pointer_name,
+                    primary_pointer_value = new_values.primary_pointer_value,
+                    secondary_pointer_name = new_values.secondary_pointer_name,
+                    secondary_pointer_value = new_values.secondary_pointer_value,
+                    tertiary_pointer_name = new_values.tertiary_pointer_name,
+                    tertiary_pointer_value = new_values.tertiary_pointer_value,
+                    update_time = CURRENT_TIMESTAMP
+            """, (task_type.value, primary_name, primary_value, secondary_name, secondary_value,
+                  tertiary_name, tertiary_value))
+            self.conn.commit()
+            logger.info(f"[{__name__}.{func_name}] 指针更新成功: {task_type.value}")
+            return True
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 指针更新失败: {str(e)}")
+            return False
+        finally:
+            if 'cursor' in locals() and cursor:
+                cursor.close()
+
+    def read_task_pointer(self, task_type: DlTaskType) -> Optional[BlockPointer]:
+        """
+        查询指定类型任务的指针信息
+        :param task_type: 任务类型
+        :return: BlockPointer 或 None
+        """
+        func_name = "read_task_pointer"
+        cursor = None
+        try:
+            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("""
+                SELECT primary_pointer_name, primary_pointer_value,
+                       secondary_pointer_name, secondary_pointer_value,
+                       tertiary_pointer_name, tertiary_pointer_value
+                FROM global_dl_ctrl_block
+                WHERE task_type = %s
+                LIMIT 1
+            """, (task_type.value,))
+            result = cursor.fetchone()
+
+            if not result:
+                return None
+
+            from KitchenBase.block_pointer import BlockPointerFactory
+            return BlockPointerFactory.create_from_db_dict(result)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 指针查询失败: {str(e)}")
+            return None
         finally:
             if 'cursor' in locals() and cursor:
                 cursor.close()

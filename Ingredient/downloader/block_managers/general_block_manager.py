@@ -1,7 +1,7 @@
 # general_block_manager.py
 # 通用区块管理器实现
 
-from .abs_block_manager import BlockManager
+from ..core.abs_block_manager import BlockManager
 
 class GeneralBlockManager(BlockManager):
     """
@@ -59,3 +59,28 @@ class GeneralBlockManager(BlockManager):
         """
         # 通用实现，子类需要根据具体情况重写
         return 0
+    
+    def get_block_status(self, *block_identifier) -> int:
+        """
+        获取区块状态
+        
+        Args:
+            *block_identifier: 区块标识
+            
+        Returns:
+            int: 区块状态
+        """
+        # 通用实现，子类需要根据具体情况重写
+        return 0
+    
+    def update_block_status(self, *block_identifier, status: int, **kwargs):
+        """
+        更新区块状态
+        
+        Args:
+            *block_identifier: 区块标识
+            status: 区块状态
+            **kwargs: 额外参数
+        """
+        # 通用实现，子类需要根据具体情况重写
+        pass

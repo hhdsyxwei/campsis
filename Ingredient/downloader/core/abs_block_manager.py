@@ -51,3 +51,28 @@ class BlockManager(ABC):
             int: 已跳过区块数
         """
         pass
+    
+    @abstractmethod
+    def get_block_status(self, *block_identifier) -> int:
+        """
+        获取区块状态
+        
+        Args:
+            *block_identifier: 区块标识
+            
+        Returns:
+            int: 区块状态
+        """
+        pass
+    
+    @abstractmethod
+    def update_block_status(self, *block_identifier, status: int, **kwargs):
+        """
+        更新区块状态
+        
+        Args:
+            *block_identifier: 区块标识
+            status: 区块状态
+            **kwargs: 额外参数
+        """
+        pass

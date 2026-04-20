@@ -1,7 +1,7 @@
 # general_progress_manager.py
 # 通用进度管理器实现
 
-from .abs_progress_manager import ProgressManager
+from ..core.abs_progress_manager import ProgressManager
 
 class GeneralProgressManager(ProgressManager):
     """
