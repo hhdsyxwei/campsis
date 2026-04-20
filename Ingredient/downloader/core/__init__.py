@@ -1,7 +1,7 @@
 # core/__init__.py
 # 核心模块初始化文件
 
-from .abstract_downloader import AbstractDownloader
+from .abstract_downloader import SimpleDownloader, BlockDownloader
 from .download_strategy import DownloadStrategy
 from .abs_block_manager import BlockManager
 from .abs_status_manager import StatusManager
@@ -10,7 +10,8 @@ from .abs_progress_manager import ProgressManager
 from .abs_block_pointer_strategy import BlockPointerStrategy
 
 __all__ = [
-    "AbstractDownloader",
+    "SimpleDownloader",
+    "BlockDownloader",
     "DownloadStrategy",
     "BlockManager",
     "StatusManager",
