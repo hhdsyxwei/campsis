@@ -30,6 +30,7 @@ class CampsisLogger:
         # 模块级别控制（覆盖父级，PackageManager 模块单独设为 DEBUG）
         "KitchenBase.package_manager": logging.DEBUG,
         "CookingEngine.Picker": logging.DEBUG,
+        "Ingredient.downloader.TradeDateMapDownloader": logging.DEBUG,
         # 测试包单独控制
         "tests": logging.ERROR,
         # 第三方包控制（如屏蔽 pandas 日志）

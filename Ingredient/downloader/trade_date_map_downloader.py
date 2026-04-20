@@ -43,7 +43,12 @@ class TradeDateMapDownloader(SimpleDownloader):
         """
         # 生成日期范围：包含 start_year 全年，不包含 end_year
         start_date = f"{start_year}-01-01"
-        end_date = f"{end_year - 1}-12-31"
+        # 如果最后一年是今年，则 end_date 设为今天
+        current_year = datetime.now().year
+        if end_year - 1 == current_year:
+            end_date = datetime.now().strftime("%Y-%m-%d")
+        else:
+            end_date = f"{end_year - 1}-12-31"
         
         logger.info(f"交易日数据按年下载范围：{start_year} ~ {end_year-1} 年（{start_date} ~ {end_date}）")
         

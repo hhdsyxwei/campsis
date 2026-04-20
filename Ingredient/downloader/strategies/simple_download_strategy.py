@@ -29,22 +29,38 @@ class SimpleDownloadStrategy(DownloadStrategy):
         Returns:
             bool: 下载是否成功
         """
+        import time
+        
+        # 记录开始时间
+        start_time = time.time()
+        self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 开始下载任务，年份范围: {start_year}-{end_year}")
+        
         # 验证参数
         if not self.downloader.validate_parameters(start_year, end_year, **kwargs):
+            self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 参数验证失败")
             return False
         
         # 下载原始数据
         raw_data = self.downloader.download_raw_data(start_year, end_year, **kwargs)
         if raw_data is None:
+            self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 原始数据下载失败")
             return False
         
         # 清洗数据
         cleaned_data = self.downloader.clean_data(raw_data)
         if cleaned_data.empty:
+            self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 数据清洗后为空")
             return False
         
         # 保存数据
-        return self.downloader.save_data(cleaned_data, start_year, end_year, **kwargs)
+        save_result = self.downloader.save_data(cleaned_data, start_year, end_year, **kwargs)
+        
+        # 记录结束时间和总耗时
+        end_time = time.time()
+        total_time = end_time - start_time
+        self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 下载任务完成，耗时: {total_time:.2f}秒")
+        
+        return save_result
     
     def can_handle(self, download_type: str) -> bool:
         """

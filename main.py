@@ -49,12 +49,12 @@ def main():
     # 2. 建立与本地数据库的连接
     conn = create_database_and_tables()
 
-    start_year = 2026
+    start_year = 2022
     end_year = 2027
     stock_code = "001331.SZ"
 
     try:
-        download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
+        download_trade_date_map(conn, start_year, end_year)  # 下载交易日映射表，覆盖start_year-end_year年
         # 3. 第一步：同步并更新股票的基础信息表 (stock_basic)
         # download_stock_basic(conn,[MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
 
