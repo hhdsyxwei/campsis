@@ -6,9 +6,10 @@ from typing import Optional, Any, Dict, Tuple
 import pandas as pd
 from KitchenBase.logger_config import get_logger
 from Ingredient.DataNest import GlobalDlCtrlBlockManager
-from KitchenBase.download_enums import DlTaskType
+from KitchenBase.download_enums import DlTaskType, DlBlockStatus
+from KitchenBase.block_pointer import BlockPointer
 from .abs_block_manager import BlockManager
-from .abs_status_manager import StatusManager
+from .abs_status_manager import TaskStatusManager
 from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
 
@@ -126,7 +127,7 @@ class BlockDownloader(SimpleDownloader):
     继承自 SimpleDownloader，添加区块管理相关功能
     """
 
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, pointer_fields: Tuple):
         """
         初始化区块下载器
 
@@ -136,7 +137,7 @@ class BlockDownloader(SimpleDownloader):
         super().__init__(db_conn)
         self.support_block_status = False
 
-        self.pointer_fields = ()
+        self.pointer_fields = pointer_fields
 
         self.block_manager = self.create_block_manager()
         self.status_manager = self.create_status_manager()
@@ -152,17 +153,6 @@ class BlockDownloader(SimpleDownloader):
             self.extra_params = {}
 
     @abstractmethod
-    def download_block(self, *args, **kwargs):
-        """
-        下载单个区块
-
-        Args:
-            *args: 位置参数
-            **kwargs: 关键字参数
-        """
-        pass
-
-    @abstractmethod
     def create_block_manager(self) -> BlockManager:
         """
         创建区块管理器
@@ -173,7 +163,7 @@ class BlockDownloader(SimpleDownloader):
         pass
 
     @abstractmethod
-    def create_status_manager(self) -> StatusManager:
+    def create_status_manager(self) -> TaskStatusManager:
         """
         创建状态管理器
 
@@ -201,6 +191,77 @@ class BlockDownloader(SimpleDownloader):
             ProgressManager: 进度管理器实例
         """
         pass
+
+    def download_block(self, block_pointer: BlockPointer, start_year: int, end_year: int) -> bool:
+        """
+        下载单个区块（模板方法）
+
+        统一的下载流程：
+        1. 验证参数
+        2. 下载原始数据（直接传递 block_pointer）
+        3. 清洗数据
+        4. 保存数据
+        5. 更新区块状态
+
+        Args:
+            block_pointer: 区块指针
+            start_year: 开始年份（整体下载范围）
+            end_year: 结束年份（整体下载范围）
+
+        Returns:
+            bool: 是否下载成功
+        """
+        # 1. 验证参数（传递 block_pointer 作为 kwargs）
+        if not self.validate_parameters(start_year, end_year, block_pointer=block_pointer):
+            self._update_block_status(block_pointer, DlBlockStatus.ERROR, "参数验证失败")
+            return False
+
+        try:
+            # 2. 下载原始数据（直接传递 block_pointer）
+            raw_data = self.download_raw_data(start_year, end_year, block_pointer=block_pointer)
+
+            # 处理无数据情况
+            if raw_data is None or (isinstance(raw_data, pd.DataFrame) and raw_data.empty):
+                self._update_block_status(block_pointer, DlBlockStatus.SKIPPED, "无数据")
+                return True
+
+            # 3. 清洗数据
+            cleaned_data = self.clean_data(raw_data)
+
+            if cleaned_data.empty:
+                self._update_block_status(block_pointer, DlBlockStatus.SKIPPED, "无有效数据")
+                return True
+
+            # 4. 保存数据（传递 block_pointer）
+            save_result = self.save_data(cleaned_data, start_year, end_year, block_pointer=block_pointer)
+
+            if save_result:
+                self._update_block_status(block_pointer, DlBlockStatus.COMPLETED)
+                return True
+            else:
+                self._update_block_status(block_pointer, DlBlockStatus.ERROR, "数据保存失败")
+                return False
+
+        except Exception as e:
+            self._update_block_status(block_pointer, DlBlockStatus.ERROR, str(e))
+            self.logger.error(f"下载区块异常：{block_pointer} - {str(e)}", exc_info=True)
+            return False
+
+    def _update_block_status(self, block_pointer: BlockPointer, status: DlBlockStatus, error_message: str = ""):
+        """
+        更新区块状态
+
+        Args:
+            block_pointer: 区块指针
+            status: 区块状态
+            error_message: 错误信息
+        """
+        try:
+            # 调用 block_manager 的 update_block_status 方法
+            # 传递 block_pointer 作为第一个参数
+            self.block_manager.update_block_status(block_pointer, status=status, error_message=error_message)
+        except Exception as e:
+            self.logger.error(f"更新区块状态失败：{e}", exc_info=True)
 
     def continue_download(self, start_year: int, end_year: int, **kwargs) -> bool:
         """

@@ -1,11 +1,11 @@
 # general_status_manager.py
 # 通用状态管理器实现
 
-from ..core.abs_status_manager import StatusManager
+from ..core.abs_status_manager import TaskStatusManager
 from KitchenBase.download_enums import DlTaskStatus, DlTaskType
 from Ingredient.DataNest import GlobalDlCtrlBlockManager
 
-class GeneralStatusManager(StatusManager):
+class GeneralStatusManager(TaskStatusManager):
     """
     通用状态管理器实现，作为 GlobalDlCtrlBlockManager 的适配器
 
@@ -27,15 +27,15 @@ class GeneralStatusManager(StatusManager):
         else:
             self.global_manager = global_manager
 
-    def get_download_status(self, taskType: DlTaskType) -> DlTaskStatus:
+    def get_task_status(self, taskType: DlTaskType) -> DlTaskStatus:
         """
-        获取下载状态
+        获取任务状态
 
         Args:
             taskType: 任务类型
 
         Returns:
-            DlTaskStatus: 下载状态枚举值
+            DlTaskStatus: 任务状态枚举值
         """
         try:
             return self.global_manager.get_task_status(taskType)
@@ -43,13 +43,13 @@ class GeneralStatusManager(StatusManager):
             print(f"[{self.__class__.__name__}] 获取状态失败: {e}")
             return DlTaskStatus.NOT_STARTED
 
-    def set_download_status(self, taskType: DlTaskType, status: DlTaskStatus):
+    def set_task_status(self, taskType: DlTaskType, status: DlTaskStatus):
         """
-        设置下载状态
+        设置任务状态
 
         Args:
             taskType: 任务类型
-            status: 下载状态枚举值
+            status: 任务状态枚举值
         """
         try:
             self.global_manager.set_task_status(taskType, status)

@@ -11,7 +11,7 @@ from .dm_adjustment_factor import AdjustmentFactorManager
 from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
 from .dm_stock_seq import StockFixedSeqManager
 from .dm_stock_industry import StockIndustryDataManager
-from .dm_generic_block_status import GenericBlockStatusManager
+from .dm_generic_block_status import GenericBlockStatusDM
 from .dm_stock_profit import StockProfitManager
 from .dm_utils import get_nearest_trade_date_before
 from .dm_columns import (
@@ -34,7 +34,7 @@ __all__ = [
     'GlobalDlCtrlBlockManager',
     'StockFixedSeqManager',
     'StockIndustryDataManager',
-    'GenericBlockStatusManager',
+    'GenericBlockStatusDM',
     'StockProfitManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedColumns',

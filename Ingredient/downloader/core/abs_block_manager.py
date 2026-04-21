@@ -2,7 +2,8 @@
 # 区块管理器抽象基类
 
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, List, Any
+from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 
 class BlockManager(ABC):
     """
@@ -53,7 +54,7 @@ class BlockManager(ABC):
         pass
     
     @abstractmethod
-    def get_block_status(self, *block_identifier) -> int:
+    def get_block_status(self, *block_identifier) -> DlBlockStatus:
         """
         获取区块状态
         
@@ -61,12 +62,12 @@ class BlockManager(ABC):
             *block_identifier: 区块标识
             
         Returns:
-            int: 区块状态
+            DlBlockStatus: 区块状态
         """
         pass
     
     @abstractmethod
-    def update_block_status(self, *block_identifier, status: int, **kwargs):
+    def update_block_status(self, *block_identifier, status: DlBlockStatus, **kwargs):
         """
         更新区块状态
         

@@ -146,6 +146,10 @@ class GlobalDlCtrlBlockManager:
         func_name = "save_startup_params"
         cursor = None
         try:
+            # 将字典转换为 JSON 字符串
+            import json
+            startup_params_json = json.dumps(startup_params)
+            
             cursor = self.conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("""
                 INSERT INTO global_dl_ctrl_block 
@@ -155,7 +159,7 @@ class GlobalDlCtrlBlockManager:
                 ON DUPLICATE KEY UPDATE
                     startup_params = new_values.startup_params,
                     update_time = CURRENT_TIMESTAMP
-            """, (task_type.value, startup_params))
+            """, (task_type.value, startup_params_json))
             self.conn.commit()
             logger.debug(f"[{__name__}.{func_name}] 启动参数保存成功: {task_type}")
             return True
@@ -183,7 +187,19 @@ class GlobalDlCtrlBlockManager:
                 LIMIT 1
             """, (task_type.value,))
             result = cursor.fetchone()
-            return result['startup_params'] if result else None
+            if result and 'startup_params' in result:
+                params_str = result['startup_params']
+                # 检查 params_str 是否为 None
+                if params_str is not None:
+                    # 将 JSON 字符串转换回字典
+                    import json
+                    try:
+                        params = json.loads(params_str)
+                        return params
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[{__name__}.{func_name}] JSON 解析失败: {str(e)}")
+                        return None
+            return None
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 启动参数读取失败: {str(e)}")
             return None

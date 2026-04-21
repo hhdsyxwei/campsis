@@ -1,6 +1,7 @@
 # block_download_strategy.py
 # 区块下载策略
 
+from ..core.abstract_downloader import BlockDownloader
 from ..core.download_strategy import DownloadStrategy
 from KitchenBase.download_enums import DlTaskStatus
 
@@ -9,7 +10,7 @@ class BlockDownloadStrategy(DownloadStrategy):
     区块下载策略，实现区块下载逻辑
     """
     
-    def __init__(self, downloader):
+    def __init__(self, downloader: BlockDownloader):
         """
         初始化区块下载策略
         
@@ -31,19 +32,17 @@ class BlockDownloadStrategy(DownloadStrategy):
             bool: 下载是否成功
         """
         download_type = kwargs.get("download_type", "block_resume")
-        
-        if download_type == "block_new":
-            # 清空之前的下载进度
-            self.downloader.status_manager.set_download_status(DlTaskStatus.NOT_STARTED)
-            self.downloader.pointer_manager.clear_dl_pointer()
-            self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 已清空之前的下载进度")
-        
         # 获取任务类型标识
         task_type = self.downloader.get_task_type()
         task_identifier = f"[{task_type.value}]"
+        if download_type == "block_new":
+            # 清空之前的下载进度
+            self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.NOT_STARTED)
+            self.downloader.pointer_manager.clear_dl_pointer()
+            self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 已清空之前的下载进度")
         
         # 检查下载状态
-        status = self.downloader.status_manager.get_download_status()
+        status = self.downloader.status_manager.get_task_status(task_type)
         if status == DlTaskStatus.COMPLETED:
             self.downloader.logger.info(f"{task_identifier} 下载已完成，无需重复执行")
             return True
@@ -51,7 +50,7 @@ class BlockDownloadStrategy(DownloadStrategy):
             self.downloader.logger.info(f"{task_identifier} 下载正在进行，将从断点恢复")
         else:
             self.downloader.logger.info(f"{task_identifier} 下载未开始，将从头开始")
-            self.downloader.status_manager.set_download_status(DlTaskStatus.IN_PROGRESS)
+            self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.IN_PROGRESS)
         
         # 计算总区块数
         total_blocks = self.downloader.block_manager.get_total_block_count(start_year, end_year, **kwargs)
@@ -72,7 +71,7 @@ class BlockDownloadStrategy(DownloadStrategy):
                 self.downloader.pointer_manager.set_dl_pointer(next_block)
                 
                 # 下载区块
-                self.downloader.download_block(*next_block)
+                self.downloader.download_block(next_block, start_year, end_year)
 
                 # 记录进度
                 completed_blocks = self.downloader.block_manager.get_completed_block_count(start_year, end_year)
@@ -88,7 +87,7 @@ class BlockDownloadStrategy(DownloadStrategy):
                 return False
 
         # 下载完成
-        self.downloader.status_manager.set_download_status(DlTaskStatus.COMPLETED)
+        self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.COMPLETED)
         self.downloader.pointer_manager.clear_dl_pointer()
         self.downloader.logger.info(f"{task_identifier} 全部下载完成，已清空下载指针")
         return True

@@ -3,6 +3,7 @@
 
 from .year_stock_strategy import YearStockStrategy
 from .quarter_stock_period_strategy import QuarterStockPeriodStrategy
+from .quarter_stock_strategy import QuarterStockStrategy
 from .year_strategy import YearStrategy
 from ...core.abs_block_pointer_strategy import BlockPointerStrategy
 from KitchenBase.block_pointer import BlockPointer
@@ -34,6 +35,8 @@ class BlockPointerStrategyFactory:
             return YearStockStrategy(db_conn)
         elif field_set == {'quarter', 'stock_code', 'time_frame'} and time_frame:
             return QuarterStockPeriodStrategy(db_conn, time_frame)
+        elif field_set == {'quarter', 'stock_code'}:
+            return QuarterStockStrategy(db_conn)
         elif field_set == {'year'}:
             return YearStrategy()
         else:

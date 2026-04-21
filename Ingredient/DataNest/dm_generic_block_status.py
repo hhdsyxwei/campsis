@@ -5,7 +5,7 @@ from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 
 logger = get_logger(__name__)
 
-class GenericBlockStatusManager:
+class GenericBlockStatusDM:
     """通用区块状态管理器"""
     
     def __init__(self, db_conn):

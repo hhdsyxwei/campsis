@@ -17,7 +17,7 @@ from Ingredient.downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from CookingEngine.Picker.stock_scorer import score_single_stock
 from Ingredient.downloader.daily_data_downloader import download_all_stocks_daily_data
-
+from Ingredient.downloader import start_new_profit_download
 
 
 
@@ -82,6 +82,10 @@ def main():
         # 8. 第六步：下载复权因子数据
         # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
         # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
+
+        # 下载股票利润数据
+        start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据
+        
 
         # 9. 第七步：为股票股票打分
         score_single_stock(conn, stock_code)

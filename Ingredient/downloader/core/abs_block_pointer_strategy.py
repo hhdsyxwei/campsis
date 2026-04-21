@@ -88,3 +88,51 @@ class BlockPointerStrategy(ABC):
             bool: 指针是否有效
         """
         return True
+    
+    @staticmethod
+    def get_next_quarter(quarter_str: str, year_range: Tuple[int, int]) -> Optional[str]:
+        """
+        计算指定季度的下一个季度
+        
+        Args:
+            quarter_str: 季度字符串，格式如 "2026-Q1"
+            year_range: 年份区间元组 (start_year, end_year)，前闭后开 [start_year, end_year)
+                        如果为 None，则不进行校验
+        
+        Returns:
+            str: 下一个季度字符串，格式如 "2026-Q2"
+            None: 如果输入季度不合法或返回季度超出范围
+        """
+        # 解析季度
+        try:
+            year_str, quarter_part = quarter_str.split('-Q')
+            year = int(year_str)
+            quarter = int(quarter_part)
+        except ValueError:
+            return None  # 格式错误
+        
+        # 校验输入季度
+        if year_range:
+            start_year, end_year = year_range
+            # 检查年份是否在范围内
+            if year < start_year or year >= end_year:
+                return None  # 输入年份超出范围
+            # 检查季度值是否合法
+            if quarter < 1 or quarter > 4:
+                return None  # 季度值不合法
+        
+        # 计算下一个季度
+        if quarter < 4:
+            next_year = year
+            next_quarter = quarter + 1
+        else:
+            next_year = year + 1
+            next_quarter = 1
+        
+        # 校验返回季度是否在范围内
+        if year_range:
+            start_year, end_year = year_range
+            if next_year < start_year or next_year >= end_year:
+                return None  # 返回季度超出范围
+        
+        return f"{next_year}-Q{next_quarter}"
