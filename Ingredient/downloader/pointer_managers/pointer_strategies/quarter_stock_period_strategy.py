@@ -4,6 +4,7 @@
 from ...core.abs_block_pointer_strategy import BlockPointerStrategy
 from typing import Optional, Tuple
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
+from KitchenBase.download_enums import PointerField
 
 class QuarterStockPeriodStrategy(BlockPointerStrategy):
     """
@@ -54,9 +55,9 @@ class QuarterStockPeriodStrategy(BlockPointerStrategy):
         Returns:
             Optional[BlockPointer]: 下一个区块的指针
         """
-        quarter = current_pointer.get_value('quarter')
-        stock_code = current_pointer.get_value('stock_code')
-        time_frame = current_pointer.get_value('time_frame')
+        quarter = current_pointer.get_value(PointerField.QUARTER)
+        stock_code = current_pointer.get_value(PointerField.STOCK_CODE)
+        time_frame = current_pointer.get_value(PointerField.TIME_FRAME)
 
         from Ingredient.DataNest import UnifiedDataManager as dm
 
@@ -105,14 +106,14 @@ class QuarterStockPeriodStrategy(BlockPointerStrategy):
         except (ValueError, AttributeError):
             return None
 
-    def get_pointer_fields(self) -> Tuple:
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
         获取指针字段
 
         Returns:
-            Tuple: 指针字段元组
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
-        return ('quarter', 'stock_code', 'time_frame')
+        return (PointerField.QUARTER, PointerField.STOCK_CODE, PointerField.TIME_FRAME)
 
     def is_valid_pointer(self, pointer: BlockPointer, start_year: int, end_year: int) -> bool:
         """
@@ -129,9 +130,9 @@ class QuarterStockPeriodStrategy(BlockPointerStrategy):
         if not pointer:
             return False
 
-        quarter = pointer.get_value('quarter')
-        stock_code = pointer.get_value('stock_code')
-        time_frame = pointer.get_value('time_frame')
+        quarter = pointer.get_value(PointerField.QUARTER)
+        stock_code = pointer.get_value(PointerField.STOCK_CODE)
+        time_frame = pointer.get_value(PointerField.TIME_FRAME)
 
         # 验证季度格式
         try:
@@ -176,8 +177,8 @@ class QuarterStockPeriodStrategy(BlockPointerStrategy):
         if not current_pointer:
             return 0
 
-        quarter = current_pointer.get_value('quarter')
-        current_stock = current_pointer.get_value('stock_code')
+        quarter = current_pointer.get_value(PointerField.QUARTER)
+        current_stock = current_pointer.get_value(PointerField.STOCK_CODE)
 
         try:
             from Ingredient.DataNest import UnifiedDataManager as dm

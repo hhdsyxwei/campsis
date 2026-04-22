@@ -10,7 +10,7 @@ from .block_managers.general_block_manager import GeneralBlockManager
 from .status_managers.general_status_manager import GeneralStatusManager
 from .pointer_managers.general_pointer_manager import GeneralPointerManager
 from Ingredient.DataNest import StockProfitManager, BasicStockDataManager
-from KitchenBase.download_enums import DlTaskType, DlBlockStatus
+from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.baostock_wrapper import query_profit_data
 
 
@@ -39,14 +39,14 @@ class StockProfitDownloader(BlockDownloader):
         """
         return DlTaskType.STOCK_PROFIT
     
-    def get_pointer_fields(self) -> Tuple:
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
         获取指针字段
         
         Returns:
-            Tuple: 指针字段元组
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
-        return ('quarter', 'stock_code')
+        return (PointerField.QUARTER, PointerField.STOCK_CODE)
     
     def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
@@ -145,8 +145,8 @@ class StockProfitDownloader(BlockDownloader):
             return pd.DataFrame()
         
         # 解包 block_pointer
-        stock_code = block_pointer.get_value('stock_code')
-        quarter_str = block_pointer.get_value('quarter')
+        stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
+        quarter_str = block_pointer.get_value(PointerField.QUARTER)
         
         if not stock_code or not quarter_str:
             self.logger.error("block_pointer 缺少必要字段")
@@ -215,7 +215,7 @@ class StockProfitDownloader(BlockDownloader):
             return False
         
         # 解包 block_pointer
-        stock_code = block_pointer.get_value('stock_code')
+        stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
         
         if not stock_code:
             self.logger.error("block_pointer 缺少 stock_code 字段")

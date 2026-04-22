@@ -4,6 +4,7 @@
 from ...core.abs_block_pointer_strategy import BlockPointerStrategy
 from typing import Optional, Tuple
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
+from KitchenBase.download_enums import PointerField
 
 class YearStrategy(BlockPointerStrategy):
     """
@@ -40,20 +41,20 @@ class YearStrategy(BlockPointerStrategy):
         Returns:
             Optional[BlockPointer]: 下一个区块的指针
         """
-        year = current_pointer.get_value('year')
+        year = current_pointer.get_value(PointerField.YEAR)
         next_year = year + 1
         if next_year >= end_year:
             return None
         return BlockPointerFactory.create_year(next_year)
 
-    def get_pointer_fields(self) -> Tuple:
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
         获取指针字段
 
         Returns:
-            Tuple: 指针字段元组
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
-        return ('year',)
+        return (PointerField.YEAR,)
 
     def is_valid_pointer(self, pointer: BlockPointer, start_year: int, end_year: int) -> bool:
         """
@@ -70,7 +71,7 @@ class YearStrategy(BlockPointerStrategy):
         if not pointer:
             return False
 
-        year = pointer.get_value('year')
+        year = pointer.get_value(PointerField.YEAR)
         if not isinstance(year, int) or year < start_year or year >= end_year:
             return False
 
@@ -91,5 +92,5 @@ class YearStrategy(BlockPointerStrategy):
         if not current_pointer:
             return 0
 
-        current_year = current_pointer.get_value('year')
+        current_year = current_pointer.get_value(PointerField.YEAR)
         return current_year - start_year

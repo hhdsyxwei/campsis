@@ -4,8 +4,9 @@
 from Ingredient.downloader.block_managers.block_strategies.block_strategy_factory import BlockStrategyFactory
 from ..core.abs_block_manager import BlockManager
 from KitchenBase.logger_config import get_logger
-from KitchenBase.download_enums import DlBlockStatus
+from KitchenBase.download_enums import DlBlockStatus, PointerField
 from Ingredient.DataNest import GenericBlockStatusDM
+from typing import Tuple
 
 
 class GeneralBlockManager(BlockManager):
@@ -13,14 +14,14 @@ class GeneralBlockManager(BlockManager):
     通用区块管理器实现，提供基础区块管理功能
     """
     
-    def __init__(self, db_conn, task_type=None, pointer_fields=()):
+    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = ()):
         """
         初始化通用区块管理器
         
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型枚举值
-            pointer_fields: 指针字段元组
+            pointer_fields: 指针字段枚举元组
         """
         self.db_conn = db_conn
         self.task_type = task_type

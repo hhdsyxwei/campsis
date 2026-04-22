@@ -2,6 +2,7 @@
 # 区块指针数据类，用于存储和管理指针的字段和值
 
 from typing import Optional, Tuple, Dict, Any
+from .download_enums import PointerField
 
 
 class BlockPointer:
@@ -14,12 +15,12 @@ class BlockPointer:
     3. 支持数据验证和格式转换
     """
 
-    def __init__(self, fields: Tuple[str, ...], values: Tuple[Any, ...]):
+    def __init__(self, fields: Tuple[PointerField, ...], values: Tuple[Any, ...]):
         """
         初始化区块指针
 
         Args:
-            fields: 指针字段名称元组
+            fields: 指针字段枚举元组
             values: 指针值元组
 
         Raises:
@@ -32,12 +33,12 @@ class BlockPointer:
         self._values = values
         self._dict = dict(zip(fields, values))
 
-    def get_value(self, field_name: str) -> Any:
+    def get_value(self, field_name: PointerField) -> Any:
         """
-        通过字段名获取值
+        通过字段枚举获取值
 
         Args:
-            field_name: 字段名称
+            field_name: 字段枚举
 
         Returns:
             Any: 字段对应的值，如果字段不存在返回 None
@@ -59,12 +60,12 @@ class BlockPointer:
         """
         return self._values[index]
 
-    def get_fields(self) -> Tuple[str, ...]:
+    def get_fields(self) -> Tuple[PointerField, ...]:
         """
-        获取所有字段名称
+        获取所有字段枚举
 
         Returns:
-            Tuple[str, ...]: 字段名称元组
+            Tuple[PointerField, ...]: 字段枚举元组
         """
         return self._fields
 
@@ -86,12 +87,12 @@ class BlockPointer:
         """
         return self._values
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[PointerField, Any]:
         """
         转换为字典形式
 
         Returns:
-            Dict[str, Any]: 字段名到值的字典
+            Dict[PointerField, Any]: 字段枚举到值的字典
         """
         return self._dict.copy()
 
@@ -165,12 +166,12 @@ class BlockPointerFactory:
     """
 
     @staticmethod
-    def create_pointer(fields: Tuple[str, ...], values: Tuple[Any, ...]) -> BlockPointer:
+    def create_pointer(fields: Tuple[PointerField, ...], values: Tuple[Any, ...]) -> BlockPointer:
         """
         创建区块指针
 
         Args:
-            fields: 指针字段名称元组
+            fields: 指针字段枚举元组
             values: 指针值元组
 
         Returns:
@@ -179,12 +180,12 @@ class BlockPointerFactory:
         return BlockPointer(fields, values)
 
     @staticmethod
-    def create_from_dict(data: Dict[str, Any]) -> BlockPointer:
+    def create_from_dict(data: Dict[PointerField, Any]) -> BlockPointer:
         """
         从字典创建区块指针
 
         Args:
-            data: 字段名到值的字典
+            data: 字段枚举到值的字典
 
         Returns:
             BlockPointer: 区块指针实例
@@ -205,7 +206,7 @@ class BlockPointerFactory:
         Returns:
             BlockPointer: 区块指针实例
         """
-        return BlockPointer(('year', 'stock_code'), (year, stock_code))
+        return BlockPointer((PointerField.YEAR, PointerField.STOCK_CODE), (year, stock_code))
 
     @staticmethod
     def create_quarter_stock_period(quarter: str, stock_code: str, time_frame: str) -> BlockPointer:
@@ -220,7 +221,7 @@ class BlockPointerFactory:
         Returns:
             BlockPointer: 区块指针实例
         """
-        return BlockPointer(('quarter', 'stock_code', 'time_frame'), (quarter, stock_code, time_frame))
+        return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE, PointerField.TIME_FRAME), (quarter, stock_code, time_frame))
 
     @staticmethod
     def create_year(year: int) -> BlockPointer:
@@ -233,7 +234,7 @@ class BlockPointerFactory:
         Returns:
             BlockPointer: 区块指针实例
         """
-        return BlockPointer(('year',), (year,))
+        return BlockPointer((PointerField.YEAR,), (year,))
 
     @staticmethod
     def create_from_db_dict(db_dict: Dict[str, Any]) -> Optional[BlockPointer]:
@@ -250,28 +251,40 @@ class BlockPointerFactory:
         if not db_dict:
             return None
 
-        pointer_names = []
+        pointer_fields = []
         pointer_values = []
 
         primary_name = db_dict.get('primary_pointer_name')
         primary_value = db_dict.get('primary_pointer_value')
         if primary_name and primary_value:
-            pointer_names.append(primary_name)
-            pointer_values.append(primary_value)
+            try:
+                field = PointerField(primary_name)
+                pointer_fields.append(field)
+                pointer_values.append(primary_value)
+            except ValueError:
+                pass
 
         secondary_name = db_dict.get('secondary_pointer_name')
         secondary_value = db_dict.get('secondary_pointer_value')
         if secondary_name and secondary_value:
-            pointer_names.append(secondary_name)
-            pointer_values.append(secondary_value)
+            try:
+                field = PointerField(secondary_name)
+                pointer_fields.append(field)
+                pointer_values.append(secondary_value)
+            except ValueError:
+                pass
 
         tertiary_name = db_dict.get('tertiary_pointer_name')
         tertiary_value = db_dict.get('tertiary_pointer_value')
         if tertiary_name and tertiary_value:
-            pointer_names.append(tertiary_name)
-            pointer_values.append(tertiary_value)
+            try:
+                field = PointerField(tertiary_name)
+                pointer_fields.append(field)
+                pointer_values.append(tertiary_value)
+            except ValueError:
+                pass
 
-        if not pointer_names:
+        if not pointer_fields:
             return None
 
-        return BlockPointer(tuple(pointer_names), tuple(pointer_values))
+        return BlockPointer(tuple(pointer_fields), tuple(pointer_values))

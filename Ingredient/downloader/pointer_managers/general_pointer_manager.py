@@ -5,6 +5,7 @@ from ..core.abs_pointer_manager import PointerManager
 from .pointer_strategies.block_pointer_strategy_factory import BlockPointerStrategyFactory
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from typing import Optional, Tuple, Dict, Any
+from KitchenBase.download_enums import PointerField
 
 class GeneralPointerManager(PointerManager):
     """
@@ -16,14 +17,14 @@ class GeneralPointerManager(PointerManager):
     3. 提供指针验证和转换功能
     """
 
-    def __init__(self, db_conn, task_type=None, pointer_fields=(), global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = (), global_manager=None, time_frame=None):
         """
         初始化通用指针管理器
 
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型（可选）
-            pointer_fields: 指针字段元组（可选）
+            pointer_fields: 指针字段枚举元组（可选）
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选，仅 QuarterStockPeriodStrategy 需要）
         """
@@ -181,15 +182,15 @@ class GeneralPointerManager(PointerManager):
         # 无区块状态表时无法统计跳过的区块数，返回0
         return 0
 
-    def pointer_to_dict(self, pointer: BlockPointer) -> Dict[str, Any]:
+    def pointer_to_dict(self, pointer: BlockPointer) -> Dict[PointerField, Any]:
         """
-        将指针转换为字段到值的映射字典
+        将指针转换为字段枚举到值的映射字典
 
         Args:
             pointer: 区块指针
 
         Returns:
-            Dict[str, Any]: 字段到值的映射字典
+            Dict[PointerField, Any]: 字段枚举到值的映射字典
         """
         if not pointer:
             return {}

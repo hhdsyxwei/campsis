@@ -8,6 +8,7 @@ from .year_strategy import YearStrategy
 from ...core.abs_block_pointer_strategy import BlockPointerStrategy
 from KitchenBase.block_pointer import BlockPointer
 from typing import Tuple, Optional
+from KitchenBase.download_enums import PointerField
 
 class BlockPointerStrategyFactory:
     """
@@ -17,12 +18,12 @@ class BlockPointerStrategyFactory:
     """
 
     @staticmethod
-    def create_strategy(pointer_fields: Tuple, db_conn=None, time_frame=None) -> BlockPointerStrategy:
+    def create_strategy(pointer_fields: Tuple[PointerField, ...], db_conn=None, time_frame=None) -> BlockPointerStrategy:
         """
         根据指针字段创建相应的策略
 
         Args:
-            pointer_fields: 指针字段元组
+            pointer_fields: 指针字段枚举元组
             db_conn: 数据库连接对象
             time_frame: 时间周期（仅 QuarterStockPeriodStrategy 需要）
 
@@ -31,13 +32,13 @@ class BlockPointerStrategyFactory:
         """
         field_set = set(pointer_fields)
 
-        if field_set == {'year', 'stock_code'}:
+        if field_set == {PointerField.YEAR, PointerField.STOCK_CODE}:
             return YearStockStrategy(db_conn)
-        elif field_set == {'quarter', 'stock_code', 'time_frame'} and time_frame:
+        elif field_set == {PointerField.QUARTER, PointerField.STOCK_CODE, PointerField.TIME_FRAME} and time_frame:
             return QuarterStockPeriodStrategy(db_conn, time_frame)
-        elif field_set == {'quarter', 'stock_code'}:
+        elif field_set == {PointerField.QUARTER, PointerField.STOCK_CODE}:
             return QuarterStockStrategy(db_conn)
-        elif field_set == {'year'}:
+        elif field_set == {PointerField.YEAR}:
             return YearStrategy()
         else:
             return DefaultBlockPointerStrategy(pointer_fields, db_conn)
@@ -50,12 +51,12 @@ class DefaultBlockPointerStrategy(BlockPointerStrategy):
     提供基本的实现，子类可以根据需要重写
     """
 
-    def __init__(self, pointer_fields: Tuple, db_conn=None):
+    def __init__(self, pointer_fields: Tuple[PointerField, ...], db_conn=None):
         """
         初始化默认策略
 
         Args:
-            pointer_fields: 指针字段元组
+            pointer_fields: 指针字段枚举元组
             db_conn: 数据库连接对象
         """
         self._pointer_fields = pointer_fields
@@ -93,12 +94,12 @@ class DefaultBlockPointerStrategy(BlockPointerStrategy):
         """
         return None
 
-    def get_pointer_fields(self) -> Tuple:
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
         获取指针字段
 
         Returns:
-            Tuple: 指针字段元组
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
         return self._pointer_fields
 

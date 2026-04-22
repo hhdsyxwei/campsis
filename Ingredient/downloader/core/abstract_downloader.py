@@ -6,7 +6,7 @@ from typing import Optional, Any, Dict, Tuple
 import pandas as pd
 from KitchenBase.logger_config import get_logger
 from Ingredient.DataNest import GlobalDlCtrlBlockManager
-from KitchenBase.download_enums import DlTaskType, DlBlockStatus
+from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.block_pointer import BlockPointer
 from .abs_block_manager import BlockManager
 from .abs_status_manager import TaskStatusManager
@@ -151,12 +151,12 @@ class BlockDownloader(SimpleDownloader):
             self.extra_params = {}
 
     @abstractmethod
-    def get_pointer_fields(self) -> Tuple:
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
         获取指针字段
 
         Returns:
-            Tuple: 指针字段元组
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
         pass
 
