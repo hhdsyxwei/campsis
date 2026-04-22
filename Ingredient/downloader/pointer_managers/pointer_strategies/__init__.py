@@ -1,4 +1,4 @@
-# strategies/__init__.py
+# pointer_strategies/__init__.py
 # 导出策略相关的类
 
 from .year_stock_strategy import YearStockStrategy

@@ -2,7 +2,7 @@
 # 通用指针管理器实现，集成策略模式
 
 from ..core.abs_pointer_manager import PointerManager
-from .strategies.block_pointer_strategy_factory import BlockPointerStrategyFactory
+from .pointer_strategies.block_pointer_strategy_factory import BlockPointerStrategyFactory
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from typing import Optional, Tuple, Dict, Any
 
