@@ -2,8 +2,9 @@
 # 区块指针策略抽象基类
 
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple
 from KitchenBase.block_pointer import BlockPointer
+from KitchenBase.download_enums import PointerField
 
 class BlockPointerStrategy(ABC):
     """
@@ -51,12 +52,12 @@ class BlockPointerStrategy(ABC):
         pass
 
     @abstractmethod
-    def get_pointer_fields(self) -> Tuple:
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
         获取指针字段
 
         Returns:
-            Tuple: 指针字段元组
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
         pass
 

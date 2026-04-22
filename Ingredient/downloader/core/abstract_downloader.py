@@ -6,7 +6,7 @@ from typing import Optional, Any, Dict, Tuple
 import pandas as pd
 from KitchenBase.logger_config import get_logger
 from Ingredient.DataNest import GlobalDlCtrlBlockManager
-from KitchenBase.download_enums import DlTaskType, DlBlockStatus
+from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.block_pointer import BlockPointer
 from .abs_block_manager import BlockManager
 from .abs_status_manager import TaskStatusManager
@@ -127,7 +127,7 @@ class BlockDownloader(SimpleDownloader):
     继承自 SimpleDownloader，添加区块管理相关功能
     """
 
-    def __init__(self, db_conn, pointer_fields: Tuple):
+    def __init__(self, db_conn):
         """
         初始化区块下载器
 
@@ -136,8 +136,6 @@ class BlockDownloader(SimpleDownloader):
         """
         super().__init__(db_conn)
         self.support_block_status = False
-
-        self.pointer_fields = pointer_fields
 
         self.block_manager = self.create_block_manager()
         self.status_manager = self.create_status_manager()
@@ -151,6 +149,16 @@ class BlockDownloader(SimpleDownloader):
             self.start_year = None
             self.end_year = None
             self.extra_params = {}
+
+    @abstractmethod
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
+        """
+        获取指针字段
+
+        Returns:
+            Tuple[PointerField, ...]: 指针字段枚举元组
+        """
+        pass
 
     @abstractmethod
     def create_block_manager(self) -> BlockManager:

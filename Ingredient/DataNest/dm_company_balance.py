@@ -1,33 +1,33 @@
-# dm_stock_profit.py
+# dm_company_balance.py
 import pymysql
 import pandas as pd
 from KitchenBase.logger_config import get_logger
 
 logger = get_logger(__name__)
 
-class StockProfitManager:
+class CompanyBalanceManager:
     def __init__(self, connection):
         self.conn = connection
 
-    def save_profit_data(self, std_stock_code: str, data: pd.DataFrame) -> bool:
+    def save_balance_data(self, std_stock_code: str, data: pd.DataFrame) -> bool:
         """
-        保存利润数据到数据库
+        保存偿债能力数据到数据库
         
         Args:
             std_stock_code: 股票代码
-            data: DataFrame 格式的利润数据
+            data: DataFrame 格式的偿债能力数据
             
         Returns:
             是否保存成功
         """
-        func_name = "save_profit_data"
+        func_name = "save_balance_data"
         
         # 直接使用 DataFrame
         if data.empty:
             logger.info(f"[{__name__}.{func_name}] {std_stock_code} 数据为空，无需保存")
             return True
 
-        logger.info(f"[{__name__}.{func_name}] {std_stock_code} 处理 {len(data)} 条利润数据")
+        logger.info(f"[{__name__}.{func_name}] {std_stock_code} 处理 {len(data)} 条偿债能力数据")
 
         records = []
 
@@ -44,12 +44,12 @@ class StockProfitManager:
                 
                 records.append((
                     std_stock_code, pub_date, stat_date,
-                    float(row['roeAvg']) if pd.notna(row['roeAvg']) else None,
-                    float(row['npMargin']) if pd.notna(row['npMargin']) else None,
-                    float(row['gpMargin']) if pd.notna(row['gpMargin']) else None,
-                    float(row['netProfit']) if pd.notna(row['netProfit']) else None,
-                    float(row['epsTTM']) if pd.notna(row['epsTTM']) else None,
-                    float(row['MBRevenue']) if pd.notna(row['MBRevenue']) else None,
+                    float(row['currentRatio']) if pd.notna(row['currentRatio']) else None,
+                    float(row['quickRatio']) if pd.notna(row['quickRatio']) else None,
+                    float(row['cashRatio']) if pd.notna(row['cashRatio']) else None,
+                    float(row['YOYLiability']) if pd.notna(row['YOYLiability']) else None,
+                    float(row['liabilityToAsset']) if pd.notna(row['liabilityToAsset']) else None,
+                    float(row['assetToEquity']) if pd.notna(row['assetToEquity']) else None,
                 ))
             except (ValueError, KeyError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row.get('statDate', '未知日期')}: {str(e)}")
@@ -62,13 +62,13 @@ class StockProfitManager:
 
         cursor = None
         sql = """
-        INSERT INTO company_profit 
-        (std_stock_code, pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue)
+        INSERT INTO company_balance 
+        (std_stock_code, pub_date, stat_date, current_ratio, quick_ratio, cash_ratio, yoy_liability, liability_to_asset, asset_to_equity)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
-            pub_date = VALUES(pub_date), roe_avg = VALUES(roe_avg), np_margin = VALUES(np_margin),
-            gp_margin = VALUES(gp_margin), net_profit = VALUES(net_profit), eps_ttm = VALUES(eps_ttm),
-            mb_revenue = VALUES(mb_revenue)
+            pub_date = VALUES(pub_date), current_ratio = VALUES(current_ratio), quick_ratio = VALUES(quick_ratio),
+            cash_ratio = VALUES(cash_ratio), yoy_liability = VALUES(yoy_liability), liability_to_asset = VALUES(liability_to_asset),
+            asset_to_equity = VALUES(asset_to_equity)
         """
         try:
             cursor = self.conn.cursor()
@@ -84,9 +84,9 @@ class StockProfitManager:
             if cursor:
                 cursor.close()
 
-    def check_profit_data_exists(self, std_stock_code: str, stat_date: str) -> bool:
+    def check_balance_data_exists(self, std_stock_code: str, stat_date: str) -> bool:
         """
-        检查利润数据是否存在
+        检查偿债能力数据是否存在
         
         Args:
             std_stock_code: 股票代码
@@ -95,11 +95,11 @@ class StockProfitManager:
         Returns:
             是否存在
         """
-        func_name = "check_profit_data_exists"
+        func_name = "check_balance_data_exists"
         cursor = None
         try:
             cursor = self.conn.cursor()
-            sql = "SELECT 1 FROM company_profit WHERE std_stock_code = %s AND stat_date = %s LIMIT 1"
+            sql = "SELECT 1 FROM company_balance WHERE std_stock_code = %s AND stat_date = %s LIMIT 1"
             cursor.execute(sql, (std_stock_code, stat_date))
             return cursor.fetchone() is not None
         except Exception as e:
@@ -109,9 +109,9 @@ class StockProfitManager:
             if cursor:
                 cursor.close()
 
-    def get_profit_data(self, std_stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+    def get_balance_data(self, std_stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         """
-        获取利润数据
+        获取偿债能力数据
         
         Args:
             std_stock_code: 股票代码
@@ -119,17 +119,17 @@ class StockProfitManager:
             end_date: 结束日期
             
         Returns:
-            pd.DataFrame: 包含利润数据的DataFrame
+            pd.DataFrame: 包含偿债能力数据的DataFrame
         """
-        func_name = "get_profit_data"
+        func_name = "get_balance_data"
         cursor = None
         try:
             cursor = self.conn.cursor()
             
-            # 从company_profit表查询数据
+            # 从company_balance表查询数据
             sql = """
-            SELECT pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue
-            FROM company_profit
+            SELECT pub_date, stat_date, current_ratio, quick_ratio, cash_ratio, yoy_liability, liability_to_asset, asset_to_equity
+            FROM company_balance
             WHERE std_stock_code = %s AND stat_date BETWEEN %s AND %s
             ORDER BY stat_date
             """
@@ -139,18 +139,18 @@ class StockProfitManager:
             
             if not rows:
                 # 返回空的DataFrame
-                columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue']
+                columns = ['pub_date', 'stat_date', 'current_ratio', 'quick_ratio', 'cash_ratio', 'yoy_liability', 'liability_to_asset', 'asset_to_equity']
                 return pd.DataFrame(columns=columns)
             
             # 转换为DataFrame
-            columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue']
+            columns = ['pub_date', 'stat_date', 'current_ratio', 'quick_ratio', 'cash_ratio', 'yoy_liability', 'liability_to_asset', 'asset_to_equity']
             df = pd.DataFrame(rows, columns=columns)
             
-            logger.info(f"[{__name__}.{func_name}] 获取利润数据 {std_stock_code}: {len(df)} 条")
+            logger.info(f"[{__name__}.{func_name}] 获取偿债能力数据 {std_stock_code}: {len(df)} 条")
             return df
             
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 获取利润数据失败 {std_stock_code}: {str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 获取偿债能力数据失败 {std_stock_code}: {str(e)}")
             return pd.DataFrame()
         finally:
             if cursor:

@@ -10,6 +10,7 @@ class DlTaskType(Enum):
     STOCK_BASIC = "stock_basic"  # 股票基本信息
     TRADE_DATE = "trade_date"  # 交易日数据
     STOCK_PROFIT = "stock_profit"  # 股票利润数据
+    COMPANY_BALANCE = "company_balance"  # 公司偿债能力数据
 
 class DlTaskStatus(Enum):
     """
@@ -29,3 +30,12 @@ class DlBlockStatus(Enum):
     NOT_COMPLETED = "not_completed"  # 未完成
     SKIPPED = "skipped"  # 跳过（未上市或已退市）
     ERROR = "error"  # 错误状态
+
+class PointerField(Enum):
+    """
+    指针字段枚举
+    """
+    YEAR = "year"  # 年份
+    QUARTER = "quarter"  # 季度
+    STOCK_CODE = "stock_code"  # 股票代码
+    TIME_FRAME = "time_frame"  # 时间周期

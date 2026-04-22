@@ -1,5 +1,5 @@
-# stock_profit_downloader.py
-# 股票利润数据下载器
+# company_balance_downloader.py
+# 公司偿债能力数据下载器
 
 import pandas as pd
 import time
@@ -9,27 +9,26 @@ from .core.abstract_downloader import BlockDownloader
 from .block_managers.general_block_manager import GeneralBlockManager
 from .status_managers.general_status_manager import GeneralStatusManager
 from .pointer_managers.general_pointer_manager import GeneralPointerManager
-from Ingredient.DataNest import StockProfitManager, BasicStockDataManager
+from Ingredient.DataNest import CompanyBalanceManager, BasicStockDataManager
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
-from KitchenBase.baostock_wrapper import query_profit_data
+from KitchenBase.baostock_wrapper import query_balance_data
 
 
-
-class StockProfitDownloader(BlockDownloader):
+class CompanyBalanceDownloader(BlockDownloader):
     """
-    股票利润数据下载器，基于 BlockDownloader 实现
+    公司偿债能力数据下载器，基于 BlockDownloader 实现
     通过区块管理和断点续传机制，解决 API 限流问题
     """
     
     def __init__(self, db_conn):
         """
-        初始化股票利润数据下载器
+        初始化公司偿债能力数据下载器
         
         Args:
             db_conn: 数据库连接对象
         """
         super().__init__(db_conn)
-        self.profit_manager = StockProfitManager(db_conn)
+        self.balance_manager = CompanyBalanceManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
     
@@ -37,7 +36,7 @@ class StockProfitDownloader(BlockDownloader):
         """
         获取任务类型标识
         """
-        return DlTaskType.STOCK_PROFIT
+        return DlTaskType.COMPANY_BALANCE
     
     def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
@@ -109,7 +108,7 @@ class StockProfitDownloader(BlockDownloader):
                 df['statDate'] = pd.to_datetime(df['statDate'], errors='coerce').dt.strftime('%Y-%m-%d')
             
             # 转换数值类型
-            numeric_fields = ['roeAvg', 'npMargin', 'gpMargin', 'netProfit', 'epsTTM', 'MBRevenue']
+            numeric_fields = ['currentRatio', 'quickRatio', 'cashRatio', 'YOYLiability', 'liabilityToAsset', 'assetToEquity']
             for field in numeric_fields:
                 if field in df.columns:
                     df[field] = pd.to_numeric(df[field], errors='coerce')
@@ -123,7 +122,7 @@ class StockProfitDownloader(BlockDownloader):
             self.logger.info(f"数据清洗完成，有效数据 {len(df)} 条")
             return df
         except Exception as e:
-            self.logger.error(f"清洗利润数据异常：{e}", exc_info=True)
+            self.logger.error(f"清洗偿债能力数据异常：{e}", exc_info=True)
             return pd.DataFrame()
     
     def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> pd.DataFrame:
@@ -163,7 +162,7 @@ class StockProfitDownloader(BlockDownloader):
         
         try:
             # 调用接口获取数据
-            rs = query_profit_data(
+            rs = query_balance_data(
                 code=stock_code,
                 year=year,
                 quarter=quarter
@@ -178,10 +177,10 @@ class StockProfitDownloader(BlockDownloader):
                 if data_list:
                     # 转换为 DataFrame
                     df = pd.DataFrame(data_list, columns=rs.fields)
-                    self.logger.info(f"利润数据下载完成：{stock_code} {year}年Q{quarter}，共 {len(df)} 条数据")
+                    self.logger.info(f"偿债能力数据下载完成：{stock_code} {year}年Q{quarter}，共 {len(df)} 条数据")
                     return df
                 else:
-                    self.logger.warning(f"无利润数据：{stock_code} {year}年Q{quarter}")
+                    self.logger.warning(f"无偿债能力数据：{stock_code} {year}年Q{quarter}")
                     return pd.DataFrame()
             else:
                 # API 调用失败
@@ -223,7 +222,7 @@ class StockProfitDownloader(BlockDownloader):
         
         # 保存数据
         try:
-            save_result = self.profit_manager.save_profit_data(stock_code, data)
+            save_result = self.balance_manager.save_balance_data(stock_code, data)
             if save_result:
                 self.logger.info(f"保存成功：{stock_code}")
                 return True
@@ -234,9 +233,9 @@ class StockProfitDownloader(BlockDownloader):
             self.logger.error(f"保存数据异常：{stock_code} - {str(e)}", exc_info=True)
             return False
 
-def start_new_profit_download(conn, start_year: int, end_year: int, **kwargs) -> bool:
+def start_new_balance_download(conn, start_year: int, end_year: int, **kwargs) -> bool:
     """
-    从头开始下载股票利润数据
+    从头开始下载公司偿债能力数据
     
     Args:
         start_year: 开始年份
@@ -246,12 +245,12 @@ def start_new_profit_download(conn, start_year: int, end_year: int, **kwargs) ->
     Returns:
         bool: 是否下载成功
     """
-    downloader = StockProfitDownloader(conn)
+    downloader = CompanyBalanceDownloader(conn)
     return downloader.start_new_download(start_year, end_year, **kwargs)
 
-def continue_profit_download(conn,start_year: int, end_year: int) -> bool:
+def continue_balance_download(conn, start_year: int, end_year: int) -> bool:
     """
-    继续下载股票利润数据
+    继续下载公司偿债能力数据
     
     Args:
         start_year: 开始年份
@@ -261,5 +260,5 @@ def continue_profit_download(conn,start_year: int, end_year: int) -> bool:
     Returns:
         bool: 是否下载成功
     """
-    downloader = StockProfitDownloader(conn)
+    downloader = CompanyBalanceDownloader(conn)
     return downloader.continue_download(start_year, end_year)

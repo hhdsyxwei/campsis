@@ -24,7 +24,7 @@ from typing import Optional, Tuple, Dict, Any
 import pymysql
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
-from KitchenBase.download_enums import DlTaskStatus, DlTaskType
+from KitchenBase.download_enums import DlTaskStatus, DlTaskType, PointerField
 from KitchenBase.block_pointer import BlockPointer
 
 logger = get_logger(__name__)

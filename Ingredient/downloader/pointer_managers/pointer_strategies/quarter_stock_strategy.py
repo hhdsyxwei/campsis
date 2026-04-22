@@ -1,11 +1,13 @@
 # quarter_stock_strategy.py
 # 季度股票策略，用于生成按季度和股票划分的区块指针
 
+from typing import Tuple
 from ...core.abs_block_pointer_strategy import BlockPointerStrategy
 from KitchenBase.block_pointer import BlockPointer
 from typing import Optional, List
 from Ingredient.DataNest import StockFixedSeqManager
 from KitchenBase.logger_config import get_logger
+from KitchenBase.download_enums import PointerField
 
 logger = get_logger(__name__)
 
@@ -52,18 +54,18 @@ class QuarterStockStrategy(BlockPointerStrategy):
             if not first_stock:
                 return None
             first_quarter = f"{start_year}-Q1"
-            return BlockPointer('quarter', first_quarter, 'stock_code', first_stock)
+            return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE), (first_quarter, first_stock))
         
         # 3. 非首次获取
         try:
-            current_quarter = current_pointer.get_value('quarter')
-            current_stock = current_pointer.get_value('stock_code')
+            current_quarter = current_pointer.get_value(PointerField.QUARTER)
+            current_stock = current_pointer.get_value(PointerField.STOCK_CODE)
             
             # 4. 尝试获取下一只股票
             next_stock = self._get_next_stock(current_stock)
             if next_stock:
                 # 当前季度内有下一只股票
-                return BlockPointer(('quarter', 'stock_code'), (current_quarter, next_stock))
+                return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE), (current_quarter, next_stock))
             
             # 5. 切换到下一个季度
             next_quarter = BlockPointerStrategy.get_next_quarter(current_quarter, (start_year, end_year))
@@ -72,7 +74,7 @@ class QuarterStockStrategy(BlockPointerStrategy):
                 first_stock = self._get_first_stock()
                 if not first_stock:
                     return None
-                return BlockPointer(('quarter', 'stock_code'), (next_quarter, first_stock))
+                return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE), (next_quarter, first_stock))
             
             # 6. 没有更多季度
             return None
@@ -133,16 +135,16 @@ class QuarterStockStrategy(BlockPointerStrategy):
         if not first_stock:
             return None
         first_quarter = f"{start_year}-Q1"
-        return BlockPointer(('quarter', 'stock_code'), (first_quarter, first_stock))
+        return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE), (first_quarter, first_stock))
     
-    def get_pointer_fields(self) -> tuple:
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
         获取指针字段
         
         Returns:
-            tuple: 指针字段元组
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
-        return ('quarter', 'stock_code')
+        return (PointerField.QUARTER, PointerField.STOCK_CODE)
     
     def get_completed_block_count(self, start_year: int, end_year: int, current_pointer: BlockPointer) -> int:
         """

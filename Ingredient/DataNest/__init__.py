@@ -13,6 +13,7 @@ from .dm_stock_seq import StockFixedSeqManager
 from .dm_stock_industry import StockIndustryDataManager
 from .dm_generic_block_status import GenericBlockStatusDM
 from .dm_stock_profit import StockProfitManager
+from .dm_company_balance import CompanyBalanceManager
 from .dm_utils import get_nearest_trade_date_before
 from .dm_columns import (
     KlineUnifiedColumns,
@@ -36,6 +37,7 @@ __all__ = [
     'StockIndustryDataManager',
     'GenericBlockStatusDM',
     'StockProfitManager',
+    'CompanyBalanceManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedColumns',
     'StockBasicColumns',

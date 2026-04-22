@@ -1,5 +1,5 @@
-/* ====================== 1. 股票财务数据表（核心财务数据） ====================== */
-CREATE TABLE IF NOT EXISTS `stock_profit` (
+/* ====================== 1. 公司利润数据表（核心财务数据） ====================== */
+CREATE TABLE IF NOT EXISTS `company_profit` (
     `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `std_stock_code` varchar(20) NOT NULL COMMENT '股票代码',
     `pub_date` date NOT NULL COMMENT '公司发布财报的日期',
@@ -17,4 +17,4 @@ CREATE TABLE IF NOT EXISTS `stock_profit` (
     INDEX `idx_std_stock_code` (`std_stock_code`),
     INDEX `idx_stat_date` (`stat_date`),
     INDEX `idx_date_range` (`std_stock_code`, `stat_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票财务数据表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公司利润数据表';

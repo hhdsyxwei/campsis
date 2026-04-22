@@ -5,6 +5,7 @@ from .quarter_stock_strategy import QuarterStockStrategy
 from ...core.abs_block_strategy import BlockStrategy
 from typing import Tuple, Optional
 from KitchenBase.block_pointer import BlockPointer
+from KitchenBase.download_enums import PointerField
 
 
 
@@ -16,12 +17,12 @@ class BlockStrategyFactory:
     """
 
     @staticmethod
-    def create_strategy(pointer_fields: Tuple[str,], db_conn=None, **kwargs) -> BlockStrategy:
+    def create_strategy(pointer_fields: Tuple[PointerField, ...], db_conn=None, **kwargs) -> BlockStrategy:
         """
         根据区块指针策略创建相应的策略
 
         Args:
-            pointer_fields: 区块指针策略字段列表
+            pointer_fields: 区块指针策略字段枚举列表
             db_conn: 数据库连接对象
             **kwargs: 额外参数
 
@@ -29,7 +30,7 @@ class BlockStrategyFactory:
             BlockStrategy: 对应的策略实例
         """
         
-        if pointer_fields == ('quarter', 'stock_code'):
+        if pointer_fields == (PointerField.QUARTER, PointerField.STOCK_CODE):
             return QuarterStockStrategy(db_conn, **kwargs)
         else:
             return DefaultBlockStrategy()
