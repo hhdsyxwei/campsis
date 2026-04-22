@@ -1,6 +1,9 @@
 # stock_profit_downloader.py
 # 股票利润数据下载器
 
+import pandas as pd
+import time
+from typing import Tuple
 from Ingredient.downloader.progress_managers.general_progress_manager import GeneralProgressManager
 from .core.abstract_downloader import BlockDownloader
 from .block_managers.general_block_manager import GeneralBlockManager
@@ -8,9 +11,8 @@ from .status_managers.general_status_manager import GeneralStatusManager
 from .pointer_managers.general_pointer_manager import GeneralPointerManager
 from Ingredient.DataNest import StockProfitManager, BasicStockDataManager
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus
-import pandas as pd
-import baostock as bs
-import time
+from KitchenBase.baostock_wrapper import query_profit_data
+
 
 
 class StockProfitDownloader(BlockDownloader):
@@ -26,19 +28,25 @@ class StockProfitDownloader(BlockDownloader):
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn,('quarter', 'stock_code'))
+        super().__init__(db_conn)
         self.profit_manager = StockProfitManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
-        
-        # 指针字段：(quarter, stock_code)
-        self.pointer_fields = ('quarter', 'stock_code')
     
     def get_task_type(self) -> DlTaskType:
         """
         获取任务类型标识
         """
         return DlTaskType.STOCK_PROFIT
+    
+    def get_pointer_fields(self) -> Tuple:
+        """
+        获取指针字段
+        
+        Returns:
+            Tuple: 指针字段元组
+        """
+        return ('quarter', 'stock_code')
     
     def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
@@ -60,7 +68,7 @@ class StockProfitDownloader(BlockDownloader):
         """
         创建区块管理器
         """
-        return GeneralBlockManager(self.db_conn, self.get_task_type(), self.pointer_fields)
+        return GeneralBlockManager(self.db_conn, self.get_task_type(), self.get_pointer_fields())
     
     def create_status_manager(self) -> GeneralStatusManager:
         """
@@ -73,7 +81,7 @@ class StockProfitDownloader(BlockDownloader):
         创建指针管理器
         """
         # 这里可以使用通用的指针管理器实现
-        return GeneralPointerManager(self.db_conn, self.get_task_type(), self.pointer_fields)
+        return GeneralPointerManager(self.db_conn, self.get_task_type(), self.get_pointer_fields())
     
     def create_progress_manager(self) -> GeneralProgressManager:
         """
@@ -155,7 +163,7 @@ class StockProfitDownloader(BlockDownloader):
         
         try:
             # 调用接口获取数据
-            rs = bs.query_profit_data(
+            rs = query_profit_data(
                 code=stock_code,
                 year=year,
                 quarter=quarter

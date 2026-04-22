@@ -388,6 +388,53 @@ def query_dividend_data(
     return result
 
 
+def query_profit_data(
+    code: str,
+    year: int,
+    quarter: int
+) -> Any:
+    """
+    简单封装baostock.query_profit_data接口
+    获取季频盈利能力数据
+    
+    参数说明：
+    - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+    - year: 统计年份
+    - quarter: 统计季度（1-4）
+    
+    返回字段：
+    - code: 证券代码
+    - pubDate: 公司发布财报的日期
+    - statDate: 财报统计的季度的最后一天
+    - roeAvg: 净资产收益率(%)
+    - npMargin: 销售净利率(%)
+    - gpMargin: 销售毛利率(%)
+    - netProfit: 净利润(万元)
+    - epsTTM: 每股收益
+    - MBRevenue: 主营营业收入(百万元)
+    
+    返回值：原生ResultData对象
+    异常：网络连接异常时抛出ConnectionError异常
+    """
+    current_func = "query_profit_data"
+    logger.debug(
+        f"[{current_func}] 查询季频盈利能力 "
+        f"| 股票代码: {code} "
+        f"| 年份: {year} "
+        f"| 季度: {quarter}"
+    )
+    
+    result = bs.query_profit_data(
+        code=code,
+        year=year,
+        quarter=quarter
+    )
+    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+        raise ConnectionRefusedError(f"查询季频盈利能力失败: {result.error_code}=={result.error_msg}")
+    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+    return result
+
+
 def query_trade_dates(
     start_date: str,
     end_date: str
