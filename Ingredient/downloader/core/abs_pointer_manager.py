@@ -53,7 +53,7 @@ class PointerManager(ABC):
         pass
     
     @abstractmethod
-    def get_first_blk_pointer(self, start_year: int, end_year: int) -> Optional[BlockPointer]:
+    def get_first_blk_pointer(self, start_year: int, end_year: int) -> BlockPointer:
         """
         获取第一个待下载区块的指针
         
@@ -62,7 +62,7 @@ class PointerManager(ABC):
             end_year: 结束年份（不包含）
             
         Returns:
-            Optional[BlockPointer]: 第一个区块指针
+            BlockPointer: 第一个区块指针
         """
         pass
     

@@ -240,3 +240,18 @@ def start_new_profit_download(conn, start_year: int, end_year: int, **kwargs) ->
     """
     downloader = StockProfitDownloader(conn)
     return downloader.start_new_download(start_year, end_year, **kwargs)
+
+def continue_profit_download(conn,start_year: int, end_year: int) -> bool:
+    """
+    继续下载股票利润数据
+    
+    Args:
+        start_year: 开始年份
+        end_year: 结束年份
+        **kwargs: 包含 block_pointer 等参数
+        
+    Returns:
+        bool: 是否下载成功
+    """
+    downloader = StockProfitDownloader(conn)
+    return downloader.continue_download(start_year, end_year)

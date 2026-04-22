@@ -55,6 +55,10 @@ class BlockDownloadStrategy(DownloadStrategy):
         # 计算总区块数
         total_blocks = self.downloader.block_manager.get_total_block_count(start_year, end_year, **kwargs)
         self.downloader.logger.info(f"{task_identifier} 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
+
+        if total_blocks <= 0:
+            self.downloader.logger.info(f"{task_identifier} 无数据可下载")
+            return True
         
         # 获取下一个下载区块
         next_block = self.downloader.pointer_manager.get_dl_pointer()
@@ -65,7 +69,9 @@ class BlockDownloadStrategy(DownloadStrategy):
             self.downloader.logger.info(f"{task_identifier} 启动后：第一个下载区块: {next_block}")
         
         # 核心下载循环
-        while next_block:
+        completed_blocks = 0
+        skipped_blocks = 0
+        while next_block and completed_blocks + skipped_blocks < total_blocks:
             try:
                 # 设置下载指针
                 self.downloader.pointer_manager.set_dl_pointer(next_block)
