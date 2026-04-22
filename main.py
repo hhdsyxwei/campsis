@@ -18,9 +18,7 @@ from KitchenBase.stock_enums import KLinePeriod, MarketType
 from CookingEngine.Picker.stock_scorer import score_single_stock
 from Ingredient.downloader.daily_data_downloader import download_all_stocks_daily_data
 from Ingredient.downloader import start_new_profit_download
-
-
-
+from Ingredient.downloader.company_balance_downloader import start_new_balance_download
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 # os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
@@ -41,11 +39,15 @@ def main():
     """主函数，协调整个数据下载流程。"""
     # 1. 登录 Baostock 服务
     lg = bs.login()
-    if lg.error_code == BaostockErrorCode.IP_BLACKLIST:
+    if BaostockErrorCode.IP_BLACKLIST == lg.error_code:
         logger.error("IP已经加入黑名单, 需要去QQ群里求助")
         return
 
-    if lg.error_code != BaostockErrorCode.SUCCESS:
+    if BaostockErrorCode.CONNECTION_REFUSED == lg.error_code:
+        logger.error("连接被拒绝, 请检查网络设置")
+        return
+
+    if BaostockErrorCode.SUCCESS != lg.error_code:
         logger.error(f"Baostock 登录失败: {lg.error_msg}")
         return
     logger.info("Baostock 登录成功。")
@@ -83,11 +85,14 @@ def main():
         # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
         # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
-        # 下载股票利润数据
-        start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据
+        # 9. 第七步：下载股票利润数据
+        # start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据
         
-
-        # 9. 第七步：为股票股票打分
+        # 10. 第八步：下载公司偿债能力数据
+        start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
+        # continue_download_company_balance(conn, start_year, end_year)  # 继续下载2026-2027年的公司偿债能力数据
+        
+        # 11. 第九步：为股票股票打分
         score_single_stock(conn, stock_code)
 
     except Exception as e:

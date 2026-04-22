@@ -104,9 +104,11 @@ class StockProfitDownloader(BlockDownloader):
             # 1. 格式转换
             # 转换日期格式
             if 'pubDate' in df.columns:
-                df['pubDate'] = pd.to_datetime(df['pubDate'], errors='coerce').dt.strftime('%Y-%m-%d')
+                df['pubDate'] = pd.to_datetime(df['pubDate'], errors='coerce')
+                df['pubDate'] = df['pubDate'].dt.strftime('%Y-%m-%d') if not df['pubDate'].isna().all() else df['pubDate']
             if 'statDate' in df.columns:
-                df['statDate'] = pd.to_datetime(df['statDate'], errors='coerce').dt.strftime('%Y-%m-%d')
+                df['statDate'] = pd.to_datetime(df['statDate'], errors='coerce')
+                df['statDate'] = df['statDate'].dt.strftime('%Y-%m-%d') if not df['statDate'].isna().all() else df['statDate']
             
             # 转换数值类型
             numeric_fields = ['roeAvg', 'npMargin', 'gpMargin', 'netProfit', 'epsTTM', 'MBRevenue']

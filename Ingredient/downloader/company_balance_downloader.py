@@ -13,7 +13,6 @@ from Ingredient.DataNest import CompanyBalanceManager, BasicStockDataManager
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.baostock_wrapper import query_balance_data
 
-
 class CompanyBalanceDownloader(BlockDownloader):
     """
     公司偿债能力数据下载器，基于 BlockDownloader 实现
@@ -103,9 +102,11 @@ class CompanyBalanceDownloader(BlockDownloader):
             # 1. 格式转换
             # 转换日期格式
             if 'pubDate' in df.columns:
-                df['pubDate'] = pd.to_datetime(df['pubDate'], errors='coerce').dt.strftime('%Y-%m-%d')
+                df['pubDate'] = pd.to_datetime(df['pubDate'], errors='coerce')
+                df['pubDate'] = df['pubDate'].dt.strftime('%Y-%m-%d') if not df['pubDate'].isna().all() else df['pubDate']
             if 'statDate' in df.columns:
-                df['statDate'] = pd.to_datetime(df['statDate'], errors='coerce').dt.strftime('%Y-%m-%d')
+                df['statDate'] = pd.to_datetime(df['statDate'], errors='coerce')
+                df['statDate'] = df['statDate'].dt.strftime('%Y-%m-%d') if not df['statDate'].isna().all() else df['statDate']
             
             # 转换数值类型
             numeric_fields = ['currentRatio', 'quickRatio', 'cashRatio', 'YOYLiability', 'liabilityToAsset', 'assetToEquity']
