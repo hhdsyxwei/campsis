@@ -62,7 +62,7 @@ class StockProfitManager:
 
         cursor = None
         sql = """
-        INSERT INTO stock_profit 
+        INSERT INTO company_profit 
         (std_stock_code, pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
@@ -99,7 +99,7 @@ class StockProfitManager:
         cursor = None
         try:
             cursor = self.conn.cursor()
-            sql = "SELECT 1 FROM stock_profit WHERE std_stock_code = %s AND stat_date = %s LIMIT 1"
+            sql = "SELECT 1 FROM company_profit WHERE std_stock_code = %s AND stat_date = %s LIMIT 1"
             cursor.execute(sql, (std_stock_code, stat_date))
             return cursor.fetchone() is not None
         except Exception as e:
@@ -126,10 +126,10 @@ class StockProfitManager:
         try:
             cursor = self.conn.cursor()
             
-            # 从stock_finance表查询数据
+            # 从company_profit表查询数据
             sql = """
             SELECT pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue
-            FROM stock_profit
+            FROM company_profit
             WHERE std_stock_code = %s AND stat_date BETWEEN %s AND %s
             ORDER BY stat_date
             """
