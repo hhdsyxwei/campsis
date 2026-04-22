@@ -10,6 +10,7 @@ class DlTaskType(Enum):
     STOCK_BASIC = "stock_basic"  # 股票基本信息
     TRADE_DATE = "trade_date"  # 交易日数据
     STOCK_PROFIT = "stock_profit"  # 股票利润数据
+    COMPANY_BALANCE = "company_balance"  # 公司偿债能力数据
 
 class DlTaskStatus(Enum):
     """
