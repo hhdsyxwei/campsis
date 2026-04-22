@@ -1,0 +1,20 @@
+/* ====================== 1. 股票财务数据表（核心财务数据） ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('stock_profit') | safe }}` (
+    `{{ col_id | default('id') | safe }}` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `{{ col_std_stock_code | default('std_stock_code') | safe }}` varchar(20) NOT NULL COMMENT '股票代码',
+    `{{ col_pub_date | default('pub_date') | safe }}` date NOT NULL COMMENT '公司发布财报的日期',
+    `{{ col_stat_date | default('stat_date') | safe }}` date NOT NULL COMMENT '财报统计的季度的最后一天',
+    `{{ col_roe_avg | default('roe_avg') | safe }}` decimal(10,4) COMMENT '净资产收益率(%)',
+    `{{ col_np_margin | default('np_margin') | safe }}` decimal(10,4) COMMENT '销售净利率(%)',
+    `{{ col_gp_margin | default('gp_margin') | safe }}` decimal(10,4) COMMENT '销售毛利率(%)',
+    `{{ col_net_profit | default('net_profit') | safe }}` decimal(16,2) COMMENT '净利润(万元)',
+    `{{ col_eps_ttm | default('eps_ttm') | safe }}` decimal(10,4) COMMENT '每股收益',
+    `{{ col_mb_revenue | default('mb_revenue') | safe }}` decimal(16,2) COMMENT '主营营业收入(百万元)',
+    `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `{{ col_update_time | default('update_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`{{ col_id | default('id') | safe }}`),
+    UNIQUE KEY `uk_std_stock_stat_date` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`, `{{ col_stat_date | default('stat_date') | safe }}`),
+    INDEX `idx_std_stock_code` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`),
+    INDEX `idx_stat_date` (`{{ col_stat_date | default('stat_date') | safe }}`),
+    INDEX `idx_date_range` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`, `{{ col_stat_date | default('stat_date') | safe }}`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='股票财务数据表';

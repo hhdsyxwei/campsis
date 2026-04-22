@@ -9,7 +9,7 @@ class DlTaskType(Enum):
     INDUSTRY = "industry"  # 行业数据
     STOCK_BASIC = "stock_basic"  # 股票基本信息
     TRADE_DATE = "trade_date"  # 交易日数据
-
+    STOCK_PROFIT = "stock_profit"  # 股票利润数据
 
 class DlTaskStatus(Enum):
     """

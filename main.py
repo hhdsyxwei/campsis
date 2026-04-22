@@ -2,8 +2,8 @@
 # ==============================================
 # 1. 必须放在所有其他导入 【最前面】
 # ==============================================
-from CookingEngine.Picker.stock_scorer import StockScorer
-from CookingEngine.Picker.data_provider import HarvestDataProvider
+
+
 from KitchenBase.package_manager import PackageManager
 from KitchenBase.logger_config import setup_logging,get_logger
 setup_logging()
@@ -13,14 +13,12 @@ import os
 import KitchenBase.baostock_wrapper as bs
 from KitchenBase.baostock_wrapper import BaostockErrorCode
 from Ingredient.DataNest import create_database_and_tables
-from Ingredient.downloader import start_new_kline_download, continue_download_kline
-from Ingredient.downloader import download_all_stocks_daily_data, download_daily_data
 from Ingredient.downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
-from Ingredient.downloader import download_stock_basic
-from Ingredient.downloader import start_new_xrxd_download, continue_download_xrxd
-from Ingredient.downloader import start_new_adjustment_factor_download, continue_download_adjustment_factor
-from Ingredient.downloader import start_new_industry_download, continue_download_industry
+from CookingEngine.Picker.stock_scorer import score_single_stock
+from Ingredient.downloader.daily_data_downloader import download_all_stocks_daily_data
+from Ingredient.downloader import start_new_profit_download
+
 
 
 
@@ -55,19 +53,19 @@ def main():
     # 2. 建立与本地数据库的连接
     conn = create_database_and_tables()
 
-    start_year = 2026
+    start_year = 2022
     end_year = 2027
     stock_code = "001331.SZ"
 
     try:
-        # download_trade_date_map(conn, 2023, 2027)  # 下载交易日映射表，覆盖2023-2027年
+        download_trade_date_map(conn, start_year, end_year)  # 下载交易日映射表，覆盖start_year-end_year年
         # 3. 第一步：同步并更新股票的基础信息表 (stock_basic)
         # download_stock_basic(conn,[MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
 
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        download_daily_data(conn, stock_code, "2025-10-01", "2026-04-15")
-        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17") 
+        # download_daily_data(conn, stock_code, "2025-10-01", "2026-04-15")
+        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
 
         # 5. 第三步：下载行业分类数据
         # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
@@ -85,11 +83,12 @@ def main():
         # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
         # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
-        data_provider = HarvestDataProvider(conn)
-        stockSccorer = StockScorer(data_provider)
-        summary = stockSccorer.score_stock(stock_code, "2025-10-01", "2026-04-15")
+        # 下载股票利润数据
+        start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据
+        
 
-        logger.info(summary)
+        # 9. 第七步：为股票股票打分
+        score_single_stock(conn, stock_code)
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息

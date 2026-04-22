@@ -1,6 +1,6 @@
 # adjustment_factor_downloader.py
 from KitchenBase.download_enums import DlBlockStatus
-from Ingredient.DataNest.dm_generic_block_status import GenericBlockStatusManager
+from Ingredient.DataNest.dm_generic_block_status import GenericBlockStatusDM
 from KitchenBase.download_enums import DlTaskType
 import pandas as pd
 from datetime import datetime
@@ -23,7 +23,7 @@ class AdjustmentFactorDownloader:
         self.db_conn = db_conn
         self.func_name = ""
         self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
-        self.block_status_manager = GenericBlockStatusManager(db_conn)
+        self.block_status_manager = GenericBlockStatusDM(db_conn)
         self.adj_factor_manager = AdjustmentFactorManager(db_conn)
 
     def _count_stocks_in_fixed_seq(self) -> int:

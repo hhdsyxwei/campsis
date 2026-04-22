@@ -4,6 +4,7 @@
 import pandas as pd
 from KitchenBase.logger_config import get_logger
 from .factor_calculator import FactorCalculator
+from CookingEngine.Picker.data_provider import HarvestDataProvider
 
 logger = get_logger(__name__)
 
@@ -163,3 +164,22 @@ class StockScorer:
         except Exception as e:
             logger.error(f"保存打分结果失败: {str(e)}")
             return False
+
+#给股票打分
+def score_single_stock(conn, stock_code):
+    """
+    为单股票打分
+    
+    Args:
+        stock_code: 股票代码
+        start_date: 开始日期
+        end_date: 结束日期
+        weights: 各因子权重字典
+        
+    Returns:
+        dict: 包含各因子分数和综合分数的字典
+    """
+    data_provider = HarvestDataProvider(conn)
+    stockSccorer = StockScorer(data_provider)
+    summary = stockSccorer.score_stock(stock_code, "2025-10-01", "2026-04-15")
+    logger.info(summary)

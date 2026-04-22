@@ -2,7 +2,7 @@
 from KitchenBase.download_enums import DlTaskType
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
-from .dm_generic_block_status import GenericBlockStatusManager
+from .dm_generic_block_status import GenericBlockStatusDM
 
 
 
@@ -11,7 +11,7 @@ class BaseDataManager(ABC):
     
     def __init__(self, db_conn):
         self.db_conn = db_conn
-        self.block_status_manager = GenericBlockStatusManager(db_conn)
+        self.block_status_manager = GenericBlockStatusDM(db_conn)
     
     @abstractmethod
     def get_task_type(self) -> DlTaskType:
