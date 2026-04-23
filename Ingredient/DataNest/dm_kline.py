@@ -403,13 +403,3 @@ class KLineUnifiedQuarterlyExtendedManager(BaseDataManager):
             logger.error(f"[{__name__}.{func_name}] 计算区块总数失败: {str(e)}")
             raise
 
-    def is_dl_pointer_valid(self, pointer: Optional[Tuple], start_year: int, end_year: int) -> bool:
-        """
-        判断下载指针是否合法
-        
-        :param pointer: 下载指针，通常为 (year, stock_code) 元组
-        :param start_year: 起始年份
-        :param end_year: 结束年份
-        :return: 指针是否合法
-        """
-        return True

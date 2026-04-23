@@ -60,8 +60,8 @@ class AdjFactorDownloader(BlockDownloader):
         Returns:
             BlockManager: 区块管理器实例
         """
-        from .block_managers.general_block_manager import GeneralBlockManager
-        return GeneralBlockManager(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        from .block_managers.year_stock_blk_mgr import YearStockBlkMgr
+        return YearStockBlkMgr(self.db_conn, self.get_task_type())
 
     def create_status_manager(self) -> TaskStatusManager:
         """
@@ -70,8 +70,8 @@ class AdjFactorDownloader(BlockDownloader):
         Returns:
             TaskStatusManager: 状态管理器实例
         """
-        from .status_managers.general_status_manager import GeneralStatusManager
-        return GeneralStatusManager(self.db_conn)
+        from .status_managers.generic_status_manager import GenericStatusManager
+        return GenericStatusManager(self.db_conn)
 
     def create_pointer_manager(self) -> PointerManager:
         """
@@ -80,8 +80,8 @@ class AdjFactorDownloader(BlockDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        from .pointer_managers.general_pointer_manager import GeneralPointerManager
-        return GeneralPointerManager(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        from .pointer_managers.year_ptr_mgr import YearPtrMgr
+        return YearPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
 
     def create_progress_manager(self) -> ProgressManager:
         """
@@ -91,7 +91,7 @@ class AdjFactorDownloader(BlockDownloader):
             ProgressManager: 进度管理器实例
         """
         from .progress_managers.general_progress_manager import GeneralProgressManager
-        return GeneralProgressManager()
+        return GeneralProgressManager(self.db_conn)
 
     def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
         """

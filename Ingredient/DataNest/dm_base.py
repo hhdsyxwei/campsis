@@ -65,46 +65,4 @@ class BaseDataManager(ABC):
         """
         pass
     
-    @abstractmethod
-    def is_dl_pointer_valid(self, pointer: Optional[Tuple], start_year: int, end_year: int) -> bool:
-        """
-        判断下载指针是否合法
-        
-        :param pointer: 下载指针，通常为 (year, stock_code) 元组
-        :param start_year: 起始年份
-        :param end_year: 结束年份
-        :return: 指针是否合法
-        """
-        pass
-
-
-    def get_attempted_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        获取已尝试下载的区块总数（统计completed、skipped、error状态）
-        :param start_year: 起始年份
-        :param end_year: 结束年份
-        :return: 已尝试下载的区块总数
-        """
-        from KitchenBase.download_enums import DlBlockStatus
-        from KitchenBase.logger_config import get_logger
-        
-        logger = get_logger(__name__)
-        func_name = "get_attempted_block_count"
-        
-        try:
-            # 获取任务类型
-            task_type = self.get_task_type()
-            
-            # 调用 GenericBlockStatusManager 的 get_block_count 方法
-            attempted_count = self.block_status_manager.get_block_count(
-                task_type=task_type,
-                start_year=start_year,
-                end_year=end_year,
-                status=[DlBlockStatus.COMPLETED, DlBlockStatus.SKIPPED, DlBlockStatus.ERROR]
-            )
-            logger.debug(f"[{__name__}.{func_name}] 已尝试下载的区块数: {attempted_count}")
-            return attempted_count
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
-            return 0
 

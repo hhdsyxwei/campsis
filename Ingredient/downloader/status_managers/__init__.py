@@ -1,3 +1,3 @@
-from .general_status_manager import GeneralStatusManager
+from .generic_status_manager import GenericStatusManager
 
-__all__ = ['GeneralStatusManager']
+__all__ = ['GenericStatusManager']

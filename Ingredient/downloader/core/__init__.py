@@ -7,8 +7,7 @@ from .abs_block_manager import BlockManager
 from .abs_status_manager import TaskStatusManager
 from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
-from .abs_block_pointer_strategy import BlockPointerStrategy
-from .abs_block_strategy import BlockStrategy
+
 
 __all__ = [
     "SimpleDownloader",
@@ -17,7 +16,5 @@ __all__ = [
     "BlockManager",
     "TaskStatusManager",
     "PointerManager",
-    "ProgressManager",
-    "BlockPointerStrategy",
-    "BlockStrategy"
+    "ProgressManager"
 ]
