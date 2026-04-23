@@ -20,6 +20,7 @@ from Ingredient.downloader.daily_data_downloader import download_all_stocks_dail
 from Ingredient.downloader import start_new_profit_download
 from Ingredient.downloader.company_balance_downloader import start_new_balance_download
 from Ingredient.downloader.stock_industry_downloader import start_new_industry_download
+from Ingredient.downloader.adj_factor_downloader import start_new_adj_factor_download
 
 
 
@@ -73,7 +74,7 @@ def main():
         # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
 
         # 5. 第三步：下载行业分类数据
-        start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
+        # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
         # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
         # 6. 第四步：下载5分钟K线数据（示例）
@@ -85,8 +86,8 @@ def main():
         # continue_download_xrxd(conn, start_year, end_year)  # 下载2026-2027年的分红送配数据
 
         # 8. 第六步：下载复权因子数据
-        # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
-        # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
+        start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
+        # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
         # 9. 第七步：下载股票利润数据
         # start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据

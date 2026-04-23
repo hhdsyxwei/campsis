@@ -377,14 +377,14 @@ class GlobalDlCtrlBlockManager:
             'tertiary_name': '',
             'tertiary_value': ''
         }
-        return self.write_dl_ctrl_blk(DlTaskType.ADJUSTMENT_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
+        return self.write_dl_ctrl_blk(DlTaskType.ADJ_FACTOR, pointers, startup_params, completed_blocks, total_blocks)
 
     def get_adj_fct_dl_pointer(self) -> Optional[Tuple[int, str]]:
         """
         获取复权因子下载进度
         :return: (年份, 股票代码, 启动参数, 已下载区块数量, 区块总数量)
         """
-        progress = self.read_dl_ctrl_blk(DlTaskType.ADJUSTMENT_FACTOR)
+        progress = self.read_dl_ctrl_blk(DlTaskType.ADJ_FACTOR)
         if progress:
             try:
                 year = int(progress['primary_value']) if progress['primary_value'] else 0

@@ -42,7 +42,7 @@ class AdjFactorDownloader(BlockDownloader):
         Returns:
             DlTaskType: 任务类型枚举值，用于数据库存储和识别
         """
-        return DlTaskType.ADJUSTMENT_FACTOR
+        return DlTaskType.ADJ_FACTOR
 
     def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
@@ -80,8 +80,8 @@ class AdjFactorDownloader(BlockDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        from .pointer_managers.year_ptr_mgr import YearPtrMgr
-        return YearPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        from .pointer_managers import YearStockPtrMgr
+        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
 
     def create_progress_manager(self) -> ProgressManager:
         """
@@ -111,8 +111,8 @@ class AdjFactorDownloader(BlockDownloader):
         
         block_pointer = kwargs.get('block_pointer')
         if block_pointer:
-            year = block_pointer.get_field(PointerField.YEAR)
-            stock_code = block_pointer.get_field(PointerField.STOCK_CODE)
+            year = block_pointer.get_value(PointerField.YEAR)
+            stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
             if not year or not stock_code:
                 self.logger.error(f"无效的区块指针: {block_pointer}")
                 return False
@@ -136,8 +136,8 @@ class AdjFactorDownloader(BlockDownloader):
             self.logger.error("缺少区块指针")
             return None
         
-        year = block_pointer.get_field(PointerField.YEAR)
-        stock_code = block_pointer.get_field(PointerField.STOCK_CODE)
+        year = block_pointer.get_value(PointerField.YEAR)
+        stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
         
         start_date = f"{year}-01-01"
         end_date = f"{year}-12-31"
@@ -220,7 +220,7 @@ class AdjFactorDownloader(BlockDownloader):
             self.logger.error("缺少区块指针")
             return False
         
-        stock_code = block_pointer.get_field(PointerField.STOCK_CODE)
+        stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
         
         data["std_stock_code"] = stock_code
         

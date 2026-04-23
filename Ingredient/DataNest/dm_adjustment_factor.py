@@ -27,7 +27,7 @@ class AdjustmentFactorManager(BaseDataManager):
         获取任务类型
         :return: 任务类型（DlTaskType枚举）
         """
-        return DlTaskType.ADJUSTMENT_FACTOR
+        return DlTaskType.ADJ_FACTOR
 
     def save_adjustment_factor_data(self, df: pd.DataFrame) -> bool:
         """
@@ -221,7 +221,7 @@ class AdjustmentFactorManager(BaseDataManager):
         try:
             # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
             completed_count = self.block_status_manager.get_block_count(
-                task_type=DlTaskType.ADJUSTMENT_FACTOR,
+                task_type=DlTaskType.ADJ_FACTOR,
                 start_year=start_year,
                 end_year=end_year,
                 status=[DlBlockStatus.COMPLETED]
@@ -246,7 +246,7 @@ class AdjustmentFactorManager(BaseDataManager):
         try:
             # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
             skipped_count = self.block_status_manager.get_block_count(
-                task_type=DlTaskType.ADJUSTMENT_FACTOR,
+                task_type=DlTaskType.ADJ_FACTOR,
                 start_year=start_year,
                 end_year=end_year,
                 status=[DlBlockStatus.SKIPPED]
@@ -293,11 +293,11 @@ class AdjustmentFactorManager(BaseDataManager):
         
         try:
             # 利用父类的 block_status_manager 获取区块状态
-            # 任务类型为 DlTaskType.ADJUSTMENT_FACTOR，block_key_1 为年份字符串，block_key_2 为股票代码
+            # 任务类型为 DlTaskType.ADJ_FACTOR，block_key_1 为年份字符串，block_key_2 为股票代码
             status = self.block_status_manager.get_block_status(
                 block_key_1=str(year),
                 block_key_2=std_stock_code,
-                task_type=DlTaskType.ADJUSTMENT_FACTOR
+                task_type=DlTaskType.ADJ_FACTOR
             )
             logger.debug(f"[{__name__}.{func_name}] 区块状态: {status.value}")
             return status
@@ -322,7 +322,7 @@ class AdjustmentFactorManager(BaseDataManager):
             self.block_status_manager.update_block_status(
                 block_key_1=str(year),
                 block_key_2=std_stock_code,
-                task_type=DlTaskType.ADJUSTMENT_FACTOR,
+                task_type=DlTaskType.ADJ_FACTOR,
                 status=status,
                 **kwargs
             )

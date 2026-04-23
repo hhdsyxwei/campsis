@@ -152,7 +152,7 @@ class GenericBlockStatusDM:
         self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, {start_year}-{end_year}, {[s.value for s in status] if status else 'all'}")
 
         # 确定是否需要股票限制
-        need_stock_join = task_type in [DlTaskType.ADJUSTMENT_FACTOR, 
+        need_stock_join = task_type in [DlTaskType.ADJ_FACTOR, 
                                         DlTaskType.KLINE, 
                                         DlTaskType.XRXD,
                                         DlTaskType.STOCK_PROFIT]
