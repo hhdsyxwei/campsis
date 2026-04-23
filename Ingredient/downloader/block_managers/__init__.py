@@ -1,9 +1,5 @@
-from .general_block_manager import GeneralBlockManager
-from .block_strategies import BlockStrategyFactory, QuarterStockStrategy, DefaultBlockStrategy
+from .year_blk_mrg import YearBlkMgr
 
 __all__ = [
-    'GeneralBlockManager',
-    'BlockStrategyFactory',
-    'QuarterStockStrategy',
-    'DefaultBlockStrategy'
+    'YearBlkMgr'
 ]

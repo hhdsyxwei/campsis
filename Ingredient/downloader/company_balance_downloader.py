@@ -1,17 +1,21 @@
 # company_balance_downloader.py
 # 公司偿债能力数据下载器
 
+
 import pandas as pd
 import time
 from typing import Tuple
 from Ingredient.downloader.progress_managers.general_progress_manager import GeneralProgressManager
 from .core.abstract_downloader import BlockDownloader
-from .block_managers.general_block_manager import GeneralBlockManager
-from .status_managers.general_status_manager import GeneralStatusManager
-from .pointer_managers.general_pointer_manager import GeneralPointerManager
+from .block_managers.generic_block_manager import GenericBlockManager
+from .status_managers.generic_status_manager import GenericStatusManager
+from .pointer_managers.generic_pointer_manager import GenericPointerManager
 from Ingredient.DataNest import CompanyBalanceManager, BasicStockDataManager
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.baostock_wrapper import query_balance_data
+from Ingredient.downloader.pointer_managers.quarter_stock_ptr_mgr import QuarterStockPtrMgr
+from Ingredient.downloader.block_managers.quarter_stock_blk_mgr import QuarterStockBlkMgr
+
 
 class CompanyBalanceDownloader(BlockDownloader):
     """
@@ -62,24 +66,24 @@ class CompanyBalanceDownloader(BlockDownloader):
             return False
         return True
     
-    def create_block_manager(self) -> GeneralBlockManager:
+    def create_block_manager(self) -> GenericBlockManager:
         """
         创建区块管理器
         """
-        return GeneralBlockManager(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        return QuarterStockBlkMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
     
-    def create_status_manager(self) -> GeneralStatusManager:
+    def create_status_manager(self) -> GenericStatusManager:
         """
         创建状态管理器
         """
-        return GeneralStatusManager(self.db_conn)
+        return GenericStatusManager(self.db_conn)
     
-    def create_pointer_manager(self) -> GeneralPointerManager:
+    def create_pointer_manager(self) -> GenericPointerManager:
         """
         创建指针管理器
         """
         # 这里可以使用通用的指针管理器实现
-        return GeneralPointerManager(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        return QuarterStockPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
     
     def create_progress_manager(self) -> GeneralProgressManager:
         """

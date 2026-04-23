@@ -4,6 +4,7 @@ from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
+from KitchenBase.block_pointer import BlockPointer
 from .dm_kline import KLineUnifiedQuarterlyExtendedManager
 from .dm_stock_basic import BasicStockDataManager
 from .dm_stock_seq import StockFixedSeqManager
@@ -157,78 +158,6 @@ class UnifiedDataManager:
             logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
             return 0
 
-    @staticmethod
-    def get_data_manager(db_conn, task_type: DlTaskType):
-        """
-        工厂方法：根据任务类型返回对应的数据管理器实例
-        """
-        if task_type == DlTaskType.KLINE:
-            return KLineUnifiedQuarterlyExtendedManager(db_conn)
-        elif task_type == DlTaskType.XRXD:
-            return XrxdManager(db_conn)
-        elif task_type == DlTaskType.ADJUSTMENT_FACTOR:
-            return AdjustmentFactorManager(db_conn)
-        else:
-            raise ValueError(f"不支持的任务类型: {task_type}")
-
-    @staticmethod
-    def get_completed_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        统一获取已完成区块总数的接口
-        """
-        func_name = "get_completed_block_count"
-        try:
-            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
-            return manager.get_completed_block_count(start_year, end_year, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
-            return 0
-
-    @staticmethod
-    def get_skipped_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        统一获取跳过区块总数的接口
-        """
-        func_name = "get_skipped_block_count"
-        try:
-            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
-            return manager.get_skipped_block_count(start_year, end_year, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
-            return 0
-
-    @staticmethod
-    def get_attempted_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        统一获取已尝试下载的区块总数的接口
-        """
-        func_name = "get_attempted_block_count"
-        try:
-            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
-            return manager.get_attempted_block_count(start_year, end_year, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
-            return 0
-
-    @staticmethod
-    def get_skipped_block_total_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        统一获取跳过区块总数的接口（兼容旧接口）
-        """
-        return UnifiedDataManager.get_skipped_block_count(db_conn, task_type, start_year, end_year, *args, **kwargs)
-
-    @staticmethod
-    def get_total_block_count(db_conn, task_type: DlTaskType, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        统一获取区块总数的接口
-        """
-        func_name = "get_total_block_count"
-        try:
-            manager = UnifiedDataManager.get_data_manager(db_conn, task_type)
-            return manager.get_total_block_count(start_year, end_year, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
-            return 0
 
     @staticmethod
     def next_fixed_stock(db_conn, current_stock: Optional[str] = None) -> Optional[str]:
@@ -353,3 +282,39 @@ class UnifiedDataManager:
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
             return False
+    
+    @staticmethod
+    def get_block_status(db_conn, block_pointer: Optional[BlockPointer], task_type: DlTaskType) -> DlBlockStatus:
+        """
+        查询指定区块的状态
+        
+        Args:
+            db_conn: 数据库连接
+            block_pointer: 区块指针
+            task_type: 任务类型
+            
+        Returns:
+            区块状态
+        """
+        func_name = "get_block_status"
+        try:
+            from .dm_generic_block_status import GenericBlockStatusDM
+            
+            # 从BlockPointer中提取值
+            block_key_1 = ""
+            block_key_2 = ""
+            block_key_3 = ""
+            
+            if block_pointer:
+                values = block_pointer.get_values()
+                if values:
+                    block_key_1 = str(values[0]) if len(values) > 0 else ""
+                    block_key_2 = str(values[1]) if len(values) > 1 else ""
+                    block_key_3 = str(values[2]) if len(values) > 2 else ""
+            
+            manager = GenericBlockStatusDM(db_conn)
+            return manager.get_block_status(block_key_1, task_type, block_key_2, block_key_3)
+        except Exception as e:
+            logger.error(f"[{__name__}.{func_name}] 调用失败: {str(e)}")
+            return DlBlockStatus.NOT_COMPLETED
+

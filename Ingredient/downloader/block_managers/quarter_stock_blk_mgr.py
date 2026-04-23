@@ -1,32 +1,29 @@
-# quarter_stock_strategy.py
-# 按季度和股票划分的区块策略
+# custom_total_block_manager.py
+# 自定义总区块数计算的区块管理器
 
-from KitchenBase.download_enums import DlTaskType
-from KitchenBase.download_enums import DlBlockStatus
-from Ingredient.DataNest.dm_generic_block_status import GenericBlockStatusDM
-from ...core.abs_block_strategy import BlockStrategy
-from Ingredient.DataNest import UnifiedDataManager as dm
-from KitchenBase.logger_config import get_logger
+from .generic_block_manager import GenericBlockManager
+from KitchenBase.download_enums import PointerField
+from typing import Tuple
+from Ingredient.DataNest import UnifiedDataManager as udm
 
-
-class QuarterStockStrategy(BlockStrategy):
+class QuarterStockBlkMgr(GenericBlockManager):
     """
-    按季度和股票划分的区块策略
+    自定义总区块数计算的区块管理器
     
-    计算按 (year, stock_code, quarter) 组合划分的区块数量
+    只重写get_total_block_count方法，其他方法使用父类实现
     """
     
-    def __init__(self, db_conn, **kwargs):
+    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = ()):
         """
-        初始化季度股票策略
+        初始化自定义区块管理器
         
         Args:
             db_conn: 数据库连接对象
-            **kwargs: 额外参数
+            task_type: 任务类型枚举值
+            pointer_fields: 指针字段枚举元组
         """
-        self.db_conn = db_conn
-        self.logger = get_logger(__name__)
-    
+        super().__init__(db_conn, task_type, pointer_fields)
+
     def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
         """
         获取总区块数量
@@ -44,7 +41,7 @@ class QuarterStockStrategy(BlockStrategy):
         """
         try:
             # 获取股票数量
-            stock_count = self._get_stock_count()
+            stock_count = self.get_stock_count()
             
             # 计算年份范围
             year_range = end_year - start_year
@@ -60,27 +57,8 @@ class QuarterStockStrategy(BlockStrategy):
         except Exception as e:
             self.logger.error(f"计算总区块数量异常：{e}", exc_info=True)
             return 0
-    
-    def get_completed_block_count(self, start_year: int, end_year: int) -> int:
-        """
-        获取已完成区块数
-        
-        计算方法：(end_year - start_year) * 4 * 股票数量
-        股票数量从 stock_fixed_seq 表中获取
-        
-        Args:
-            start_year: 开始年份
-            end_year: 结束年份
-            
-        Returns:
-            int: 已完成区块数
-        """
-        #利用get_block_count获得已完成区块数
-        gbsm = GenericBlockStatusDM(self.db_conn)
-        completed_count = gbsm.get_block_count(DlTaskType.STOCK_PROFIT,start_year, end_year, [DlBlockStatus.COMPLETED])
-        return completed_count
 
-    def _get_stock_count(self) -> int:
+    def get_stock_count(self) -> int:
         """
         获取股票数量
         
@@ -91,7 +69,7 @@ class QuarterStockStrategy(BlockStrategy):
         """        
         try:
             # 使用 UnifiedDataManager.count_stocks_in_fixed_seq() 方法获取股票数量  
-            return dm.count_stocks_in_fixed_seq(self.db_conn)
+            return udm.count_stocks_in_fixed_seq(self.db_conn)
         except Exception as e:
             self.logger.error(f"获取股票数量异常：{e}", exc_info=True)
             return 5000

@@ -1,20 +1,30 @@
 # general_pointer_manager.py
 # 通用指针管理器实现，集成策略模式
 
+from Ingredient.DataNest.dm_unified import UnifiedDataManager
 from ..core.abs_pointer_manager import PointerManager
-from .pointer_strategies.block_pointer_strategy_factory import BlockPointerStrategyFactory
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from typing import Optional, Tuple, Dict, Any
 from KitchenBase.download_enums import PointerField
+from Ingredient.DataNest import StockFixedSeqManager
+from Ingredient.DataNest import UnifiedDataManager as udm
+from KitchenBase.logger_config import get_logger
 
-class GeneralPointerManager(PointerManager):
+class GenericPointerManager(PointerManager):
     """
-    通用指针管理器实现，使用策略模式管理指针迭代
+    不支持直接实例化，必须通过派生类创建实例。
+    通用指针管理器依然是抽象类。只实现通用的指针管理功能，不通用的由派生类实现。
 
-    职责：
+    在本类中实现以下职责：
     1. 管理指针的存储和获取
     2. 使用策略模式处理指针迭代逻辑
     3. 提供指针验证和转换功能
+    4. 获取第一个区块指针(注意其它指针迭代逻辑无法在本类实现，需要在派生类实现)
+    5. 其它通用的算法，比如下一个季度，下一只股票等
+
+    本类无法实现以下职责：
+    1. 指针迭代功能()，指针的迭代基于字段的不同而不同，注意获取第一个区块指针可以在本类实现)
+    2. 指针验证功能，指针的验证基于字段的不同而不同
     """
 
     def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = (), global_manager=None, time_frame=None):
@@ -33,6 +43,7 @@ class GeneralPointerManager(PointerManager):
         self.pointer_fields = pointer_fields
         self.time_frame = time_frame
         self.dl_pointer = None
+        self.logger = get_logger(__name__)
 
         if global_manager is None:
             from Ingredient.DataNest import GlobalDlCtrlBlockManager
@@ -40,10 +51,9 @@ class GeneralPointerManager(PointerManager):
         else:
             self.global_manager = global_manager
 
-        # 创建策略实例
-        self.strategy = BlockPointerStrategyFactory.create_strategy(
-            pointer_fields, db_conn=db_conn, time_frame=time_frame
-        )
+        self.db_conn = db_conn
+        self.stock_manager = StockFixedSeqManager(db_conn) if db_conn else None
+
 
     def get_dl_pointer(self) -> Optional[BlockPointer]:
         """
@@ -84,27 +94,26 @@ class GeneralPointerManager(PointerManager):
         except Exception as e:
             print(f"[{self.__class__.__name__}] 设置指针失败: {e}")
 
-    def is_dl_pointer_valid(self, dl_pointer: Optional[BlockPointer], start_year: int, end_year: int) -> bool:
+    def is_dl_pointer_valid(self, pointer: Optional[BlockPointer], start_year: int, end_year: int) -> bool:
         """
-        判断下载指针是否合法有效
+        验证指针是否有效
 
         Args:
-            dl_pointer: 下载指针
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            pointer: 要验证的指针
+            start_year: 开始年份
+            end_year: 结束年份
 
         Returns:
             bool: 指针是否有效
         """
-        if not dl_pointer:
+        if not pointer:
             return False
 
-        # 验证指针元组长度是否匹配
-        if len(dl_pointer) != len(self.pointer_fields):
+        year = pointer.get_value(PointerField.YEAR)
+        if not isinstance(year, int) or year < start_year or year >= end_year:
             return False
 
-        # 调用策略的验证方法
-        return self.strategy.is_valid_pointer(dl_pointer, start_year, end_year)
+        return True
 
     def clear_dl_pointer(self):
         """
@@ -130,42 +139,7 @@ class GeneralPointerManager(PointerManager):
         Returns:
             Optional[BlockPointer]: 第一个区块的指针
         """
-        return self.strategy.get_first_blk_pointer(start_year, **kwargs)
-
-    def get_next_blk_pointer(self, start_year: int, end_year: int, current_block: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
-        """
-        获取下一个待下载区块的指针
-
-        Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
-            current_block: 当前区块指针（首次调用传None，返回第一个区块）
-            **kwargs: 额外参数
-
-        Returns:
-            Optional[BlockPointer]: 下一个区块的指针
-        """
-        if current_block is None:
-            return self.get_first_blk_pointer(start_year, end_year, **kwargs)
-
-        return self.strategy.get_next_blk_pointer(current_block, start_year, end_year, **kwargs)
-
-    def get_completed_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
-        """
-        基于指针获取已完成区块数
-
-        Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
-            dl_pointer: 当前下载指针，包含当前处理的区块信息
-
-        Returns:
-            int: 已完成区块数
-        """
-        if not dl_pointer:
-            return 0
-
-        return self.strategy.get_completed_block_count(start_year, end_year, dl_pointer)
+        return self.get_next_blk_pointer(start_year, end_year, None, **kwargs)
 
     def get_skipped_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
         """
@@ -221,3 +195,97 @@ class GeneralPointerManager(PointerManager):
         if not pointer:
             return ()
         return pointer.to_tuple()
+    
+    def get_next_quarter(self, quarter_str: str, year_range: Tuple[int, int]) -> Optional[str]:
+        """
+        计算指定季度的下一个季度
+        
+        Args:
+            quarter_str: 季度字符串，格式如 "2026-Q1"
+            year_range: 年份区间元组 (start_year, end_year)，前闭后开 [start_year, end_year)
+                        如果为 None，则不进行校验
+        
+        Returns:
+            str: 下一个季度字符串，格式如 "2026-Q2"
+            None: 如果输入季度不合法或返回季度超出范围
+        """
+        # 解析季度
+        try:
+            year_str, quarter_part = quarter_str.split('-Q')
+            year = int(year_str)
+            quarter = int(quarter_part)
+        except ValueError:
+            return None  # 格式错误
+        
+        # 校验输入季度
+        if year_range:
+            start_year, end_year = year_range
+            # 检查年份是否在范围内
+            if year < start_year or year >= end_year:
+                return None  # 输入年份超出范围
+            # 检查季度值是否合法
+            if quarter < 1 or quarter > 4:
+                return None  # 季度值不合法
+        
+        # 计算下一个季度
+        if quarter < 4:
+            next_year = year
+            next_quarter = quarter + 1
+        else:
+            next_year = year + 1
+            next_quarter = 1
+        
+        # 校验返回季度是否在范围内
+        if year_range:
+            start_year, end_year = year_range
+            if next_year < start_year or next_year >= end_year:
+                return None  # 返回季度超出范围
+        
+        return f"{next_year}-Q{next_quarter}"
+
+    def get_first_stock(self) -> Optional[str]:
+        """
+        获取第一只股票代码
+        
+        Returns:
+            Optional[str]: 第一只股票代码
+        """
+        try:
+            stock = udm.next_fixed_stock(self.db_conn, None)
+            if stock:
+                return stock
+            return None
+        except Exception as e:
+            self.logger.error(f"获取第一只股票失败: {str(e)}")
+            return None
+    
+    def get_next_stock(self, current_stock: str) -> Optional[str]:
+        """
+        获取下一只股票代码
+        
+        Args:
+            current_stock: 当前股票代码
+        
+        Returns:
+            Optional[str]: 下一只股票代码
+        """
+        try:
+            std_stock_code = udm.next_fixed_stock(self.db_conn, current_stock)
+            return std_stock_code
+        except Exception as e:
+            self.logger.error(f"获取下一只股票失败: {str(e)}")
+            return None
+
+    def get_stock_total_count(self) -> int:
+        """
+        获取股票总数
+        
+        Returns:
+            int: 股票总数
+        """
+        try:
+            total_count = udm.count_stocks_in_fixed_seq(self.db_conn)
+            return total_count
+        except Exception as e:
+            self.logger.error(f"获取股票总数失败: {str(e)}")
+            return 0

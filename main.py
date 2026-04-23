@@ -19,6 +19,10 @@ from CookingEngine.Picker.stock_scorer import score_single_stock
 from Ingredient.downloader.daily_data_downloader import download_all_stocks_daily_data
 from Ingredient.downloader import start_new_profit_download
 from Ingredient.downloader.company_balance_downloader import start_new_balance_download
+from Ingredient.downloader.stock_industry_downloader import start_new_industry_download
+from Ingredient.downloader.adj_factor_downloader import start_new_adj_factor_download
+
+
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 # os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
@@ -82,14 +86,14 @@ def main():
         # continue_download_xrxd(conn, start_year, end_year)  # 下载2026-2027年的分红送配数据
 
         # 8. 第六步：下载复权因子数据
-        # start_new_adjustment_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
-        # continue_download_adjustment_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
+        start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
+        # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
         # 9. 第七步：下载股票利润数据
         # start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据
         
         # 10. 第八步：下载公司偿债能力数据
-        start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
+        # start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
         # continue_download_company_balance(conn, start_year, end_year)  # 继续下载2026-2027年的公司偿债能力数据
         
         # 11. 第九步：为股票股票打分

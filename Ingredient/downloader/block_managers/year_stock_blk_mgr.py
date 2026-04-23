@@ -1,26 +1,26 @@
-# quarter_stock_period_block_manager.py
-# 季度-股票-周期区块管理器，适用于按季度、股票和K线周期划分区块的下载器
+# stock_year_block_manager.py
+# 股票-年份区块管理器，适用于按股票和年份划分区块的下载器
 
 from KitchenBase.download_enums import DlTaskType
 from .generic_block_manager import GenericBlockManager
 
-class QuarterStockPeriodBlockManager(GenericBlockManager):
+class YearStockBlkMgr(GenericBlockManager):
     """
-    季度-股票-周期区块管理器，适用于按季度、股票和K线周期划分区块的下载器
+    股票-年份区块管理器，适用于按股票和年份划分区块的下载器
     """
     
-    def __init__(self, db_conn,task_type: DlTaskType):
+    def __init__(self, db_conn, task_type: DlTaskType):
         """
-        初始化季度-股票-周期区块管理器
+        初始化股票-年份区块管理器
         
         Args:
             db_conn: 数据库连接对象
         """
         super().__init__(db_conn, task_type)
-        
+    
     def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
         """
-        计算总区块数：(结束年份 - 开始年份) * 4 * 股票总数
+        计算总区块数：(结束年份 - 开始年份) * 股票总数
         
         Args:
             start_year: 开始年份（包含）
@@ -32,7 +32,5 @@ class QuarterStockPeriodBlockManager(GenericBlockManager):
         """
         from Ingredient.DataNest import UnifiedDataManager as dm
         stock_count = dm.count_stocks_in_fixed_seq(self.db_conn)
-        quarter_count = (end_year - start_year) * 4
-        return stock_count * quarter_count
-
-    
+        year_count = end_year - start_year
+        return stock_count * year_count

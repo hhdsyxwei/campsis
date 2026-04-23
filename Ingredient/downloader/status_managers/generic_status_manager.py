@@ -5,7 +5,7 @@ from ..core.abs_status_manager import TaskStatusManager
 from KitchenBase.download_enums import DlTaskStatus, DlTaskType
 from Ingredient.DataNest import GlobalDlCtrlBlockManager
 
-class GeneralStatusManager(TaskStatusManager):
+class GenericStatusManager(TaskStatusManager):
     """
     通用状态管理器实现，作为 GlobalDlCtrlBlockManager 的适配器
 
@@ -13,7 +13,7 @@ class GeneralStatusManager(TaskStatusManager):
     支持依赖注入，便于单元测试。
     """
 
-    def __init__(self, db_conn, global_manager=None):
+    def __init__(self, db_conn):
         """
         初始化通用状态管理器
 
@@ -22,10 +22,7 @@ class GeneralStatusManager(TaskStatusManager):
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
         """
         self.db_conn = db_conn
-        if global_manager is None:
-            self.global_manager = GlobalDlCtrlBlockManager(db_conn)
-        else:
-            self.global_manager = global_manager
+        self.global_manager = GlobalDlCtrlBlockManager(db_conn)
 
     def get_task_status(self, taskType: DlTaskType) -> DlTaskStatus:
         """

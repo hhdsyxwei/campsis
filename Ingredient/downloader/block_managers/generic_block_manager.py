@@ -1,20 +1,30 @@
 # general_block_manager.py
 # 通用区块管理器实现
 
-from Ingredient.downloader.block_managers.block_strategies.block_strategy_factory import BlockStrategyFactory
+from KitchenBase.download_enums import DlTaskType
+from typing import Tuple
 from ..core.abs_block_manager import BlockManager
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, PointerField
 from Ingredient.DataNest import GenericBlockStatusDM
-from typing import Tuple
+from Ingredient.DataNest import UnifiedDataManager as udm
 
 
-class GeneralBlockManager(BlockManager):
+class GenericBlockManager(BlockManager):
     """
-    通用区块管理器实现，提供基础区块管理功能
+    不支持直接实例化，必须通过派生类创建实例。
+    通用区块管理器依然是抽象类。只实现通用的区块管理功能，不通用的由派生类实现。
+    注意区块总数的算法无法在通用区块管理器中实现，需要在派生类中实现。
+    因为不同的任务类型和指针字段，需要不同的算法来计算区块总数。
+    职责：
+    1. 管理区块的存储和获取
+    2. 获取已完成区块数
+    3. 获取已跳过区块数
+    4. 查询区块状态
+    5. 更新区块状态
     """
     
-    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = ()):
+    def __init__(self, db_conn, task_type: DlTaskType, pointer_fields: Tuple[PointerField, ...] = ()):
         """
         初始化通用区块管理器
         
@@ -26,27 +36,8 @@ class GeneralBlockManager(BlockManager):
         self.db_conn = db_conn
         self.task_type = task_type
         self.logger = get_logger(__name__)
-        # 创建策略实例
-        self.strategy = BlockStrategyFactory.create_strategy(
-            pointer_fields, db_conn=db_conn
-        )
         # 创建状态管理器
         self.status_dm = GenericBlockStatusDM(db_conn) if db_conn else None
-    
-    def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
-        """
-        获取总区块数
-        
-        Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
-            **kwargs: 额外参数
-            
-        Returns:
-            int: 总区块数
-        """
-        # 通用实现，子类需要根据具体情况重写
-        return self.strategy.get_total_block_count(start_year, end_year, **kwargs)
     
     def get_completed_block_count(self, start_year: int, end_year: int) -> int:
         """
@@ -160,3 +151,19 @@ class GeneralBlockManager(BlockManager):
             )
         except Exception as e:
             self.logger.error(f"更新区块状态失败: {str(e)}")
+
+    def get_stock_count(self) -> int:
+        """
+        获取股票数量
+        
+        从 stock_fixed_seq 表中获取股票数量
+        
+        Returns:
+            int: 股票数量
+        """        
+        try:
+            # 使用 UnifiedDataManager.count_stocks_in_fixed_seq() 方法获取股票数量  
+            return udm.count_stocks_in_fixed_seq(self.db_conn)
+        except Exception as e:
+            self.logger.error(f"获取股票数量异常：{e}", exc_info=True)
+            return 5000
