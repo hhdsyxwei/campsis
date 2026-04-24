@@ -76,7 +76,7 @@ def main():
         # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
 
         # 5. 第三步：下载行业分类数据
-        # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
+        start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
         # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
         # 6. 第四步：下载5分钟K线数据（示例）
@@ -99,7 +99,7 @@ def main():
         # continue_download_company_balance(conn, start_year, end_year)  # 继续下载2026-2027年的公司偿债能力数据
         
         # 11. 第九步：下载公司现金流量数据
-        start_new_cash_flow_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司现金流量数据
+        # start_new_cash_flow_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司现金流量数据
         # continue_download_company_cash_flow(conn, start_year, end_year)  # 继续下载2026-2027年的公司现金流量数据
 
         # 12. 第十二步：为公司股票数据打分
