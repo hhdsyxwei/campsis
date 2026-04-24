@@ -9,8 +9,9 @@ class DlTaskType(Enum):
     INDUSTRY = "industry"  # 行业数据
     STOCK_BASIC = "stock_basic"  # 股票基本信息
     TRADE_DATE = "trade_date"  # 交易日数据
-    STOCK_PROFIT = "stock_profit"  # 股票利润数据
+    COMPANY_PROFIT = "company_profit"  # 公司利润数据
     COMPANY_BALANCE = "company_balance"  # 公司偿债能力数据
+    COMPANY_CASH_FLOW = "company_cash_flow"  # 公司现金流量数据
 
 class DlTaskStatus(Enum):
     """

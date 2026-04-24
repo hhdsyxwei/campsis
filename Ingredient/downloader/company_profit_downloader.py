@@ -1,7 +1,7 @@
 # stock_profit_downloader.py
 # 股票利润数据下载器
 
-from Ingredient.downloader.block_managers.quarter_stock_blk_mgr import QuarterStockBlkMgr
+
 import pandas as pd
 import time
 from typing import Tuple
@@ -10,11 +10,11 @@ from .core.abstract_downloader import BlockDownloader
 from .block_managers.generic_block_manager import GenericBlockManager
 from .status_managers.generic_status_manager import GenericStatusManager
 from .pointer_managers.generic_pointer_manager import GenericPointerManager
-from Ingredient.DataNest import StockProfitManager, BasicStockDataManager
+from Ingredient.DataNest import CompanyProfitManager, BasicStockDataManager
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.baostock_wrapper import query_profit_data
 from Ingredient.downloader.pointer_managers import QuarterStockPtrMgr
-
+from Ingredient.downloader.block_managers.quarter_stock_blk_mgr import QuarterStockBlkMgr
 
 
 class StockProfitDownloader(BlockDownloader):
@@ -31,7 +31,7 @@ class StockProfitDownloader(BlockDownloader):
             db_conn: 数据库连接对象
         """
         super().__init__(db_conn)
-        self.profit_manager = StockProfitManager(db_conn)
+        self.profit_manager = CompanyProfitManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
     
@@ -39,7 +39,7 @@ class StockProfitDownloader(BlockDownloader):
         """
         获取任务类型标识
         """
-        return DlTaskType.STOCK_PROFIT
+        return DlTaskType.COMPANY_PROFIT
     
     def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """

@@ -5,7 +5,7 @@ from KitchenBase.logger_config import get_logger
 
 logger = get_logger(__name__)
 
-class StockProfitManager:
+class CompanyProfitManager:
     def __init__(self, connection):
         self.conn = connection
 

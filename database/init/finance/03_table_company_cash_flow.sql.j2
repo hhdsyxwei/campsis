@@ -1,0 +1,21 @@
+/* ====================== 公司现金流量数据表 ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('company_cash_flow') | safe }}` (
+    `{{ col_id | default('id') | safe }}` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `{{ col_std_stock_code | default('std_stock_code') | safe }}` varchar(20) NOT NULL COMMENT '股票代码',
+    `{{ col_pub_date | default('pub_date') | safe }}` date NOT NULL COMMENT '公司发布财报的日期',
+    `{{ col_stat_date | default('stat_date') | safe }}` date NOT NULL COMMENT '财报统计的季度的最后一天',
+    `{{ col_cato_asset | default('cato_asset') | safe }}` decimal(10,4) COMMENT '流动资产占总资产比例(%)',
+    `{{ col_ncato_asset | default('ncato_asset') | safe }}` decimal(10,4) COMMENT '非流动资产占总资产比例(%)',
+    `{{ col_tangible_asset_to_asset | default('tangible_asset_to_asset') | safe }}` decimal(10,4) COMMENT '有形资产占总资产比例(%)',
+    `{{ col_ebit_to_interest | default('ebit_to_interest') | safe }}` decimal(10,4) COMMENT '已获利息倍数(倍)',
+    `{{ col_cfo_to_or | default('cfo_to_or') | safe }}` decimal(10,4) COMMENT '经营活动现金流净额/营业收入(%)',
+    `{{ col_cfo_to_np | default('cfo_to_np') | safe }}` decimal(10,4) COMMENT '经营活动现金流净额/净利润(%)',
+    `{{ col_cfo_to_gr | default('cfo_to_gr') | safe }}` decimal(10,4) COMMENT '经营活动现金流净额/营业总收入(%)',
+    `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `{{ col_update_time | default('update_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`{{ col_id | default('id') | safe }}`),
+    UNIQUE KEY `uk_std_stock_stat_date` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`, `{{ col_stat_date | default('stat_date') | safe }}`),
+    INDEX `idx_std_stock_code` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`),
+    INDEX `idx_stat_date` (`{{ col_stat_date | default('stat_date') | safe }}`),
+    INDEX `idx_date_range` (`{{ col_std_stock_code | default('std_stock_code') | safe }}`, `{{ col_stat_date | default('stat_date') | safe }}`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公司现金流量数据表';
