@@ -2,6 +2,7 @@
 # 股票现金流量数据下载器
 
 
+from venv import logger
 import pandas as pd
 import time
 from typing import Tuple
@@ -113,8 +114,8 @@ class StockCashFlowDownloader(BlockDownloader):
                 df['statDate'] = df['statDate'].dt.strftime('%Y-%m-%d') if not df['statDate'].isna().all() else df['statDate']
             
             # 转换数值类型
-            numeric_fields = ['catoAsset', 'ncatoAsset', 'tangibleAssetToAsset', 
-                           'ebitToInterest', 'cfotoor', 'cfotonp', 'cfotogr']
+            numeric_fields = ['CAToAsset', 'NCAToAsset', 'tangibleAssetToAsset', 
+                           'ebitToInterest', 'CFOToOR', 'CFOToNP', 'CFOToGr']
             for field in numeric_fields:
                 if field in df.columns:
                     df[field] = pd.to_numeric(df[field], errors='coerce')
@@ -181,6 +182,9 @@ class StockCashFlowDownloader(BlockDownloader):
                     data_list.append(rs.get_row_data())
                 
                 if data_list:
+                    if len(data_list) >= 1:
+                        logger.debug(f"第1条数据：{data_list[0]}")
+                        logger.debug(f"字段：{rs.fields}")
                     # 转换为 DataFrame
                     df = pd.DataFrame(data_list, columns=rs.fields)
                     self.logger.info(f"现金流量数据下载完成：{stock_code} {year}年Q{quarter}，共 {len(df)} 条数据")

@@ -42,13 +42,13 @@ class CompanyCashFlowManager:
 
                 records.append((
                     std_stock_code, pub_date, stat_date,
-                    float(row['catoAsset']) if pd.notna(row.get('catoAsset')) else None,
-                    float(row['ncatoAsset']) if pd.notna(row.get('ncatoAsset')) else None,
+                    float(row['CAToAsset']) if pd.notna(row.get('CAToAsset')) else None,
+                    float(row['NCAToAsset']) if pd.notna(row.get('NCAToAsset')) else None,
                     float(row['tangibleAssetToAsset']) if pd.notna(row.get('tangibleAssetToAsset')) else None,
                     float(row['ebitToInterest']) if pd.notna(row.get('ebitToInterest')) else None,
-                    float(row['cfotoor']) if pd.notna(row.get('cfotoor')) else None,
-                    float(row['cfotonp']) if pd.notna(row.get('cfotonp')) else None,
-                    float(row['cfotogr']) if pd.notna(row.get('cfotogr')) else None,
+                    float(row['CFOToOR']) if pd.notna(row.get('CFOToOR')) else None,
+                    float(row['CFOToNP']) if pd.notna(row.get('CFOToNP')) else None,
+                    float(row['CFOToGr']) if pd.notna(row.get('CFOToGr')) else None,
                 ))
             except (ValueError, KeyError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row.get('statDate', '未知日期')}: {str(e)}")
