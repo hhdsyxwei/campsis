@@ -22,6 +22,7 @@ from Ingredient.downloader.company_balance_downloader import start_new_balance_d
 from Ingredient.downloader.stock_industry_downloader import start_new_industry_download
 from Ingredient.downloader.adj_factor_downloader import start_new_adj_factor_download
 from Ingredient.downloader.kline_unified_downloader import start_new_kline_download
+from Ingredient.downloader.company_cash_flow_downloader import start_new_cash_flow_download, continue_cash_flow_download
 
 
 
@@ -79,7 +80,7 @@ def main():
         # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
         # 6. 第四步：下载5分钟K线数据（示例）
-        start_new_kline_download(conn, start_year, end_year)  # 下载5分钟K线数据，示例股票代码
+        # start_new_kline_download(conn, start_year, end_year)  # 下载5分钟K线数据，示例股票代码
         # continue_download_kline(conn, start_year, end_year, KLinePeriod.MIN_5)  # 继续下载2026-2027年的5分钟K线数据
 
         # 7. 第五步：下载分红送配数据
@@ -97,7 +98,11 @@ def main():
         # start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
         # continue_download_company_balance(conn, start_year, end_year)  # 继续下载2026-2027年的公司偿债能力数据
         
-        # 11. 第九步：为股票股票打分
+        # 11. 第九步：下载公司现金流量数据
+        start_new_cash_flow_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司现金流量数据
+        # continue_download_company_cash_flow(conn, start_year, end_year)  # 继续下载2026-2027年的公司现金流量数据
+
+        # 12. 第十二步：为公司股票数据打分
         score_single_stock(conn, stock_code)
 
     except Exception as e:
