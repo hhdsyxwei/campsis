@@ -29,9 +29,6 @@ from Ingredient.downloader.company_cash_flow_downloader import start_new_cash_fl
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 # os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
 
-
-
-
 logger = get_logger(__name__)
 
 logger.debug("这是调试信息（灰色）")
@@ -73,10 +70,10 @@ def main():
         # 4. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
         # download_daily_data(conn, stock_code, "2025-10-01", "2026-04-15")
-        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
+        download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
 
         # 5. 第三步：下载行业分类数据
-        start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
+        # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
         # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
         # 6. 第四步：下载5分钟K线数据（示例）
