@@ -180,57 +180,7 @@ class StockIndustryDataManager(BaseDataManager):
         except Exception as e:
             logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
             return pd.DataFrame()
-    
-    def get_completed_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        获取已完成区块数
-        
-        :param start_year: 起始年份
-        :param end_year: 结束年份
-        :return: 已完成区块数
-        """
-        func_name = "get_completed_block_count"
-        logger.debug(f"[{__name__}.{func_name}] 查询已完成区块数: {start_year}-{end_year}")
-        
-        try:
-            # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
-            completed_count = self.block_status_manager.get_block_count(
-                task_type=DlTaskType.INDUSTRY,
-                start_year=start_year,
-                end_year=end_year,
-                status=[DlBlockStatus.COMPLETED]
-            )
-            logger.debug(f"[{__name__}.{func_name}] 已完成区块数: {completed_count}")
-            return completed_count
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
-            return 0
-    
-    def get_skipped_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        获取跳过区块数
-        
-        :param start_year: 起始年份
-        :param end_year: 结束年份
-        :return: 跳过区块数
-        """
-        func_name = "get_skipped_block_count"
-        logger.debug(f"[{__name__}.{func_name}] 查询跳过区块数: {start_year}-{end_year}")
-        
-        try:
-            # 直接调用 GenericBlockStatusManager 的 get_block_count 方法
-            skipped_count = self.block_status_manager.get_block_count(
-                task_type=DlTaskType.INDUSTRY,
-                start_year=start_year,
-                end_year=end_year,
-                status=[DlBlockStatus.SKIPPED]
-            )
-            logger.debug(f"[{__name__}.{func_name}] 跳过区块数: {skipped_count}")
-            return skipped_count
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询失败: {str(e)}")
-            return 0
-    
+
     def get_total_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
         获取总区块数

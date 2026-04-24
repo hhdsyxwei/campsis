@@ -1,6 +1,8 @@
 # year_stock_ptr_mrg.py
 # 按年份和股票划分的指针管理器
 
+from Ingredient.config import DownloadConfig
+from KitchenBase.download_enums import DlTaskType
 from .generic_pointer_manager import GenericPointerManager
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from KitchenBase.download_enums import PointerField
@@ -19,7 +21,7 @@ class YearStockPtrMgr(GenericPointerManager):
     3. 提供指针验证和转换功能
     """
     
-    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = (), global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None, time_frame=None):
         """
         初始化年份股票指针管理器
         
@@ -30,7 +32,7 @@ class YearStockPtrMgr(GenericPointerManager):
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选）
         """
-        super().__init__(db_conn, task_type, pointer_fields, global_manager, time_frame)
+        super().__init__(db_conn, task_type, global_manager, time_frame)
         self.logger = get_logger(__name__)
 
     def get_next_blk_pointer(self, start_year: int, end_year: int, current_block: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
@@ -72,6 +74,7 @@ class YearStockPtrMgr(GenericPointerManager):
             Optional[BlockPointer]: 下一个区块的指针
         """
         # 当current_block为None时，返回第一个区块（起始年份的第一只股票）
+        pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
         if current_block is None:
             try:
                 # 检查股票数量
@@ -88,7 +91,7 @@ class YearStockPtrMgr(GenericPointerManager):
                 
                 # 构建第一个年份的指针
                 pointer_values = (start_year, first_stock)
-                return BlockPointerFactory.create_pointer(self.pointer_fields, pointer_values)
+                return BlockPointerFactory.create_pointer(pointer_fields, pointer_values)
             except Exception as e:
                 self.logger.error(f"获取第一个区块指针失败: {str(e)}")
                 return None
@@ -108,7 +111,7 @@ class YearStockPtrMgr(GenericPointerManager):
             if next_stock:
                 # 同一年份内的下一只股票
                 pointer_values = (current_year, next_stock)
-                return BlockPointerFactory.create_pointer(self.pointer_fields, pointer_values)
+                return BlockPointerFactory.create_pointer(pointer_fields, pointer_values)
             else:
                 # 当前年份的股票已遍历完毕，获取下一个年份
                 next_year = current_year + 1
@@ -123,7 +126,7 @@ class YearStockPtrMgr(GenericPointerManager):
                     first_stock = self.get_first_stock()
                     if first_stock:
                         pointer_values = (next_year, first_stock)
-                        return BlockPointerFactory.create_pointer(self.pointer_fields, pointer_values)
+                        return BlockPointerFactory.create_pointer(pointer_fields, pointer_values)
                     else:
                         self.logger.warning("无法获取第一只股票，无法创建下一年份的区块指针")
                         return None

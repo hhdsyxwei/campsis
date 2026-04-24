@@ -1,3 +1,3 @@
-from .general_progress_manager import GeneralProgressManager
+from .generic_progress_manager import GenericProgressManager
 
-__all__ = ['GeneralProgressManager']
+__all__ = ['GenericProgressManager']

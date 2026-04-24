@@ -3,7 +3,7 @@
 
 from ..core.abs_progress_manager import ProgressManager
 
-class GeneralProgressManager(ProgressManager):
+class GenericProgressManager(ProgressManager):
     """
     通用进度管理器实现，提供基础进度管理功能
     """

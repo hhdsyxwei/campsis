@@ -1,156 +1,182 @@
 # xrxd_downloader.py
-from KitchenBase.download_enums import DlTaskType
-from KitchenBase.download_enums import DlTaskStatus
+# 分红送配数据下载器，继承 BlockDownloader
+
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple
+from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_dividend_data
-from Ingredient.DataNest import XrxdManager, BasicStockDataManager, UnifiedDataManager as dm, GlobalDlCtrlBlockManager
+from KitchenBase.block_pointer import BlockPointer
+from Ingredient.DataNest import XrxdManager, BasicStockDataManager
+from .core.abstract_downloader import BlockDownloader
+from .core.abs_block_manager import BlockManager
+from .core.abs_status_manager import TaskStatusManager
+from .core.abs_pointer_manager import PointerManager
+from .core.abs_progress_manager import ProgressManager
 
-# ===================== 全局配置 =====================
 logger = get_logger(__name__)
 
-# ===================== 下载器核心类 =====================
-class XrxdDownloader:
+
+class XrxdDownloader(BlockDownloader):
+    """
+    分红送配数据下载器，基于 BlockDownloader 实现
+    通过区块管理和断点续传机制，解决 API 限流问题
+
+    区块概念：
+    - 一个区块代表一个股票在一个年份的数据
+    - 区块排序规则：先按年份升序，同一年内按 stock_fixed_seq 表顺序
+    """
+
     def __init__(self, db_conn):
         """
-        初始化下载器
-        :param db_conn: 外部传入的数据库连接（使用者管理）
+        初始化分红送配数据下载器
+
+        Args:
+            db_conn: 数据库连接对象
         """
-        self.db_conn = db_conn
-        self.func_name = ""
-        self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
+        super().__init__(db_conn)
+        self.xrxd_manager = XrxdManager(db_conn)
+        self.stock_manager = BasicStockDataManager(db_conn)
+        self.support_block_status = True
 
-
-
-    def _get_next_stock(self, current_stock: Optional[str]) -> Optional[str]:
+    def get_task_type(self) -> DlTaskType:
         """
-        获取当前股票的下一个股票（按stock_fixed_seq顺序）
-        直接利用DataNest模块的next_fixed_stock函数
-        :param current_stock: 当前股票代码
-        :return: 下一个股票代码或None
-        """
-        self.func_name = "_get_next_stock"
-        return dm.next_fixed_stock(self.db_conn, current_stock)
+        获取任务类型标识
 
-    def _get_next_year(self, current_year: int, end_year: int) -> Optional[int]:
+        Returns:
+            DlTaskType: 任务类型枚举值，用于数据库存储和识别
         """
-        获取当前年份的下一个年份
-        :param current_year: 当前年份
-        :param end_year: 结束年份，不包含
-        :return: 下一个年份或None
+        return DlTaskType.XRXD
+
+    def get_pointer_fields(self) -> Tuple[PointerField, ...]:
         """
-        next_year = current_year + 1
-        return next_year if next_year < end_year else None
+        获取指针字段
 
-    # -------------------------------------------------------------------------
-    # 【核心】动态查找：下一个待下载区块（无列表、纯数据库驱动）
-    #  当前排序规则：年份(旧→新) → 股票固定顺序
-    # -------------------------------------------------------------------------
-    def _get_next_block(
-        self, 
-        start_year: int, 
-        end_year: int, 
-        current_year: Optional[int] = None, 
-        current_stock: Optional[str] = None
-    ) -> Optional[Tuple[int, str]]:
+        Returns:
+            Tuple[PointerField, ...]: 指针字段枚举元组
         """
-        仅推动区块指针向前，找到下一个待处理区块（不判断下载状态）
-        
-        区块概念：
-        - 一个区块代表一个股票在一个年份的数据
-        - 区块排序规则：先按年份升序，同一年内按stock_fixed_seq表顺序
-        - 区块序号计算公式：(year - start_year) * 股票总数 + 股票在序列中的位置
-        
-        迭代规则：年份升序 → 股票固定顺序（stock_fixed_seq表）
-        :param start_year: 起始年份（包含）
-        :param end_year: 结束年份（包含）
-        :param current_year: 当前年份（首次调用传None，从start_year开始）
-        :param current_stock: 当前股票（首次调用传None，从第一个股票开始）
-        :return: (next_year, next_stock) 或 None（无更多区块）
+        return (PointerField.YEAR, PointerField.STOCK_CODE)
+
+    def create_block_manager(self) -> BlockManager:
         """
-        self.func_name = "_get_next_block"
+        创建区块管理器
 
-        # ========== 步骤1：初始化起始年份（首次调用） ==========
-        if current_year is None:
-            current_year = start_year
+        Returns:
+            BlockManager: 区块管理器实例
+        """
+        from .block_managers.year_stock_blk_mgr import YearStockBlkMgr
+        return YearStockBlkMgr(self.db_conn, self.get_task_type())
 
-        # ========== 步骤2：处理「同年份内的股票迭代」 ==========
-        if current_stock:
-            # 获取当前股票的下一个股票（按固定顺序）
-            next_stock = self._get_next_stock(current_stock)
-            if next_stock:
-                # 同年份有下一个股票 → 直接返回
-                logger.debug(f"[{__name__}.{self.func_name}] 同年份下一个股票: {current_year} -> {next_stock}")
-                return (current_year, next_stock)
-            else:
-                # 当前年份股票已遍历完 → 获取下一个年份
-                next_year = self._get_next_year(current_year, end_year)
-                if not next_year:
-                    # 无下一年份 → 迭代结束
-                    logger.debug(f"[{__name__}.{self.func_name}] 无更多任务（年份范围：{start_year}-{end_year}）")
-                    return None
-                # 切换到下一年份，重置为第一个股票
-                current_year = next_year
-                current_stock = None
+    def create_status_manager(self) -> TaskStatusManager:
+        """
+        创建状态管理器
 
-        # ========== 步骤3：获取当前年份的第一个股票 ==========
-        first_stock = self._get_next_stock(None)
-        if not first_stock:
-            logger.warning(f"[{__name__}.{self.func_name}] 无股票数据可用")
+        Returns:
+            TaskStatusManager: 状态管理器实例
+        """
+        from .status_managers.generic_status_manager import GenericStatusManager
+        return GenericStatusManager(self.db_conn)
+
+    def create_pointer_manager(self) -> PointerManager:
+        """
+        创建指针管理器
+
+        Returns:
+            PointerManager: 指针管理器实例
+        """
+        from .pointer_managers import YearStockPtrMgr
+        return YearStockPtrMgr(self.db_conn, self.get_task_type())
+
+    def create_progress_manager(self) -> ProgressManager:
+        """
+        创建进度管理器
+
+        Returns:
+            ProgressManager: 进度管理器实例
+        """
+        from .progress_managers.generic_progress_manager import GenericProgressManager
+        return GenericProgressManager(self.db_conn)
+
+    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+        """
+        验证参数有效性
+
+        Args:
+            start_year: 开始年份（包含）
+            end_year: 结束年份（不包含）
+            **kwargs: 额外参数
+
+        Returns:
+            bool: 参数是否有效
+        """
+        if start_year >= end_year:
+            self.logger.error(f"无效年份范围: start_year ({start_year}) 必须小于 end_year ({end_year})")
+            return False
+
+        block_pointer = kwargs.get('block_pointer')
+        if block_pointer:
+            year = block_pointer.get_value(PointerField.YEAR)
+            stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
+            if not year or not stock_code:
+                self.logger.error(f"无效的区块指针: {block_pointer}")
+                return False
+
+        return True
+
+    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> Optional[pd.DataFrame]:
+        """
+        下载原始分红送配数据
+
+        Args:
+            start_year: 开始年份（包含）
+            end_year: 结束年份（不包含）
+            **kwargs: 额外参数，包含 block_pointer
+
+        Returns:
+            Optional[pd.DataFrame]: 原始数据
+        """
+        block_pointer = kwargs.get('block_pointer')
+        if not block_pointer:
+            self.logger.error("缺少区块指针")
             return None
 
-        logger.debug(f"[{__name__}.{self.func_name}] 下一个任务: {current_year} -> {first_stock}")
-        return (current_year, first_stock)
+        stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
+        year = block_pointer.get_value(PointerField.YEAR)
 
-    def _download_raw_xrxd_data(self, stock_code: str, year: int) -> Optional[pd.DataFrame]:
-        """
-        从Baostock下载原始分红送配数据
-        :param stock_code: 股票代码
-        :param year: 年份
-        :return: 原始数据DataFrame或None
-        """
-        self.func_name = "_download_raw_xrxd_data"
         rs = query_dividend_data(
             code=stock_code,
             year=str(year),
             yearType="report"
         )
-        
-        # 检查API返回状态
+
         if rs.error_code != "0":
-            logger.warning(f"[{__name__}.{self.func_name}] Baostock API错误(error_code={rs.error_code}):  {rs.error_msg}")
+            self.logger.warning(f"Baostock API错误: {rs.error_msg}")
             return None
-        
-        # 获取数据
+
         df = rs.get_data()
         if df.empty:
-            logger.warning(f"[{__name__}.{self.func_name}] 无数据: {stock_code} {year}")
+            self.logger.debug(f"无数据: {stock_code} {year}")
             return None
-        
+
         return df
 
-    def _clean_xrxd_data(self, raw_df: pd.DataFrame, stock_code: str, year: int) -> Optional[pd.DataFrame]:
+    def clean_data(self, raw_data) -> pd.DataFrame:
         """
         清洗分红送配数据
-        :param raw_df: 原始数据DataFrame
-        :param stock_code: 股票代码
-        :param year: 年份
-        :return: 清洗后的数据DataFrame或None
+
+        Args:
+            raw_data: 原始数据
+
+        Returns:
+            pd.DataFrame: 清洗后的数据
         """
-        self.func_name = "_clean_xrxd_data"
-        if raw_df.empty:
-            logger.warning(f"[{__name__}.{self.func_name}] 原始数据为空")
-            return None
+        if raw_data is None or raw_data.empty:
+            self.logger.warning("原始数据为空")
+            return pd.DataFrame()
 
-        df = raw_df.copy()
+        df = raw_data.copy()
 
-        # 添加股票代码和年份
-        df["std_stock_code"] = stock_code
-        df["xrxd_year"] = year
-
-        # 重命名列名以匹配数据库表结构
         df.rename(columns={
             "dividPreNoticeDate": "xrxd_pre_notice_date",
             "dividAgmPumDate": "xrxd_agm_pum_date",
@@ -167,41 +193,30 @@ class XrxdDownloader:
             "dividReserveToStockPs": "xrxd_reserve_to_stock_ps"
         }, inplace=True)
 
-        # 定义日期列
         date_cols = [
             "xrxd_pre_notice_date", "xrxd_agm_pum_date", "xrxd_plan_announce_date",
             "xrxd_plan_date", "xrxd_regist_date", "xrxd_operate_date",
             "xrxd_pay_date", "xrxd_stock_market_date"
         ]
 
-        # 清洗日期列：将空字符串、无效日期转换为None
         for col in date_cols:
             if col in df.columns:
-                # 先将空字符串转换为NaN
                 df[col] = df[col].replace('', pd.NA)
-                # 尝试转换为日期，无效值转为NaT
                 df[col] = pd.to_datetime(df[col], errors='coerce')
-                # 将NaT转换为None（用于MySQL）
                 df[col] = df[col].where(df[col].notna(), None)
 
-        # 定义数值列
         numeric_cols = [
             "xrxd_cash_ps_before_tax", "xrxd_cash_ps_after_tax",
             "xrxd_stocks_ps", "xrxd_reserve_to_stock_ps"
         ]
 
-        # 清洗数值列：将空字符串、无效数值转换为None
         for col in numeric_cols:
             if col in df.columns:
-                # 先将空字符串转换为NaN
                 df[col] = df[col].replace('', pd.NA)
-                # 转换为数值，无效值转为NaN
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-                # 将NaN转换为None（用于MySQL）
                 df[col] = df[col].where(df[col].notna(), None)
 
-        # 清洗字符串列：将空字符串转换为None，截断过长字符串
-        string_cols = [("xrxd_cash_stock", 200)]  # (列名, 最大长度)
+        string_cols = [("xrxd_cash_stock", 200)]
         for col, max_len in string_cols:
             if col in df.columns:
                 df[col] = df[col].apply(
@@ -210,193 +225,42 @@ class XrxdDownloader:
 
         return df
 
-    def _fetch_xrxd_block(self, year: int, stock_code: str):
+    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
         """
-        处理单个分红送配数据下载区块
-        
-        区块概念：
-        - 区块是一只股票在一个年份中的数据集合
-        - 每个区块由 (年份, 股票代码) 唯一标识
-        
-        :param year: 年份
-        :param stock_code: 股票代码
+        保存分红送配数据到数据库
+
+        Args:
+            data: 清洗后的数据
+            start_year: 开始年份（包含）
+            end_year: 结束年份（不包含）
+            **kwargs: 额外参数，包含 block_pointer
+
+        Returns:
+            bool: 保存是否成功
         """
-        self.func_name = "_fetch_xrxd_block"
-        logger.debug(f"[{__name__}.{self.func_name}] 处理: {year} | {stock_code}")
+        if data.empty:
+            self.logger.warning("无数据可保存")
+            return True
 
-        # ========== 1. 下载数据 ==========
-        logger.debug(f"[{__name__}.{self.func_name}] 下载: {stock_code} {year}")
-        raw_df = self._download_raw_xrxd_data(stock_code, year)
-        
-        if raw_df is None or raw_df.empty:
-            logger.debug(f"[{__name__}.{self.func_name}] 无数据，跳过: {stock_code} {year}")
-            return
-
-        # ========== 2. 清洗数据 ==========
-        df = self._clean_xrxd_data(raw_df, stock_code, year)
-        if df is None or df.empty:
-            logger.debug(f"[{__name__}.{self.func_name}] 清洗后数据为空，跳过: {stock_code} {year}")
-            return
-
-        # ========== 3. 保存数据 ==========
-        xrxd_manager = XrxdManager(self.db_conn)
-        ok = xrxd_manager.save_xrxd_data(df)
-        if not ok:
-            raise Exception(f"数据保存失败: {stock_code} {year}")
-
-        logger.debug(f"[{__name__}.{self.func_name}] 完成: {stock_code} {year}")
-
-    def _get_downloading_block(self) -> Optional[Tuple[int, str]]:
-        """
-        获取当前正在下载的区块（如果有）
-        
-        区块概念：
-        - 区块是一只股票在一个年份中的数据集合
-        - 每个区块由 (年份, 股票代码) 唯一标识
-        
-        :return: (year, stock_code) 或 None（无正在下载的区块）
-        """
-        try:
-            result = self.progress_manager.get_xrxd_dl_pointer()
-            if result:
-                year, stock_code, _, _, _ = result
-                if year > 0 and stock_code:
-                    return (year, stock_code)
-            return None
-        except Exception as e:
-            logger.error(f"[{__name__}._get_downloading_block] 获取下载区块失败: {str(e)}")
-            return None
-
-    def _set_xrxd_dl_pointer(self, year: int, stock_code: str) -> bool:
-        """
-        设置当前正在下载的区块
-        
-        区块概念：
-        - 区块是一只股票在一个年份中的数据集合
-        - 每个区块由 (年份, 股票代码) 唯一标识
-        
-        :param year: 年份
-        :param stock_code: 股票代码
-        :return: 是否设置成功
-        """
-        try:
-            result = self.progress_manager.set_xrxd_dl_pointer(year, stock_code)
-            logger.debug(f"[{__name__}._set_xrxd_dl_pointer] 设置下载区块成功: {year} {stock_code}")
-            return result
-        except Exception as e:
-            logger.error(f"[{__name__}._set_xrxd_dl_pointer] 设置下载区块失败: {str(e)}")
+        block_pointer = kwargs.get('block_pointer')
+        if not block_pointer:
+            self.logger.error("缺少区块指针")
             return False
 
-    def _get_download_status(self) -> DlTaskStatus:
-        """
-        获取当前下载状态
-        :return: 下载状态
-        """
-        return self.progress_manager.get_task_status(DlTaskType.XRXD)
-    
-    def _set_download_status(self, status: DlTaskStatus):
-        """
-        设置当前下载状态
-        :param status: 下载状态
-        """
-        self.progress_manager.set_task_status(DlTaskType.XRXD, status)
+        stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
+        year = block_pointer.get_value(PointerField.YEAR)
 
+        data["std_stock_code"] = stock_code
+        data["xrxd_year"] = year
 
+        ok = self.xrxd_manager.save_xrxd_data(data)
+        if not ok:
+            self.logger.error(f"数据保存失败: {stock_code} {year}")
+            return False
 
-
-    def continue_download_xrxd(self, start_year: int, end_year: int) -> bool:
-        """
-        类内核心下载接口：无列表、动态查找、断点续传
-        :return: True 表示全部下载完成，False 表示未完成
-        """
-        self.func_name = "continue_download_xrxd"
-        logger.debug(f"[{__name__}.{self.func_name}] 启动下载: {start_year}-{end_year}")
-
-        # 步骤0：检查下载状态
-        status = self._get_download_status()
-        if status == DlTaskStatus.COMPLETED:
-            logger.info(f"[{__name__}.{self.func_name}] 下载已完成，无需重复执行")
-            return True
-        elif status == DlTaskStatus.IN_PROGRESS:
-            logger.info(f"[{__name__}.{self.func_name}] 下载正在进行，将从断点恢复")
-        else:  # 下载未开始
-            logger.info(f"[{__name__}.{self.func_name}] 下载未开始，将从头开始")
-            self.progress_manager.clear_dl_pointer(DlTaskType.XRXD)
-            self._set_download_status(DlTaskStatus.IN_PROGRESS)
-
-        # 步骤1：计算总区块数
-        total_blocks = dm.get_total_block_count(self.db_conn, DlTaskType.XRXD, start_year, end_year)
-        logger.info(f"[{__name__}.{self.func_name}] 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
-
-        # 步骤3：优先恢复中断的下载区块
-        next_block = self._get_downloading_block()
-        logger.info(f"[{__name__}.{self.func_name}] 启动前：当前下载区块: {next_block}")
-
-        # 步骤4：无中断任务则获取第一个待下载区块
-        if not next_block:
-            next_block = self._get_next_block(start_year, end_year, None, None)
-        logger.info(f"[{__name__}.{self.func_name}] 启动后：第一个下载区块: {next_block}")
-
-        # 核心循环：有下一个区块则执行下载
-        completed_block_count = 0
-        while next_block:
-            year, stock_code = next_block
-            try:
-                # 先更新下载指针，确保中断后能从正确位置恢复
-                self._set_xrxd_dl_pointer(year, stock_code)
-                # 执行下载
-                self._fetch_xrxd_block(year, stock_code)
-
-                # 记录进度
-                logger.info(f"XRXD数据下载完成区块: {year} {stock_code}")
-                
-                # 输出下载进度（基于已完成的区块数）
-                completed_block_count = dm.get_completed_block_count(self.db_conn, 
-                                                                     DlTaskType.XRXD, 
-                                                                     start_year, end_year, 
-                                                                     year, stock_code)
-                if completed_block_count is not None and total_blocks > 0:
-                    progress_percent = (completed_block_count / total_blocks) * 100
-                    logger.info(f"XRXD数据下载进度: {progress_percent:.2f}% ({completed_block_count}/{total_blocks})")
-
-                # 获取下一个区块
-                next_block = self._get_next_block(start_year, end_year, year, stock_code)
-            except ConnectionRefusedError as e:
-                # 网络连接异常，记录错误日志，退出循环体，中止整个下载任务
-                logger.error(f"[{__name__}.{self.func_name}] 拒绝连接，下载失败: {year} {stock_code}, {str(e)}")
-                # 虽然退出循环体，但保持下载状态为IN_PROGRESS，方便后续恢复下载
-                return False
-            
-            except Exception as e:
-                logger.error(f"[{__name__}.{self.func_name}] 下载失败失败: {year} {stock_code}, {str(e)}")
-                return False
-
-        if completed_block_count >= total_blocks:
-            # 下载完成，清空下载指针
-            self.progress_manager.clear_dl_pointer(DlTaskType.XRXD)
-            self._set_download_status(DlTaskStatus.COMPLETED)
-        logger.info(f"[{__name__}.{self.func_name}] 全部下载完成，已清空下载指针")
         return True
 
-    def start_new_xrxd_download(self, start_year: int, end_year: int) -> bool:
-        """
-        从头开始下载（删除之前的下载记录）
-        :param start_year: 起始年份（包含）
-        :param end_year: 结束年份（包含）
-        :return: True 表示全部下载完成，False 表示未完成
-        """
-        self.func_name = "start_new_xrxd_download"
-        logger.info(f"[{__name__}.{self.func_name}] 开始从头下载: {start_year}-{end_year}")
-        
-        # 步骤1：删除任务记录
-        #self.progress_manager.delete_task('xrxd')
-        self._set_download_status(DlTaskStatus.NOT_STARTED)
-        logger.debug(f"[{__name__}.{self.func_name}] 已删除任务记录")
-        
-        # 步骤2：调用普通下载方法
-        return self.continue_download_xrxd(start_year, end_year)
 
-# ===================== 全局唯一对外接口函数 =====================
 def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
     """
     【全局唯一对外接口】继续下载分红送配数据（支持断点续传）
@@ -423,7 +287,8 @@ def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = N
         end_year = datetime.now().year
 
     downloader = XrxdDownloader(db_conn)
-    return downloader.continue_download_xrxd(start_year, end_year)
+    return downloader.continue_download(start_year, end_year)
+
 
 def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
     """
@@ -444,10 +309,10 @@ def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = 
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
-    :return: True 表示全部下载完成，False 表示未完成
+    :return: True 表示全部下载完成， False 表示未完成
     """
     if end_year is None:
         end_year = datetime.now().year
 
     downloader = XrxdDownloader(db_conn)
-    return downloader.start_new_xrxd_download(start_year, end_year)
+    return downloader.start_new_download(start_year, end_year)

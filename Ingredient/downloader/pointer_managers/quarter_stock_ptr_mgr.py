@@ -19,7 +19,7 @@ class QuarterStockPtrMgr(GenericPointerManager):
     3. 提供指针验证和转换功能
     """
     
-    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = (), global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type=None, global_manager=None, time_frame=None):
         """
         初始化季度股票指针管理器
         
@@ -30,7 +30,7 @@ class QuarterStockPtrMgr(GenericPointerManager):
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选，仅 QuarterStockPeriodStrategy 需要）
         """
-        super().__init__(db_conn, task_type, pointer_fields, global_manager, time_frame)
+        super().__init__(db_conn, task_type, global_manager, time_frame)
         self.logger = get_logger(__name__)
 
     def get_next_blk_pointer(self, start_year: int, end_year: int, current_pointer: BlockPointer, **kwargs) -> Optional[BlockPointer]:

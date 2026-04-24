@@ -1,10 +1,12 @@
 # year_ptr_mgr.py
 # 按年份划分的指针管理器
 
+from Ingredient.config import DownloadConfig
 from .generic_pointer_manager import GenericPointerManager
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from KitchenBase.download_enums import PointerField
 from typing import Optional, Tuple
+from Ingredient.config import DlTaskType
 from KitchenBase.logger_config import get_logger
 
 
@@ -18,18 +20,17 @@ class YearPtrMgr(GenericPointerManager):
     3. 提供指针验证和转换功能
     """
     
-    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = (), global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None, time_frame=None):
         """
         初始化年份指针管理器
         
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型（可选）
-            pointer_fields: 指针字段枚举元组（可选）
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选）
         """
-        super().__init__(db_conn, task_type, pointer_fields, global_manager, time_frame)
+        super().__init__(db_conn, task_type, global_manager, time_frame)
         self.logger = get_logger(__name__)
 
     def get_next_blk_pointer(self, start_year: int, end_year: int, current_block: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
@@ -49,10 +50,11 @@ class YearPtrMgr(GenericPointerManager):
         Returns:
             Optional[BlockPointer]: 下一个区块的指针
         """
+        pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
         if current_block is None:
             # 创建第一个年份的指针
             pointer_values = (start_year,)
-            return BlockPointer(self.pointer_fields, pointer_values)
+            return BlockPointer(pointer_fields, pointer_values)
         
         try:
             # 解析当前区块指针中的年份值
@@ -67,7 +69,7 @@ class YearPtrMgr(GenericPointerManager):
             
             # 创建下一个区块指针
             pointer_values = (next_year,)
-            return BlockPointer(self.pointer_fields, pointer_values)
+            return BlockPointer(pointer_fields, pointer_values)
         except Exception as e:
             self.logger.error(f"获取下一个区块指针失败: {str(e)}")
             return None

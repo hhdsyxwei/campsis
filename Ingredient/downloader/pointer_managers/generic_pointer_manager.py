@@ -1,6 +1,7 @@
 # general_pointer_manager.py
 # 通用指针管理器实现，集成策略模式
 
+from KitchenBase.download_enums import DlTaskType
 from Ingredient.DataNest.dm_unified import UnifiedDataManager
 from ..core.abs_pointer_manager import PointerManager
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
@@ -27,20 +28,18 @@ class GenericPointerManager(PointerManager):
     2. 指针验证功能，指针的验证基于字段的不同而不同
     """
 
-    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = (), global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None, time_frame=None):
         """
         初始化通用指针管理器
 
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型（可选）
-            pointer_fields: 指针字段枚举元组（可选）
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选，仅 QuarterStockPeriodStrategy 需要）
         """
         self.db_conn = db_conn
         self.task_type = task_type
-        self.pointer_fields = pointer_fields
         self.time_frame = time_frame
         self.dl_pointer = None
         self.logger = get_logger(__name__)
@@ -289,3 +288,37 @@ class GenericPointerManager(PointerManager):
         except Exception as e:
             self.logger.error(f"获取股票总数失败: {str(e)}")
             return 0
+    
+    def stock_exists(self, stock_code: str) -> bool:
+        """
+        检查股票代码是否在 stock_fixed_seq 表中
+        
+        Args:
+            stock_code: 股票代码
+            
+        Returns:
+            bool: 股票是否存在
+        """
+        try:
+            if not self.stock_manager:
+                self.logger.error("stock_manager 未初始化")
+                return False
+            return self.stock_manager.stock_exists(stock_code)
+        except Exception as e:
+            self.logger.error(f"检查股票是否存在失败: {str(e)}")
+            return False
+
+    def get_completed_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
+        """
+        基于指针获取已完成区块数
+
+        Args:
+            start_year: 开始年份（包含）
+            end_year: 结束年份（不包含）
+            dl_pointer: 当前下载指针，包含当前处理的区块信息
+
+        Returns:
+            int: 已完成区块数
+        """
+        # 无区块状态表时无法统计已完成区块数，返回0
+        return 0
