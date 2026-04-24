@@ -22,26 +22,6 @@ class BaseDataManager(ABC):
         pass
 
     @abstractmethod
-    def get_completed_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        获取已完成区块总数（仅统计completed状态）
-        :param start_year: 起始年份
-        :param end_year: 结束年份
-        :return: 已完成区块总数
-        """
-        pass
-
-    @abstractmethod
-    def get_skipped_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        获取跳过区块总数（仅统计skipped状态）
-        :param start_year: 起始年份
-        :param end_year: 结束年份
-        :return: 跳过区块总数
-        """
-        pass
-
-    @abstractmethod
     def get_total_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
         """
         获取区块总数

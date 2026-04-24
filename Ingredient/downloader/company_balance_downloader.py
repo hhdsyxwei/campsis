@@ -5,7 +5,7 @@
 import pandas as pd
 import time
 from typing import Tuple
-from Ingredient.downloader.progress_managers.general_progress_manager import GenericProgressManager
+from Ingredient.downloader.progress_managers.generic_progress_manager import GenericProgressManager
 from .core.abstract_downloader import BlockDownloader
 from .block_managers.generic_block_manager import GenericBlockManager
 from .status_managers.generic_status_manager import GenericStatusManager
@@ -70,7 +70,7 @@ class CompanyBalanceDownloader(BlockDownloader):
         """
         创建区块管理器
         """
-        return QuarterStockBlkMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        return QuarterStockBlkMgr(self.db_conn, self.get_task_type())
     
     def create_status_manager(self) -> GenericStatusManager:
         """

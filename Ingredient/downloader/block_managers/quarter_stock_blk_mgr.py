@@ -1,6 +1,7 @@
 # custom_total_block_manager.py
 # 自定义总区块数计算的区块管理器
 
+from KitchenBase.download_enums import DlTaskType
 from .generic_block_manager import GenericBlockManager
 from KitchenBase.download_enums import PointerField
 from typing import Tuple
@@ -13,7 +14,7 @@ class QuarterStockBlkMgr(GenericBlockManager):
     只重写get_total_block_count方法，其他方法使用父类实现
     """
     
-    def __init__(self, db_conn, task_type=None, pointer_fields: Tuple[PointerField, ...] = ()):
+    def __init__(self, db_conn, task_type: DlTaskType):
         """
         初始化自定义区块管理器
         
@@ -22,7 +23,7 @@ class QuarterStockBlkMgr(GenericBlockManager):
             task_type: 任务类型枚举值
             pointer_fields: 指针字段枚举元组
         """
-        super().__init__(db_conn, task_type, pointer_fields)
+        super().__init__(db_conn, task_type)
 
     def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
         """

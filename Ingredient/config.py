@@ -1,0 +1,53 @@
+# config.py
+# 下载器配置
+
+from KitchenBase.download_enums import DlTaskType, PointerField
+from KitchenBase.stock_enums import KLinePeriod
+
+class KLineConfig:
+    DEFAULT_TIME_FRAMES = [
+        KLinePeriod.MIN_5
+    ]
+
+class DownloadConfig:
+    """下载配置"""
+    # 下载类型与区块字段列表的映射
+    TASK_TYPE_TO_POINTER_FIELDS = {
+        DlTaskType.KLINE: (
+            PointerField.STOCK_CODE,
+            PointerField.TIME_FRAME,
+            PointerField.QUARTER
+        ),
+        DlTaskType.ADJ_FACTOR: (
+            PointerField.YEAR,
+            PointerField.STOCK_CODE
+        ),
+        DlTaskType.XRXD: (
+            PointerField.YEAR,
+            PointerField.STOCK_CODE
+        ),
+        DlTaskType.STOCK_PROFIT: (
+            PointerField.QUARTER,
+            PointerField.STOCK_CODE
+        ),
+        DlTaskType.COMPANY_BALANCE: (
+            PointerField.QUARTER,
+            PointerField.STOCK_CODE
+        ),
+        DlTaskType.INDUSTRY: (
+            PointerField.YEAR
+        )
+    }
+    
+    @classmethod
+    def get_pointer_fields(cls, task_type: DlTaskType) -> tuple:
+        """
+        获取指定下载类型的区块字段列表
+        
+        Args:
+            task_type: 下载类型
+            
+        Returns:
+            tuple: 区块字段列表
+        """
+        return cls.TASK_TYPE_TO_POINTER_FIELDS.get(task_type, ())

@@ -86,7 +86,7 @@ class XrxdDownloader(BlockDownloader):
             PointerManager: 指针管理器实例
         """
         from .pointer_managers import YearStockPtrMgr
-        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        return YearStockPtrMgr(self.db_conn, self.get_task_type())
 
     def create_progress_manager(self) -> ProgressManager:
         """

@@ -21,6 +21,7 @@ from Ingredient.downloader import start_new_profit_download
 from Ingredient.downloader.company_balance_downloader import start_new_balance_download
 from Ingredient.downloader.stock_industry_downloader import start_new_industry_download
 from Ingredient.downloader.adj_factor_downloader import start_new_adj_factor_download
+from Ingredient.downloader.kline_unified_downloader import start_new_kline_download
 
 
 
@@ -78,7 +79,7 @@ def main():
         # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
         # 6. 第四步：下载5分钟K线数据（示例）
-        # start_new_kline_download(conn, start_year, end_year, KLinePeriod.MIN_5)  # 下载5分钟K线数据，示例股票代码
+        start_new_kline_download(conn, start_year, end_year)  # 下载5分钟K线数据，示例股票代码
         # continue_download_kline(conn, start_year, end_year, KLinePeriod.MIN_5)  # 继续下载2026-2027年的5分钟K线数据
 
         # 7. 第五步：下载分红送配数据
@@ -86,7 +87,7 @@ def main():
         # continue_download_xrxd(conn, start_year, end_year)  # 下载2026-2027年的分红送配数据
 
         # 8. 第六步：下载复权因子数据
-        start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
+        # start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
         # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
         # 9. 第七步：下载股票利润数据

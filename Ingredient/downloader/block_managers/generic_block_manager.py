@@ -8,6 +8,8 @@ from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, PointerField
 from Ingredient.DataNest import GenericBlockStatusDM
 from Ingredient.DataNest import UnifiedDataManager as udm
+from Ingredient.config import DownloadConfig
+
 
 
 class GenericBlockManager(BlockManager):
@@ -24,14 +26,13 @@ class GenericBlockManager(BlockManager):
     5. 更新区块状态
     """
     
-    def __init__(self, db_conn, task_type: DlTaskType, pointer_fields: Tuple[PointerField, ...] = ()):
+    def __init__(self, db_conn, task_type: DlTaskType):
         """
         初始化通用区块管理器
         
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型枚举值
-            pointer_fields: 指针字段枚举元组
         """
         self.db_conn = db_conn
         self.task_type = task_type
@@ -53,10 +54,11 @@ class GenericBlockManager(BlockManager):
         if not self.status_dm or not self.task_type:
             return 0
         try:
+            pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
                 task_type=self.task_type, 
-                start_year=start_year, 
-                end_year=end_year, 
+                year_range=(start_year, end_year), 
+                pointer_fields=pointer_fields,
                 status=[DlBlockStatus.COMPLETED]
             )
         except Exception as e:
@@ -77,10 +79,11 @@ class GenericBlockManager(BlockManager):
         if not self.status_dm or not self.task_type:
             return 0
         try:
+            pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
                 task_type=self.task_type, 
-                start_year=start_year, 
-                end_year=end_year, 
+                year_range=(start_year, end_year), 
+                pointer_fields=pointer_fields,
                 status=[DlBlockStatus.SKIPPED]
             )
         except Exception as e:
