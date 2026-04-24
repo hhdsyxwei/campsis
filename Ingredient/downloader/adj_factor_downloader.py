@@ -90,8 +90,8 @@ class AdjFactorDownloader(BlockDownloader):
         Returns:
             ProgressManager: 进度管理器实例
         """
-        from .progress_managers.general_progress_manager import GeneralProgressManager
-        return GeneralProgressManager(self.db_conn)
+        from .progress_managers.general_progress_manager import GenericProgressManager
+        return GenericProgressManager(self.db_conn)
 
     def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
         """

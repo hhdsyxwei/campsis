@@ -11,7 +11,7 @@ from Ingredient.downloader.core.abs_pointer_manager import PointerManager
 from Ingredient.downloader.core.abs_progress_manager import ProgressManager
 from Ingredient.downloader.status_managers.generic_status_manager import GenericStatusManager
 from Ingredient.downloader.pointer_managers.year_ptr_mgr import YearPtrMgr
-from Ingredient.downloader.progress_managers.general_progress_manager import GeneralProgressManager
+from Ingredient.downloader.progress_managers.general_progress_manager import GenericProgressManager
 from Ingredient.DataNest import StockIndustryDataManager, BasicStockDataManager
 from KitchenBase.baostock_wrapper import query_stock_industry
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
@@ -98,7 +98,7 @@ class StockIndustryDownloader(BlockDownloader):
         Returns:
             ProgressManager: 进度管理器实例
         """
-        return GeneralProgressManager(self.db_conn)
+        return GenericProgressManager(self.db_conn)
 
     def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
         """
