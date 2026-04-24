@@ -6,27 +6,21 @@ import numpy as np
 from datetime import datetime
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
-from .dm_base import BaseDataManager
+from .dm_generic_block_status import GenericBlockStatusDM
 
 # ===================== 全局配置 =====================
 logger = get_logger(__name__)
 
 # ===================== 分红送配数据管理器 =====================
-class XrxdManager(BaseDataManager):
+class XrxdManager:
     def __init__(self, db_conn):
         """
         初始化分红送配数据管理器
         :param db_conn: 数据库连接
         """
-        super().__init__(db_conn)
+        self.db_conn = db_conn
+        self.block_status_manager = GenericBlockStatusDM(db_conn)
         self.func_name = ""
-    
-    def get_task_type(self) -> DlTaskType:
-        """
-        获取任务类型
-        :return: 任务类型（DlTaskType枚举）
-        """
-        return DlTaskType.XRXD
 
     def save_xrxd_data(self, df: pd.DataFrame) -> bool:
         """
@@ -358,76 +352,3 @@ class XrxdManager(BaseDataManager):
         
         # XRXD数据一般不会因为股票未上市或已退市而跳过，固定返回0
         return 0
-
-    def get_total_block_count(self, start_year: int, end_year: int) -> int:
-        """
-        计算XRXD数据的区块总数
-        计算逻辑：年份总数 × 股票总数 = 总区块数
-
-        Args:
-            start_year: 起始年份（包含）
-            end_year: 结束年份（不包含）
-
-        Returns:
-            区块总数
-        """
-        func_name = "get_total_block_count"
-        logger.debug(
-            f"[{__name__}.{func_name}] 计算区块总数，年份范围："
-            f"start_year={start_year}, end_year={end_year}"
-        )
-
-        try:
-            # 计算年份范围内的年份总数
-            year_count = end_year - start_year
-            
-            # 统计股票总数
-            from .dm_unified import UnifiedDataManager
-            stock_count = UnifiedDataManager.count_stocks_in_fixed_seq(self.db_conn)
-            
-            # 计算总区块数
-            total_blocks = year_count * stock_count
-            
-            logger.debug(
-                f"[{__name__}.{func_name}] 计算完成，区块总数：{total_blocks} "
-                f"(年份范围：{start_year} - {end_year}, 年份数：{year_count}, 股票数：{stock_count})"
-            )
-            return total_blocks
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 计算区块总数失败: {str(e)}")
-            raise
-
-    def get_block_status(self, year: int, std_stock_code: str) -> DlBlockStatus:
-        """
-        获取XRXD区块状态（固定返回COMPLETED）
-        
-        Args:
-            year: 年份
-            std_stock_code: 股票代码
-        
-        Returns:
-            固定返回DlBlockStatus.COMPLETED
-        """
-        func_name = "get_block_status"
-        logger.debug(
-            f"[{__name__}.{func_name}] 获取 {std_stock_code} {year} 的状态（固定返回COMPLETED）"
-        )
-        # 由于使用指针位置计算进度，固定返回COMPLETED
-        return DlBlockStatus.COMPLETED
-
-    def update_block_status(self, year: int, std_stock_code: str, status: DlBlockStatus):
-        """
-        更新XRXD区块状态（空实现）
-        
-        Args:
-            year: 年份
-            std_stock_code: 股票代码
-            status: 状态
-        """
-        func_name = "update_block_status"
-        logger.debug(
-            f"[{__name__}.{func_name}] 更新 {year} {std_stock_code} 的状态为: {status.value}（空实现）"
-        )
-        # 由于使用指针位置计算进度，不需要实际更新状态
-        pass
-

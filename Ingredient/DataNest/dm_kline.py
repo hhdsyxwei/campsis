@@ -6,7 +6,7 @@ from datetime import datetime
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
-from .dm_base import BaseDataManager
+from .dm_generic_block_status import GenericBlockStatusDM
 from .dm_columns import (
     STD_STOCK_CODE, TIME_FRAME, TIMESTAMP,
     OPEN_PRICE, HIGH_PRICE, LOW_PRICE, CLOSE_PRICE, VOLUME, TURNOVER,
@@ -18,17 +18,11 @@ from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
 
 logger = get_logger(__name__)
 
-class KLineUnifiedQuarterlyExtendedManager(BaseDataManager):
+class KLineUnifiedQuarterlyExtendedManager:
     def __init__(self, db_conn):
-        super().__init__(db_conn)
+        self.db_conn = db_conn
+        self.block_status_manager = GenericBlockStatusDM(db_conn)
         self.progress_manager = GlobalDlCtrlBlockManager(db_conn)
-    
-    def get_task_type(self) -> DlTaskType:
-        """
-        获取任务类型
-        :return: 任务类型（DlTaskType枚举）
-        """
-        return DlTaskType.KLINE
 
     def save_kline_data_unified(self, std_stock_code: str, df: pd.DataFrame) -> bool:
         """
@@ -90,85 +84,6 @@ class KLineUnifiedQuarterlyExtendedManager(BaseDataManager):
             logger.error(f"[{__name__}.{func_name}] 保存数据失败 for {std_stock_code}: {str(e)}")
             self.db_conn.rollback()
             return False
-        finally:
-            if cursor:
-                cursor.close()
-
-    def get_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> DlBlockStatus:
-        """
-        获取K线下载状态
-        
-        Args:
-            quarter: 季度，格式如 '2024-Q1'
-            std_stock_code: 股票代码
-            time_frame: 时间周期
-        
-        Returns:
-            状态枚举: BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
-        """
-        func_name = "get_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 查询 {std_stock_code} {time_frame.value} {quarter} 的下载状态")
-        
-        cursor = None
-        try:
-            cursor = self.db_conn.cursor()
-            query = f"""
-            SELECT status FROM kline_block_status 
-            WHERE quarter = %s AND std_stock_code = %s AND time_frame = %s
-            """
-            cursor.execute(query, (quarter, std_stock_code, time_frame.value))
-            result = cursor.fetchone()
-            
-            # 解包查询结果，返回枚举值
-            # 如果解包失败，默认返回NOT_COMPLETED
-            # 发生其它异常时，抛出异常
-            if result:
-                return DlBlockStatus(result[0])
-            return DlBlockStatus.NOT_COMPLETED
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询状态失败: {str(e)}")
-            raise
-        finally:
-            if cursor:
-                cursor.close()
-
-    def update_block_status(self, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: DlBlockStatus):
-        """
-        更新K线下载进度（统一格式）
-        
-        Args:
-            std_stock_code: 股票代码
-            time_frame: 时间周期
-            quarter: 季度，格式如 '2024-Q1'
-            status: 状态，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
-        """
-        func_name = "update_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 更新 {quarter} {std_stock_code} {time_frame.value}  的状态为: {status.value}")
-        
-        cursor = None
-        try:
-            cursor = self.db_conn.cursor()
-            # 使用INSERT ... ON DUPLICATE KEY UPDATE来处理记录存在与否的情况
-            query = f"""
-            INSERT INTO kline_block_status (quarter, std_stock_code, time_frame,  status, completed_at) 
-            VALUES (%s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE 
-            status = VALUES(status),
-            completed_at = CASE 
-                WHEN VALUES(status) = 'completed' THEN VALUES(completed_at) 
-                ELSE completed_at 
-            END
-            """
-
-            completed_at = datetime.now() if status == DlBlockStatus.COMPLETED else None
-            cursor.execute(query, (quarter, std_stock_code, time_frame.value, status.value, completed_at))
-            self.db_conn.commit()
-            
-            logger.debug(f"[{__name__}.{func_name}] {quarter} {std_stock_code} {time_frame.value}  的状态已更新为: {status}")
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 更新进度失败: {str(e)}")
-            self.db_conn.rollback()
-            raise
         finally:
             if cursor:
                 cursor.close()
@@ -362,44 +277,3 @@ class KLineUnifiedQuarterlyExtendedManager(BaseDataManager):
         finally:
             if cursor:
                 cursor.close()
-
-    def get_total_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
-        """
-        计算K线数据的区块总数
-        计算逻辑：季度总数 × 股票总数 = 总区块数
-
-        Args:
-            start_year: 起始年份（包含）
-            end_year: 结束年份（不包含）
-            time_frame: K线周期
-
-        Returns:
-            区块总数
-        """
-        func_name = "get_total_block_count"
-        logger.debug(
-            f"[{__name__}.{func_name}] 计算区块总数，年份范围："
-            f"start_year={start_year}, end_year={end_year}, time_frame={time_frame.value}"
-        )
-
-        try:
-            # 计算年份范围内的季度总数
-            year_diff = end_year - start_year
-            quarter_count = year_diff * 4
-            
-            # 统计股票总数
-            from .dm_unified import UnifiedDataManager
-            stock_count = UnifiedDataManager.count_stocks_in_fixed_seq(self.db_conn)
-            
-            # 计算总区块数
-            total_blocks = quarter_count * stock_count
-            
-            logger.info(
-                f"[{__name__}.{func_name}] 计算完成，区块总数：{total_blocks} "
-                f"(年份范围：{start_year} - {end_year}, 季度数：{quarter_count}, 股票数：{stock_count})"
-            )
-            return total_blocks
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 计算区块总数失败: {str(e)}")
-            raise
-

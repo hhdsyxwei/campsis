@@ -7,27 +7,21 @@ import numpy as np
 from datetime import datetime
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus
-from .dm_base import BaseDataManager
+from .dm_generic_block_status import GenericBlockStatusDM
 
 # ===================== 全局配置 =====================
 logger = get_logger(__name__)
 
 # ===================== 复权因子数据管理器 =====================
-class AdjustmentFactorManager(BaseDataManager):
+class AdjustmentFactorManager:
     def __init__(self, db_conn):
         """
         初始化复权因子数据管理器
         :param db_conn: 数据库连接
         """
-        super().__init__(db_conn)
+        self.db_conn = db_conn
+        self.block_status_manager = GenericBlockStatusDM(db_conn)
         self.func_name = ""
-    
-    def get_task_type(self) -> DlTaskType:
-        """
-        获取任务类型
-        :return: 任务类型（DlTaskType枚举）
-        """
-        return DlTaskType.ADJ_FACTOR
 
     def save_adjustment_factor_data(self, df: pd.DataFrame) -> bool:
         """
@@ -206,77 +200,3 @@ class AdjustmentFactorManager(BaseDataManager):
         finally:
             if cursor:
                 cursor.close()
-
-    def get_total_block_count(self, start_year: int, end_year: int, *args, **kwargs) -> int:
-        """
-        获取总区块数
-        
-        :param start_year: 起始年份
-        :param end_year: 结束年份，不包含在内
-        :return: 总区块数
-        """
-        func_name = "get_total_block_count"
-        logger.debug(f"[{__name__}.{func_name}] 计算总区块数: {start_year}-{end_year}")
-        
-        try:
-            # 计算年份范围内的区块数（每个年份一个区块）
-            from .dm_unified import UnifiedDataManager
-            stock_count = UnifiedDataManager.count_stocks_in_fixed_seq(self.db_conn)
-            total_years = end_year - start_year
-            total_blocks = total_years * stock_count
-            logger.debug(f"[{__name__}.{func_name}] 总区块数: {total_blocks}")
-            return total_blocks
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 计算失败: {str(e)}")
-            return 0
-    
-    def get_block_status(self, year: int, std_stock_code: str, *args, **kwargs) -> DlBlockStatus:
-        """
-        获取区块状态
-        
-        :param year: 年份
-        :param std_stock_code: 股票代码
-        :return: 区块状态
-        """
-        func_name = "get_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 获取 {std_stock_code} {year} 的复权因子区块状态")
-        
-        try:
-            # 利用父类的 block_status_manager 获取区块状态
-            # 任务类型为 DlTaskType.ADJ_FACTOR，block_key_1 为年份字符串，block_key_2 为股票代码
-            status = self.block_status_manager.get_block_status(
-                block_key_1=str(year),
-                block_key_2=std_stock_code,
-                task_type=DlTaskType.ADJ_FACTOR
-            )
-            logger.debug(f"[{__name__}.{func_name}] 区块状态: {status.value}")
-            return status
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 获取区块状态失败: {str(e)}")
-            return DlBlockStatus.NOT_COMPLETED
-    
-    def update_block_status(self, year: int, std_stock_code: str, status: DlBlockStatus, **kwargs):
-        """
-        更新复权因子区块状态
-        
-        :param year: 年份
-        :param std_stock_code: 股票代码
-        :param status: 区块状态
-        :param kwargs: 其他参数（block_name, total_items, success_count, fail_count, error_message等）
-        """
-        func_name = "update_block_status"
-        logger.debug(f"[{__name__}.{func_name}] 更新 {std_stock_code} {year} 的复权因子区块状态为: {status.value}")
-        
-        try:
-            # 利用父类的 block_status_manager 更新区块状态
-            self.block_status_manager.update_block_status(
-                block_key_1=str(year),
-                block_key_2=std_stock_code,
-                task_type=DlTaskType.ADJ_FACTOR,
-                status=status,
-                **kwargs
-            )
-            logger.debug(f"[{__name__}.{func_name}] 复权因子区块状态更新成功")
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 更新复权因子区块状态失败: {str(e)}")
-

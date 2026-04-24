@@ -95,48 +95,6 @@ class UnifiedDataManager:
             return False
 
     @staticmethod
-    def get_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod) -> DlBlockStatus:
-        """
-        获取K线下载状态
-        
-        Args:
-            db_conn: 数据库连接
-            std_stock_code: 股票代码
-            time_frame: 时间周期
-            quarter: 季度，格式如 '2024-Q1'
-        
-        Returns:
-            状态枚举值，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
-        """
-        func_name = "get_kline_block_status"
-        try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.get_block_status(quarter, std_stock_code, time_frame)
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
-            raise
-
-    @staticmethod
-    def update_kline_block_status(db_conn, quarter: str, std_stock_code: str, time_frame: KLinePeriod, status: DlBlockStatus):
-        """
-        更新K线下载进度（统一格式）
-        
-        Args:
-            db_conn: 数据库连接
-            std_stock_code: 股票代码
-            time_frame: 时间周期
-            quarter: 季度，格式如 '2024-Q1'
-            status: 状态，BlockStatus.COMPLETED 或 BlockStatus.NOT_COMPLETED 或 BlockStatus.SKIPPED
-        """
-        func_name = "update_kline_block_status"
-        try:
-            manager = KLineUnifiedQuarterlyExtendedManager(db_conn)
-            return manager.update_block_status(quarter, std_stock_code, time_frame, status)
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 调用失败：{str(e)}")
-            return None
-
-    @staticmethod
     def get_quarter_data_count(db_conn, std_stock_code: str, time_frame: KLinePeriod, quarter: str) -> int:
         """
         获取指定股票、时间周期和季度的数据条数
