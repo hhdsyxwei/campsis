@@ -26,7 +26,10 @@ class DownloadConfig:
             PointerField.YEAR,
             PointerField.STOCK_CODE
         ),
-        DlTaskType.STOCK_PROFIT: (
+        DlTaskType.INDUSTRY: (
+            PointerField.YEAR, #必须加逗号，否则括号不会识别成元组
+        ),
+        DlTaskType.COMPANY_PROFIT: (
             PointerField.QUARTER,
             PointerField.STOCK_CODE
         ),
@@ -34,8 +37,9 @@ class DownloadConfig:
             PointerField.QUARTER,
             PointerField.STOCK_CODE
         ),
-        DlTaskType.INDUSTRY: (
-            PointerField.YEAR
+        DlTaskType.COMPANY_CASH_FLOW: (
+            PointerField.QUARTER,
+            PointerField.STOCK_CODE
         )
     }
     

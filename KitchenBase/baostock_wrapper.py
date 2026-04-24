@@ -117,6 +117,23 @@ class BaostockWrapper:
         # 理论上不会走到这里，防止循环异常
         raise RuntimeError(f"[{current_func}] 执行流程异常，未触发重试逻辑")
 
+    @staticmethod
+    def convert_kline_period_to_baostock_freq(kline_period: KLinePeriod) -> str:
+        """
+        将KLinePeriod枚举类型转换为baostock对应的时间频率字符串
+        :param kline_period: KLinePeriod枚举值
+        :return: baostock对应的时间频率字符串
+        :raises ValueError: 当kline_period不在支持的映射范围内时抛出异常
+        """
+        if not isinstance(kline_period, KLinePeriod):
+            raise ValueError(f"kline_period必须是KLinePeriod枚举类型，实际类型: {type(kline_period)}")
+        
+        freq = BaostockWrapper.kline_period_to_baostock_freq.get(kline_period)
+        if freq is None:
+            raise ValueError(f"不支持的KLinePeriod类型: {kline_period.value}")
+        
+        return freq
+
     def query_history_k_data_plus(
         self,
         code: str,
@@ -192,30 +209,273 @@ class BaostockWrapper:
             logger.error(f"[{current_func}] 股票 {code} 查询最终失败 - {type(e).__name__}: {str(e)}")
             raise e
 
-    @staticmethod
-    def convert_kline_period_to_baostock_freq(kline_period: KLinePeriod) -> str:
+    def query_adjust_factor(
+        self,
+        code: str,
+        start_date: str = "",
+        end_date: str = ""
+    ) -> Any:
         """
-        将KLinePeriod枚举类型转换为baostock对应的时间频率字符串
-        :param kline_period: KLinePeriod枚举值
-        :return: baostock对应的时间频率字符串
-        :raises ValueError: 当kline_period不在支持的映射范围内时抛出异常
+        简单封装baostock.query_adjust_factor接口
+        获取复权因子信息数据，BaoStock提供的是涨跌幅复权算法复权因子
+        
+        参数说明：
+        - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+        - start_date: 开始日期，为空时默认为2015-01-01，包含此日期
+        - end_date: 结束日期，为空时默认当前日期，包含此日期
+        
+        返回字段：
+        - code: 证券代码
+        - dividOperateDate: 除权除息日期
+        - foreAdjustFactor: 向前复权因子
+        - backAdjustFactor: 向后复权因子
+        - adjustFactor: 本次复权因子
+        
+        返回值：原生ResultData对象
+        异常：网络连接异常时抛出ConnectionError异常
         """
-        if not isinstance(kline_period, KLinePeriod):
-            raise ValueError(f"kline_period必须是KLinePeriod枚举类型，实际类型: {type(kline_period)}")
+        current_func = self.query_adjust_factor.__name__
+        logger.debug(
+            f"[{current_func}] 查询复权因子 "
+            f"| 股票代码: {code} "
+            f"| 时间范围: {start_date or '2015-01-01'} - {end_date or '当前日期'}"
+        )
         
-        freq = BaostockWrapper.kline_period_to_baostock_freq.get(kline_period)
-        if freq is None:
-            raise ValueError(f"不支持的KLinePeriod类型: {kline_period.value}")
+        result = bs.query_adjust_factor(
+            code=code,
+            start_date=start_date,
+            end_date=end_date
+        )
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询复权因子失败: {result.error_code}=={result.error_msg}")
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+
+    def query_dividend_data(
+        self,
+        code: str,
+        year: str,
+        yearType: str = "report"
+    ) -> Any:
+        """
+        简单封装baostock.query_dividend_data接口
+        获取除权除息信息数据（预披露、预案、正式都已通过）
         
-        return freq
+        参数说明：
+        - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+        - year: 年份，如：2017
+        - yearType: 年份类别
+            - "report": 预案公告年份（默认）
+            - "operate": 除权除息年份
+        
+        返回字段：
+        - code: 证券代码
+        - dividPreNoticeDate: 预案公告日期
+        - dividAgmPumDate: 股东大会公告日期
+        - dividPlanAnnounceDate: 预案披露日期
+        - dividPlanDate: 预案日期
+        - dividRegistDate: 股权登记日期
+        - dividOperateDate: 除权除息日期
+        - dividPayDate: 派息日期
+        - dividStockMarketDate: 红股上市日期
+        - dividCashPsBeforeTax: 每股股利（税前）
+        - dividCashPsAfterTax: 每股股利（税后）
+        - dividStocksPs: 每股送股
+        - dividCashStock: 每股转增
+        - dividReserveToStockPs: 每股资本公积转增
+        
+        返回值：原生ResultData对象
+        异常：网络连接异常时抛出ConnectionError异常
+        """
+        current_func = self.query_dividend_data.__name__
+        logger.debug(
+            f"[{current_func}] 查询分红送配数据 "
+            f"| 股票代码: {code} "
+            f"| 年份: {year} "
+            f"| 年份类型: {yearType}"
+        )
+        
+        result = bs.query_dividend_data(
+            code=code,
+            year=year,
+            yearType=yearType
+        )
+
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询分红送配数据失败: {result.error_msg}")
+
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+
+    def query_profit_data(
+        self,
+        code: str,
+        year: int,
+        quarter: int
+    ) -> Any:
+        """
+        简单封装baostock.query_profit_data接口
+        获取季频盈利能力数据
+        
+        参数说明：
+        - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+        - year: 统计年份
+        - quarter: 统计季度（1-4）
+        
+        返回字段：
+        - code: 证券代码
+        - pubDate: 公司发布财报的日期
+        - statDate: 财报统计的季度的最后一天
+        - roeAvg: 净资产收益率(%)
+        - npMargin: 销售净利率(%)
+        - gpMargin: 销售毛利率(%)
+        - netProfit: 净利润(万元)
+        - epsTTM: 每股收益
+        - MBRevenue: 主营营业收入(百万元)
+        
+        返回值：原生ResultData对象
+        异常：网络连接异常时抛出ConnectionError异常
+        """
+        current_func = self.query_profit_data.__name__
+        logger.debug(
+            f"[{current_func}] 查询季频盈利能力 "
+            f"| 股票代码: {code} "
+            f"| 年份: {year} "
+            f"| 季度: {quarter}"
+        )
+        
+        result = bs.query_profit_data(
+            code=code,
+            year=year,
+            quarter=quarter
+        )
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询季频盈利能力失败: {result.error_code}=={result.error_msg}")
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+
+    def query_trade_dates(
+        self,
+        start_date: str,
+        end_date: str
+    ) -> Any:
+        """
+        简单封装baostock.query_trade_dates接口
+        获取交易日数据
+        
+        参数说明：
+        - start_date: 开始日期，格式：YYYY-MM-DD
+        - end_date: 结束日期，格式：YYYY-MM-DD
+        
+        返回字段：
+        - calendar_date: 日历日期
+        - is_trading_day: 是否交易日（1=是，0=否）
+        
+        返回值：原生ResultData对象
+        异常：网络连接异常时抛出ConnectionError异常
+        """
+        current_func = self.query_trade_dates.__name__
+        logger.debug(
+            f"[{current_func}] 查询交易日数据 "
+            f"| 时间范围: {start_date} - {end_date}"
+        )
+
+        result = bs.query_trade_dates(
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询交易日数据失败: {result.error_msg}")
+
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+
+    def query_stock_industry(
+        self,
+        code: str = "",
+        date: str = ""
+    ) -> Any:
+        """
+        简单封装baostock.query_stock_industry接口
+        获取行业分类信息数据
+        
+        参数说明：
+        - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000，可以为空
+        - date: 查询日期，格式：YYYY-MM-DD，为空时默认最新日期
+        
+        返回值：原生ResultData对象
+        异常：网络连接异常时抛出ConnectionError异常
+        """
+        current_func = self.query_stock_industry.__name__
+        logger.debug(
+            f"[{current_func}] 查询行业分类 "
+            f"| 股票代码: {code or '全部'} "
+            f"| 查询日期: {date or '最新日期'}"
+        )
+        result = bs.query_stock_industry(
+            code=code,
+            date=date
+        )
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询行业分类失败: {result.error_msg}")
+
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+
+    def query_cash_flow_data(
+        self,
+        code: str,
+        year: int,
+        quarter: int
+    ) -> Any:
+        """
+        简单封装baostock.query_cash_flow_data接口
+        获取季频现金流量数据
+        
+        参数说明：
+        - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+        - year: 统计年份
+        - quarter: 统计季度（1-4）
+        
+        返回字段：
+        - code: 证券代码
+        - pubDate: 公司发布财报的日期
+        - statDate: 财报统计的季度的最后一天
+        - catoAsset: 流动资产占总资产比例(%)
+        - ncatoAsset: 非流动资产占总资产比例(%)
+        - tangibleAssetToAsset: 有形资产占总资产比例(%)
+        - ebitToInterest: 已获利息倍数(倍)
+        - cfotoor: 经营活动现金流净额/营业收入(%)
+        - cfotonp: 经营活动现金流净额/净利润(%)
+        - cfotogr: 经营活动现金流净额/营业总收入(%)
+        
+        返回值：原生ResultData对象
+        异常：网络连接异常时抛出ConnectionError异常
+        """
+        current_func = self.query_cash_flow_data.__name__
+        logger.debug(
+            f"[{current_func}] 查询季频现金流量 "
+            f"| 股票代码: {code} "
+            f"| 年份: {year} "
+            f"| 季度: {quarter}"
+        )
+        
+        result = bs.query_cash_flow_data(
+            code=code,
+            year=year,
+            quarter=quarter
+        )
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询季频现金流量失败: {result.error_code}=={result.error_msg}")
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
 
     def query_balance_data(
         self,
         code: str,
         year: int,
-        quarter: int,
-        timeout: int = 300,
-        max_retry: int = 3
+        quarter: int
     ) -> Any:
         """
         简单封装baostock.query_balance_data接口
@@ -225,57 +485,68 @@ class BaostockWrapper:
         - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
         - year: 统计年份
         - quarter: 统计季度（1-4）
-        - timeout: socket超时时间（秒）
-        - max_retry: 最大重试次数
         
         返回值：原生ResultData对象
         异常：网络连接异常时抛出ConnectionError异常
         """
-        if timeout is None:
-            timeout = self.default_timeout
-        if max_retry is None:
-            max_retry = self.default_max_retry
-            
         current_func = self.query_balance_data.__name__
         logger.debug(
             f"[{current_func}] 查询季频偿债能力数据 "
             f"| 股票代码: {code} "
             f"| 年份: {year} "
-            f"| 季度: {quarter} "
-            f"| 超时: {timeout}s "
-            f"| 最大重试次数: {max_retry}"
+            f"| 季度: {quarter}"
         )
+        
+        result = bs.query_balance_data(
+            code=code,
+            year=year,
+            quarter=quarter
+        )
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询偿债能力数据失败: {result.error_code}=={result.error_msg}")
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
 
-        # 定义原生baostock调用逻辑
-        def _native_baostock_call():
-            inner_func = _native_baostock_call.__name__
-            logger.debug(f"[{current_func}->{inner_func}] 调用原生baostock.query_balance_data接口")
-            result = bs.query_balance_data(
-                code=code,
-                year=year,
-                quarter=quarter
-            )
-            if result and result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-                raise ConnectionRefusedError(f"查询偿债能力数据失败: {result.error_msg}")
-
-            logger.debug(f"[{current_func}->{inner_func}] 接口调用完成，error_code: {result.error_code if result is not None else 'None'}")
-            return result
-
+    def login(self) -> Any:
+        """
+        简单封装baostock.login接口
+        登录Baostock系统
+        
+        返回值：原生登录结果对象
+        异常：网络连接异常时抛出ConnectionError异常
+        """
+        current_func = self.login.__name__
+        logger.debug(f"[{current_func}] 登录Baostock系统")
+        
         try:
-            # 执行带重试+重登的调用逻辑
-            result = self._execute_with_retry_and_reauth(
-                func=_native_baostock_call,
-                timeout=timeout,
-                max_retry=max_retry
-            )
-            logger.info(f"[{current_func}] 股票 {code} 偿债能力数据查询最终成功")
+            result = bs.login()
+            logger.debug(f"[{current_func}] 登录完成，error_code: {result.error_code}")
+            self._logged_in = True
             return result
-        except TimeoutError as e:
-            logger.error(f"[{current_func}] 股票 {code} 查询超时 - {str(e)}")
-            raise e
         except Exception as e:
-            logger.error(f"[{current_func}] 股票 {code} 查询最终失败 - {type(e).__name__}: {str(e)}")
-            raise e
+            logger.error(f"[{current_func}] 登录失败 - {type(e).__name__}: {str(e)}")
+            raise ConnectionError(f"登录Baostock系统失败: {str(e)}") from e
+
+    def logout(self) -> Any:
+        """
+        简单封装baostock.logout接口
+        退出Baostock系统
+        
+        返回值：原生登出结果对象
+        异常：网络连接异常时抛出ConnectionError异常
+        """
+        current_func = self.logout.__name__
+        logger.debug(f"[{current_func}] 退出Baostock系统")
+        
+        try:
+            result = bs.logout()
+            error_code = result.error_code if result is not None else 'None'
+            logger.debug(f"[{current_func}] 登出完成，error_code: {error_code}")
+            self._logged_in = False
+            return result
+        except Exception as e:
+            logger.error(f"[{current_func}] 登出失败 - {type(e).__name__}: {str(e)}")
+            raise ConnectionError(f"退出Baostock系统失败: {str(e)}") from e
 
 # 创建默认实例以保持向后兼容
 default_wrapper = BaostockWrapper()
@@ -289,16 +560,7 @@ def login() -> Any:
     返回值：原生登录结果对象
     异常：网络连接异常时抛出ConnectionError异常
     """
-    current_func = "login"
-    logger.debug(f"[{current_func}] 登录Baostock系统")
-    
-    try:
-        result = bs.login()
-        logger.debug(f"[{current_func}] 登录完成，error_code: {result.error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 登录失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"登录Baostock系统失败: {str(e)}") from e 
+    return default_wrapper.login()
 
 
 def logout() -> Any:
@@ -309,17 +571,7 @@ def logout() -> Any:
     返回值：原生登出结果对象
     异常：网络连接异常时抛出ConnectionError异常
     """
-    current_func = "logout"
-    logger.debug(f"[{current_func}] 退出Baostock系统")
-    
-    try:
-        result = bs.logout()
-        error_code = result.error_code if result is not None else 'None'
-        logger.debug(f"[{current_func}] 登出完成，error_code: {error_code}")
-        return result
-    except Exception as e:
-        logger.error(f"[{current_func}] 登出失败 - {type(e).__name__}: {str(e)}")
-        raise ConnectionError(f"退出Baostock系统失败: {str(e)}") from e
+    return default_wrapper.logout()
 
 # 为了向后兼容，保留原有的函数接口
 def query_history_k_data_plus(
@@ -382,22 +634,11 @@ def query_adjust_factor(
     返回值：原生ResultData对象
     异常：网络连接异常时抛出ConnectionError异常
     """
-    current_func = "query_adjust_factor"
-    logger.debug(
-        f"[{current_func}] 查询复权因子 "
-        f"| 股票代码: {code} "
-        f"| 时间范围: {start_date or '2015-01-01'} - {end_date or '当前日期'}"
-    )
-    
-    result = bs.query_adjust_factor(
+    return default_wrapper.query_adjust_factor(
         code=code,
         start_date=start_date,
         end_date=end_date
     )
-    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-        raise ConnectionRefusedError(f"查询复权因子失败: {result.error_code}=={result.error_msg}")
-    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-    return result
 
 
 def query_dividend_data(
@@ -435,25 +676,11 @@ def query_dividend_data(
     返回值：原生ResultData对象
     异常：网络连接异常时抛出ConnectionError异常
     """
-    current_func = "query_dividend_data"
-    logger.debug(
-        f"[{current_func}] 查询分红送配数据 "
-        f"| 股票代码: {code} "
-        f"| 年份: {year} "
-        f"| 年份类型: {yearType}"
-    )
-    
-    result = bs.query_dividend_data(
+    return default_wrapper.query_dividend_data(
         code=code,
         year=year,
         yearType=yearType
     )
-
-    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-        raise ConnectionRefusedError(f"查询分红送配数据失败: {result.error_msg}")
-
-    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-    return result
 
 
 def query_profit_data(
@@ -484,23 +711,11 @@ def query_profit_data(
     返回值：原生ResultData对象
     异常：网络连接异常时抛出ConnectionError异常
     """
-    current_func = "query_profit_data"
-    logger.debug(
-        f"[{current_func}] 查询季频盈利能力 "
-        f"| 股票代码: {code} "
-        f"| 年份: {year} "
-        f"| 季度: {quarter}"
-    )
-    
-    result = bs.query_profit_data(
+    return default_wrapper.query_profit_data(
         code=code,
         year=year,
         quarter=quarter
     )
-    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-        raise ConnectionRefusedError(f"查询季频盈利能力失败: {result.error_code}=={result.error_msg}")
-    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-    return result
 
 
 def query_trade_dates(
@@ -522,22 +737,10 @@ def query_trade_dates(
     返回值：原生ResultData对象
     异常：网络连接异常时抛出ConnectionError异常
     """
-    current_func = "query_trade_dates"
-    logger.debug(
-        f"[{current_func}] 查询交易日数据 "
-        f"| 时间范围: {start_date} - {end_date}"
-    )
-
-    result = bs.query_trade_dates(
+    return default_wrapper.query_trade_dates(
         start_date=start_date,
         end_date=end_date
     )
-    
-    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-        raise ConnectionRefusedError(f"查询交易日数据失败: {result.error_msg}")
-
-    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-    return result
 
 
 def query_stock_industry(
@@ -549,28 +752,52 @@ def query_stock_industry(
     获取行业分类信息数据
     
     参数说明：
-    - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000，可
-以为空
+    - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000，可以为空
     - date: 查询日期，格式：YYYY-MM-DD，为空时默认最新日期
     
     返回值：原生ResultData对象
     异常：网络连接异常时抛出ConnectionError异常
     """
-    current_func = "query_stock_industry"
-    logger.debug(
-        f"[{current_func}] 查询行业分类 "
-        f"| 股票代码: {code or '全部'} "
-        f"| 查询日期: {date or '最新日期'}"
-    )
-    result = bs.query_stock_industry(
+    return default_wrapper.query_stock_industry(
         code=code,
         date=date
     )
-    if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-        raise ConnectionRefusedError(f"查询行业分类失败: {result.error_msg}")
 
-    logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
-    return result
+
+def query_cash_flow_data(
+    code: str,
+    year: int,
+    quarter: int
+) -> Any:
+    """
+    简单封装baostock.query_cash_flow_data接口
+    获取季频现金流量数据
+    
+    参数说明：
+    - code: 股票代码，sh或sz.+6位数字代码，如：sh.600000
+    - year: 统计年份
+    - quarter: 统计季度（1-4）
+    
+    返回字段：
+    - code: 证券代码
+    - pubDate: 公司发布财报的日期
+    - statDate: 财报统计的季度的最后一天
+    - catoAsset: 流动资产占总资产比例(%)
+    - ncatoAsset: 非流动资产占总资产比例(%)
+    - tangibleAssetToAsset: 有形资产占总资产比例(%)
+    - ebitToInterest: 已获利息倍数(倍)
+    - cfotoor: 经营活动现金流净额/营业收入(%)
+    - cfotonp: 经营活动现金流净额/净利润(%)
+    - cfotogr: 经营活动现金流净额/营业总收入(%)
+    
+    返回值：原生ResultData对象
+    异常：网络连接异常时抛出ConnectionError异常
+    """
+    return default_wrapper.query_cash_flow_data(
+        code=code,
+        year=year,
+        quarter=quarter
+    )
 
 
 def query_balance_data(
@@ -597,7 +824,5 @@ def query_balance_data(
     return default_wrapper.query_balance_data(
         code=code,
         year=year,
-        quarter=quarter,
-        timeout=timeout,
-        max_retry=max_retry
+        quarter=quarter
     )

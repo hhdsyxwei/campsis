@@ -55,6 +55,7 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "stock_industry_history": f"{database_dir}/init/stock/07_table_stock_industry_history.sql.j2",
         "company_profit": f"{database_dir}/init/finance/01_table_company_profit.sql.j2",
         "company_balance": f"{database_dir}/init/finance/02_table_company_balance.sql.j2",
+        "company_cash_flow": f"{database_dir}/init/finance/03_table_company_cash_flow.sql.j2",
 
         # 下载控制相关表
         "stock_fixed_seq": f"{database_dir}/init/download/05_stock_fixed_seq.sql.j2",
