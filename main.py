@@ -2,8 +2,7 @@
 # ==============================================
 # 1. 必须放在所有其他导入 【最前面】
 # ==============================================
-
-
+from Ingredient.downloader.daily_data_downloader import download_daily_data
 from KitchenBase.package_manager import PackageManager
 from KitchenBase.logger_config import setup_logging,get_logger
 setup_logging()
@@ -23,7 +22,8 @@ from Ingredient.downloader.stock_industry_downloader import start_new_industry_d
 from Ingredient.downloader.adj_factor_downloader import start_new_adj_factor_download
 from Ingredient.downloader.kline_unified_downloader import start_new_kline_download
 from Ingredient.downloader.company_cash_flow_downloader import start_new_cash_flow_download, continue_cash_flow_download
-
+from CookingEngine.Analysis.performance_analyzer import PerformanceAnalyzer
+from CookingEngine.Backtest.parallel_runner import ParallelBacktestRunner
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -38,6 +38,47 @@ logger.error("这是错误（红色）")
 logger.info("初始化成功！【会加粗】")
 
 def main():
+    # 建立与本地数据库的连接
+    conn = create_database_and_tables()
+    download_stock_data(conn)
+    run_backtest(conn)
+
+def run_backtest(db_conn):
+
+    # 1. Create backtest runner
+    runner = ParallelBacktestRunner(db_conn)
+
+    # 2. Configure backtest tasks
+    configs = [
+        {
+            "strategy": {
+                "name": "factor_strategy",
+                "params": {
+                    "trend_weight": 0.25,
+                    "momentum_weight": 0.25,
+                    "quality_weight": 0.25,
+                    "timing_weight": 0.25,
+                    "buy_threshold": 0.6,
+                    "sell_threshold": 0.4
+                }
+            },
+            "data": {
+                "stock_code": "000001.SZ",
+                "start_date": "2020-01-01",
+                "end_date": "2025-12-31"
+            },
+            "initial_cash": 1000000
+        }
+    ]
+    
+    # 3. Execute backtest
+    results = runner.run_batch(configs)
+    
+    # 4. Analyze results
+    analyzer = PerformanceAnalyzer()
+    analysis = analyzer.compare(results)
+
+def download_stock_data(conn):
 
     """主函数，协调整个数据下载流程。"""
     # 1. 登录 Baostock 服务
@@ -55,51 +96,48 @@ def main():
         return
     logger.info("Baostock 登录成功。")
 
-    # 2. 建立与本地数据库的连接
-    conn = create_database_and_tables()
-
     start_year = 2022
     end_year = 2027
     stock_code = "001331.SZ"
 
     try:
         download_trade_date_map(conn, start_year, end_year)  # 下载交易日映射表，覆盖start_year-end_year年
-        # 3. 第一步：同步并更新股票的基础信息表 (stock_basic)
+        # 2. 第一步：同步并更新股票的基础信息表 (stock_basic)
         # download_stock_basic(conn,[MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
 
-        # 4. 第二步：下载所有活跃股票的日线数据
+        # 3. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        # download_daily_data(conn, stock_code, "2025-10-01", "2026-04-15")
-        download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
+        download_daily_data(conn, stock_code, "2025-10-01", "2026-04-15")
+        # download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
 
-        # 5. 第三步：下载行业分类数据
+        # 4. 第三步：下载行业分类数据
         # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
         # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
 
-        # 6. 第四步：下载5分钟K线数据（示例）
+        # 5. 第四步：下载5分钟K线数据（示例）
         # start_new_kline_download(conn, start_year, end_year)  # 下载5分钟K线数据，示例股票代码
         # continue_download_kline(conn, start_year, end_year, KLinePeriod.MIN_5)  # 继续下载2026-2027年的5分钟K线数据
 
-        # 7. 第五步：下载分红送配数据
+        # 6. 第五步：下载分红送配数据
         # start_new_xrxd_download(conn, start_year, end_year)  # 下载2026-2027年的分 红送配数据  
         # continue_download_xrxd(conn, start_year, end_year)  # 下载2026-2027年的分红送配数据
 
-        # 8. 第六步：下载复权因子数据
+        # 7. 第六步：下载复权因子数据
         # start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
         # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
 
-        # 9. 第七步：下载股票利润数据
+        # 8. 第七步：下载股票利润数据
         # start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据
         
-        # 10. 第八步：下载公司偿债能力数据
+        # 9. 第八步：下载公司偿债能力数据
         # start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
         # continue_download_company_balance(conn, start_year, end_year)  # 继续下载2026-2027年的公司偿债能力数据
         
-        # 11. 第九步：下载公司现金流量数据
+        # 10. 第九步：下载公司现金流量数据
         # start_new_cash_flow_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司现金流量数据
         # continue_download_company_cash_flow(conn, start_year, end_year)  # 继续下载2026-2027年的公司现金流量数据
 
-        # 12. 第十二步：为公司股票数据打分
+        # 11. 第十步：为公司股票数据打分
         score_single_stock(conn, stock_code)
 
     except Exception as e:
