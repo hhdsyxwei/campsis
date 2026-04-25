@@ -26,12 +26,12 @@ class CampsisLogger:
     LOG_LEVEL_CONFIG: Dict[str, int] = {
         # 包级别控制（如 KitchenBase 所有子模块默认 INFO）
         "KitchenBase": logging.ERROR,
-        "Ingredient": logging.INFO,
+        "Ingredient": logging.CRITICAL + 1,
         # 模块级别控制（覆盖父级，PackageManager 模块单独设为 DEBUG）
         "KitchenBase.package_manager": logging.DEBUG,
 
         #暂时关闭Picker模块志输出
-        "CookingEngine.Picker": logging.CRITICAL + 1,
+        "CookingEngine.Picker": logging.DEBUG,
         "Ingredient.downloader.TradeDateMapDownloader": logging.DEBUG,
         # 测试包单独控制
         "tests": logging.ERROR,

@@ -1,7 +1,7 @@
 # year_stock_ptr_mrg.py
 # 按年份和股票划分的指针管理器
 
-from Ingredient.config import DownloadConfig
+from Ingredient.config import DownloadBlockConfig
 from KitchenBase.download_enums import DlTaskType
 from .generic_pointer_manager import GenericPointerManager
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
@@ -74,7 +74,7 @@ class YearStockPtrMgr(GenericPointerManager):
             Optional[BlockPointer]: 下一个区块的指针
         """
         # 当current_block为None时，返回第一个区块（起始年份的第一只股票）
-        pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
+        pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
         if current_block is None:
             try:
                 # 检查股票数量

@@ -1,7 +1,7 @@
 # year_ptr_mgr.py
 # 按年份划分的指针管理器
 
-from Ingredient.config import DownloadConfig
+from Ingredient.config import DownloadBlockConfig
 from .generic_pointer_manager import GenericPointerManager
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from KitchenBase.download_enums import PointerField
@@ -50,7 +50,7 @@ class YearPtrMgr(GenericPointerManager):
         Returns:
             Optional[BlockPointer]: 下一个区块的指针
         """
-        pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
+        pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
         if current_block is None:
             # 创建第一个年份的指针
             pointer_values = (start_year,)

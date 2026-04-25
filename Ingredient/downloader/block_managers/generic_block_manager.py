@@ -8,7 +8,7 @@ from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, PointerField
 from Ingredient.DataNest import GenericBlockStatusDM
 from Ingredient.DataNest import UnifiedDataManager as udm
-from Ingredient.config import DownloadConfig
+from Ingredient.config import DownloadBlockConfig
 
 
 
@@ -54,7 +54,7 @@ class GenericBlockManager(BlockManager):
         if not self.status_dm or not self.task_type:
             return 0
         try:
-            pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
+            pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
                 task_type=self.task_type, 
                 year_range=(start_year, end_year), 
@@ -79,7 +79,7 @@ class GenericBlockManager(BlockManager):
         if not self.status_dm or not self.task_type:
             return 0
         try:
-            pointer_fields = DownloadConfig.get_pointer_fields(self.task_type)
+            pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
                 task_type=self.task_type, 
                 year_range=(start_year, end_year), 

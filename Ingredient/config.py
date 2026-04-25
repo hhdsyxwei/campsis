@@ -9,7 +9,7 @@ class KLineConfig:
         KLinePeriod.MIN_5
     ]
 
-class DownloadConfig:
+class DownloadBlockConfig:
     """下载配置"""
     # 下载类型与区块字段列表的映射
     TASK_TYPE_TO_POINTER_FIELDS = {
