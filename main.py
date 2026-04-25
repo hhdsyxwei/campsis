@@ -9,6 +9,11 @@ setup_logging()
 PackageManager.install_missing_requirements()
 
 import os
+import sys
+
+# Add current directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import KitchenBase.baostock_wrapper as bs
 from KitchenBase.baostock_wrapper import BaostockErrorCode
 from Ingredient.DataNest import create_database_and_tables
@@ -24,6 +29,7 @@ from Ingredient.downloader.kline_unified_downloader import start_new_kline_downl
 from Ingredient.downloader.company_cash_flow_downloader import start_new_cash_flow_download, continue_cash_flow_download
 from CookingEngine.Analysis.performance_analyzer import PerformanceAnalyzer
 from CookingEngine.Backtest.parallel_runner import ParallelBacktestRunner
+from tools.count_code import count_project_code
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -38,6 +44,9 @@ logger.error("这是错误（红色）")
 logger.info("初始化成功！【会加粗】")
 
 def main():
+    # Count project code lines
+    count_project_code()
+    
     # 建立与本地数据库的连接
     conn = create_database_and_tables()
     download_stock_data(conn)
