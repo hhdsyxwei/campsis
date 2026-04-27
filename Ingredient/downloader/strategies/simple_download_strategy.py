@@ -54,12 +54,15 @@ class SimpleDownloadStrategy(DownloadStrategy):
         
         # 保存数据
         save_result = self.downloader.save_data(cleaned_data, params, **kwargs)
-        
+
+        # 调用下载完成钩子
+        self.downloader.on_download_completed(params, cleaned_data, success=save_result, **kwargs)
+
         # 记录结束时间和总耗时
         end_time = time.time()
         total_time = end_time - start_time
         self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 下载任务完成，耗时: {total_time:.2f}秒")
-        
+
         return save_result
     
     def can_handle(self, download_type: str) -> bool:

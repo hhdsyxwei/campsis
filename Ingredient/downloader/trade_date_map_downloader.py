@@ -22,11 +22,12 @@ class TradeDateMapDownloader(SimpleDownloader):
         """
         return DlTaskType.TRADE_DATE
     
-    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def validate_parameters(self, params: DownloadParameters, **kwargs) -> bool:
         """
         验证参数有效性
         """
-        # 年份合法性校验
+        start_year = params.start_year
+        end_year = params.end_year
         if not isinstance(start_year, int) or not isinstance(end_year, int):
             logger.error("年份必须为整数类型")
             return False
@@ -38,11 +39,12 @@ class TradeDateMapDownloader(SimpleDownloader):
             return False
         return True
     
-    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> Optional[pd.DataFrame]:
+    def download_raw_data(self, params: DownloadParameters, **kwargs) -> Optional[pd.DataFrame]:
         """
         下载原始数据
         """
-        # 生成日期范围：包含 start_year 全年，不包含 end_year
+        start_year = params.start_year
+        end_year = params.end_year
         start_date = f"{start_year}-01-01"
         # 如果最后一年是今年，则 end_date 设为今天
         current_year = datetime.now().year
@@ -136,7 +138,7 @@ class TradeDateMapDownloader(SimpleDownloader):
             logger.error(f"清洗交易日数据异常：{e}", exc_info=True)
             return pd.DataFrame()
     
-    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
+    def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """
         保存数据到数据库
         """

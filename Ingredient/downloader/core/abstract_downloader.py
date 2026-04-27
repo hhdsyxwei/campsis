@@ -104,6 +104,18 @@ class SimpleDownloader(ABC):
         """
         pass
 
+    def on_download_completed(self, params: DownloadParameters, cleaned_data: pd.DataFrame, success: bool, **kwargs) -> None:
+        """
+        下载完成后的钩子方法，默认空实现
+
+        Args:
+            params: 下载参数
+            cleaned_data: 清洗后的数据
+            success: 下载（保存）是否成功
+            **kwargs: 额外参数
+        """
+        pass
+
     def download(self, params: DownloadParameters, **kwargs) -> bool:
         """
         执行一次性下载
@@ -250,6 +262,9 @@ class BlockDownloader(SimpleDownloader):
             # 4. 保存数据（传递 block_pointer）
             save_result = self.save_data(cleaned_data, params, block_pointer=block_pointer)
 
+            # 调用区块下载完成钩子
+            self.on_block_download_completed(block_pointer, params, cleaned_data, save_result)
+
             if save_result:
                 self._update_block_status(block_pointer, DlBlockStatus.COMPLETED)
                 return True
@@ -261,6 +276,18 @@ class BlockDownloader(SimpleDownloader):
             self._update_block_status(block_pointer, DlBlockStatus.ERROR, str(e))
             self.logger.error(f"下载区块异常：{block_pointer} - {str(e)}", exc_info=True)
             return False
+
+    def on_block_download_completed(self, block_pointer, params: DownloadParameters, cleaned_data: pd.DataFrame, success: bool) -> None:
+        """
+        单个区块下载完成后的钩子方法，默认空实现
+
+        Args:
+            block_pointer: 区块指针
+            params: 下载参数
+            cleaned_data: 清洗后的数据
+            success: 是否下载成功
+        """
+        pass
 
     def _update_block_status(self, block_pointer: BlockPointer, status: DlBlockStatus, error_message: str = ""):
         """

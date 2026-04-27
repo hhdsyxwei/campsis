@@ -5,7 +5,7 @@ from ..core.abstract_downloader import BlockDownloader
 from ..core.download_strategy import DownloadStrategy
 from ..core.download_parameters import DownloadParameters
 from KitchenBase.download_enums import DlTaskStatus
-
+from pandas import DataFrame as pdDataFrame
 class BlockDownloadStrategy(DownloadStrategy):
     """
     区块下载策略，实现区块下载逻辑
@@ -96,6 +96,10 @@ class BlockDownloadStrategy(DownloadStrategy):
         self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.COMPLETED)
         self.downloader.pointer_manager.clear_dl_pointer()
         self.downloader.logger.info(f"{task_identifier} 全部下载完成，已清空下载指针")
+        
+        # 调用全部区块下载完成钩子
+        self.downloader.on_download_completed(params, pdDataFrame(), success=True)
+        
         return True
     
     def can_handle(self, download_type: str) -> bool:
