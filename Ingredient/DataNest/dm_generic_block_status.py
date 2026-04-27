@@ -7,7 +7,15 @@ from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 logger = get_logger(__name__)
 
 class GenericBlockStatusDM:
-    """通用区块状态管理器"""
+    """
+    通用区块状态管理器
+    
+    注意：
+    - 相关函数（如get_block_count）添加了stock_table参数，用于指定股票范围的来源表
+    - 这样设计的原因是为了支持灵活的股票范围过滤，不再局限于默认的stock_fixed_seq表
+    - 当需要统计特定股票集合的区块状态时，可以通过指定不同的股票表来实现
+    - 默认值仍为"stock_fixed_seq"，保持向后兼容性
+    """
     
     def __init__(self, db_conn):
         """

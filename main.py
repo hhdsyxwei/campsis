@@ -31,7 +31,7 @@ from CookingEngine.Analysis.performance_analyzer import PerformanceAnalyzer
 from CookingEngine.Backtest.parallel_runner import ParallelBacktestRunner
 from tools.count_code import count_project_code
 from Ingredient.downloader import download_stock_basic
-
+from Ingredient.downloader.core import DownloadParameters
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -109,11 +109,11 @@ def download_stock_data(conn):
 
     start_year = 2022
     end_year = 2027
-    stock_code = "001331.SZ"
-    params = DownloadParameters(stock_code=stock_code, start_year=start_year, end_year=end_year)
+    stock_codes = ["001331.SZ"]
+    params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
     try:
-        download_trade_date_map(conn, start_year, end_year)  # 下载交易日映射表，覆盖start_year-end_year年
+        download_trade_date_map(conn, params)  # 下载交易日映射表，覆盖start_year-end_year年
         # 2. 第一步：同步并更新股票的基础信息表 (stock_basic)
         download_stock_basic(conn,[MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
 
@@ -150,7 +150,7 @@ def download_stock_data(conn):
         # continue_download_company_cash_flow(conn, start_year, end_year)  # 继续下载2026-2027年的公司现金流量数据
 
         # 11. 第十步：为公司股票数据打分
-        score_single_stock(conn, stock_code)
+        score_single_stock(conn, stock_codes[0])
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息
