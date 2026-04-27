@@ -4,6 +4,8 @@
 from KitchenBase.download_enums import DlTaskType
 from typing import Tuple
 from ..core.abs_block_manager import BlockManager
+from ..core.download_parameters import DownloadParameters
+from ..core.abs_collection_manager import StockCollectionManager
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, PointerField
 from Ingredient.DataNest import GenericBlockStatusDM
@@ -26,27 +28,28 @@ class GenericBlockManager(BlockManager):
     5. 更新区块状态
     """
     
-    def __init__(self, db_conn, task_type: DlTaskType):
+    def __init__(self, db_conn, task_type: DlTaskType, collection_manager=None):
         """
         初始化通用区块管理器
         
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型枚举值
+            collection_manager: 股票集合管理器，可选
         """
         self.db_conn = db_conn
         self.task_type = task_type
+        self.collection_manager = collection_manager
         self.logger = get_logger(__name__)
         # 创建状态管理器
         self.status_dm = GenericBlockStatusDM(db_conn) if db_conn else None
     
-    def get_completed_block_count(self, start_year: int, end_year: int) -> int:
+    def get_completed_block_count(self, params: DownloadParameters) -> int:
         """
         获取已完成区块数
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             
         Returns:
             int: 已完成区块数
@@ -57,7 +60,7 @@ class GenericBlockManager(BlockManager):
             pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
                 task_type=self.task_type, 
-                year_range=(start_year, end_year), 
+                year_range=(params.start_year, params.end_year), 
                 pointer_fields=pointer_fields,
                 status=[DlBlockStatus.COMPLETED]
             )
@@ -65,13 +68,12 @@ class GenericBlockManager(BlockManager):
             self.logger.error(f"获取已完成区块数失败: {str(e)}")
             return 0
     
-    def get_skipped_block_count(self, start_year: int, end_year: int) -> int:
+    def get_skipped_block_count(self, params: DownloadParameters) -> int:
         """
         获取已跳过区块数
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             
         Returns:
             int: 已跳过区块数
@@ -82,7 +84,7 @@ class GenericBlockManager(BlockManager):
             pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
                 task_type=self.task_type, 
-                year_range=(start_year, end_year), 
+                year_range=(params.start_year, params.end_year), 
                 pointer_fields=pointer_fields,
                 status=[DlBlockStatus.SKIPPED]
             )
@@ -159,13 +161,14 @@ class GenericBlockManager(BlockManager):
         """
         获取股票数量
         
-        从 stock_fixed_seq 表中获取股票数量
-        
         Returns:
             int: 股票数量
-        """        
+        """
         try:
-            # 使用 UnifiedDataManager.count_stocks_in_fixed_seq() 方法获取股票数量  
+            # 如果有股票集合管理器，使用它获取股票数量
+            if self.collection_manager:
+                return self.collection_manager.get_stock_count()
+            # 否则从数据库获取
             return udm.count_stocks_in_fixed_seq(self.db_conn)
         except Exception as e:
             self.logger.error(f"获取股票数量异常：{e}", exc_info=True)

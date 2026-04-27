@@ -10,6 +10,7 @@ from KitchenBase.baostock_wrapper import query_dividend_data
 from KitchenBase.block_pointer import BlockPointer
 from Ingredient.DataNest import XrxdManager, BasicStockDataManager
 from .core.abstract_downloader import BlockDownloader
+from .core.download_parameters import DownloadParameters
 from .core.abs_block_manager import BlockManager
 from .core.abs_status_manager import TaskStatusManager
 from .core.abs_pointer_manager import PointerManager
@@ -98,20 +99,19 @@ class XrxdDownloader(BlockDownloader):
         from .progress_managers.generic_progress_manager import GenericProgressManager
         return GenericProgressManager(self.db_conn)
 
-    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def validate_parameters(self, params: DownloadParameters, **kwargs) -> bool:
         """
         验证参数有效性
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
             bool: 参数是否有效
         """
-        if start_year >= end_year:
-            self.logger.error(f"无效年份范围: start_year ({start_year}) 必须小于 end_year ({end_year})")
+        if params.start_year >= params.end_year:
+            self.logger.error(f"无效年份范围: start_year ({params.start_year}) 必须小于 end_year ({params.end_year})")
             return False
 
         block_pointer = kwargs.get('block_pointer')
@@ -124,13 +124,12 @@ class XrxdDownloader(BlockDownloader):
 
         return True
 
-    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> Optional[pd.DataFrame]:
+    def download_raw_data(self, params: DownloadParameters, **kwargs) -> Optional[pd.DataFrame]:
         """
         下载原始分红送配数据
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数，包含 block_pointer
 
         Returns:
@@ -225,14 +224,13 @@ class XrxdDownloader(BlockDownloader):
 
         return df
 
-    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
+    def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """
         保存分红送配数据到数据库
 
         Args:
             data: 清洗后的数据
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数，包含 block_pointer
 
         Returns:
@@ -261,7 +259,7 @@ class XrxdDownloader(BlockDownloader):
         return True
 
 
-def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
+def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
     """
     【全局唯一对外接口】继续下载分红送配数据（支持断点续传）
 
@@ -281,16 +279,18 @@ def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = N
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
+    :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
     if end_year is None:
         end_year = datetime.now().year
 
     downloader = XrxdDownloader(db_conn)
-    return downloader.continue_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.continue_download(params)
 
 
-def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
+def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
     """
     【全局唯一对外接口】开始新的分红送配数据下载任务（清空之前的下载进度）
 
@@ -309,10 +309,12 @@ def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = 
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（包含，默认当前年份）
+    :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成， False 表示未完成
     """
     if end_year is None:
         end_year = datetime.now().year
 
     downloader = XrxdDownloader(db_conn)
-    return downloader.start_new_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.start_new_download(params)

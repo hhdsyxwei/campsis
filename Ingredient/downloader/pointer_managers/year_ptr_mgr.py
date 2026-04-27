@@ -3,6 +3,7 @@
 
 from Ingredient.config import DownloadBlockConfig
 from .generic_pointer_manager import GenericPointerManager
+from ..core.download_parameters import DownloadParameters
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from KitchenBase.download_enums import PointerField
 from typing import Optional, Tuple
@@ -33,7 +34,7 @@ class YearPtrMgr(GenericPointerManager):
         super().__init__(db_conn, task_type, global_manager, time_frame)
         self.logger = get_logger(__name__)
 
-    def get_next_blk_pointer(self, start_year: int, end_year: int, current_block: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
+    def get_next_blk_pointer(self, params: DownloadParameters, current_block: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
         """
         获取下一个待下载区块的指针
         
@@ -42,8 +43,7 @@ class YearPtrMgr(GenericPointerManager):
         2. 超出年份范围返回 None
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             current_block: 当前区块指针
             **kwargs: 额外参数
         
@@ -53,7 +53,7 @@ class YearPtrMgr(GenericPointerManager):
         pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
         if current_block is None:
             # 创建第一个年份的指针
-            pointer_values = (start_year,)
+            pointer_values = (params.start_year,)
             return BlockPointer(pointer_fields, pointer_values)
         
         try:
@@ -64,7 +64,7 @@ class YearPtrMgr(GenericPointerManager):
             next_year = current_year + 1
             
             # 检查是否在年份范围内
-            if next_year >= end_year:
+            if next_year >= params.end_year:
                 return None
             
             # 创建下一个区块指针
@@ -74,14 +74,13 @@ class YearPtrMgr(GenericPointerManager):
             self.logger.error(f"获取下一个区块指针失败: {str(e)}")
             return None
     
-    def is_dl_pointer_valid(self, dl_pointer: Optional[BlockPointer], start_year: int, end_year: int) -> bool:
+    def is_dl_pointer_valid(self, dl_pointer: Optional[BlockPointer], params: DownloadParameters) -> bool:
         """
         判断下载指针是否合法有效
         
         Args:
             dl_pointer: 下载指针
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
         
         Returns:
             bool: 指针是否有效
@@ -92,12 +91,12 @@ class YearPtrMgr(GenericPointerManager):
         try:
             # 验证年份是否在年份范围内
             year = dl_pointer.get_value(PointerField.YEAR)
-            return start_year <= year < end_year
+            return params.start_year <= year < params.end_year
         except Exception as e:
             self.logger.error(f"验证指针有效性失败: {str(e)}")
             return False
     
-    def get_completed_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
+    def get_completed_block_count(self, params: DownloadParameters, dl_pointer: BlockPointer) -> int:
         """
         基于指针获取已完成区块数
         
@@ -105,8 +104,7 @@ class YearPtrMgr(GenericPointerManager):
         已完成区块数 = 当前年份 - 开始年份
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             dl_pointer: 当前下载指针
         
         Returns:
@@ -120,7 +118,7 @@ class YearPtrMgr(GenericPointerManager):
             current_year = dl_pointer.get_value(PointerField.YEAR)
             
             # 计算已完成区块数
-            completed_count = current_year - start_year
+            completed_count = current_year - params.start_year
             
             return completed_count
         except Exception as e:

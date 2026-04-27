@@ -5,6 +5,7 @@ from KitchenBase.block_pointer import BlockPointer
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 from KitchenBase.download_enums import PointerField
+from .download_parameters import DownloadParameters
 
 class PointerManager(ABC):
     """
@@ -32,14 +33,13 @@ class PointerManager(ABC):
         pass
     
     @abstractmethod
-    def is_dl_pointer_valid(self, dl_pointer: Optional[BlockPointer], start_year: int, end_year: int) -> bool:
+    def is_dl_pointer_valid(self, dl_pointer: Optional[BlockPointer], params: DownloadParameters) -> bool:
         """
         判断下载指针是否合法有效
         
         Args:
             dl_pointer: 下载指针
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             
         Returns:
             bool: 指针是否有效
@@ -54,13 +54,12 @@ class PointerManager(ABC):
         pass
     
     @abstractmethod
-    def get_first_blk_pointer(self, start_year: int, end_year: int) -> BlockPointer:
+    def get_first_blk_pointer(self, params: DownloadParameters) -> BlockPointer:
         """
         获取第一个待下载区块的指针
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             
         Returns:
             BlockPointer: 第一个区块指针
@@ -68,13 +67,12 @@ class PointerManager(ABC):
         pass
     
     @abstractmethod
-    def get_next_blk_pointer(self, start_year: int, end_year: int, current_block: Optional[BlockPointer] = None) -> Optional[BlockPointer]:
+    def get_next_blk_pointer(self, params: DownloadParameters, current_block: Optional[BlockPointer] = None) -> Optional[BlockPointer]:
         """
         获取下一个待下载区块的指针
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             current_block: 当前区块指针（首次调用传None，返回第一个区块）
             
         Returns:
@@ -83,13 +81,12 @@ class PointerManager(ABC):
         pass
     
     @abstractmethod
-    def get_completed_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
+    def get_completed_block_count(self, params: DownloadParameters, dl_pointer: BlockPointer) -> int:
         """
         基于指针获取已完成区块数
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             dl_pointer: 当前下载指针，包含当前处理的区块信息
             
         Returns:
@@ -98,13 +95,12 @@ class PointerManager(ABC):
         pass
     
     @abstractmethod
-    def get_skipped_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
+    def get_skipped_block_count(self, params: DownloadParameters, dl_pointer: BlockPointer) -> int:
         """
         基于指针获取已跳过区块数
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             dl_pointer: 当前下载指针，包含当前处理的区块信息
             
         Returns:

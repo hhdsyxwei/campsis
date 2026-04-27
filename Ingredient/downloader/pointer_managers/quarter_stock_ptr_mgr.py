@@ -2,6 +2,7 @@
 # 按季度和股票划分的指针管理器
 
 from .generic_pointer_manager import GenericPointerManager
+from ..core.download_parameters import DownloadParameters
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from KitchenBase.download_enums import PointerField
 from typing import Optional, Tuple, Dict, Any
@@ -19,7 +20,7 @@ class QuarterStockPtrMgr(GenericPointerManager):
     3. 提供指针验证和转换功能
     """
     
-    def __init__(self, db_conn, task_type=None, global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type=None, global_manager=None, time_frame=None, collection_manager=None):
         """
         初始化季度股票指针管理器
         
@@ -29,18 +30,18 @@ class QuarterStockPtrMgr(GenericPointerManager):
             pointer_fields: 指针字段枚举元组（可选）
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选，仅 QuarterStockPeriodStrategy 需要）
+            collection_manager: 股票集合管理器（可选）
         """
-        super().__init__(db_conn, task_type, global_manager, time_frame)
+        super().__init__(db_conn, task_type, global_manager, time_frame, collection_manager=collection_manager)
         self.logger = get_logger(__name__)
 
-    def get_next_blk_pointer(self, start_year: int, end_year: int, current_pointer: BlockPointer, **kwargs) -> Optional[BlockPointer]:
+    def get_next_blk_pointer(self, params: DownloadParameters, current_pointer: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
         """
         获取下一个区块指针
         
         Args:
+            params: 下载参数
             current_pointer: 当前区块指针
-            start_year: 开始年份
-            end_year: 结束年份
             **kwargs: 额外参数
             
         Returns:
@@ -53,10 +54,10 @@ class QuarterStockPtrMgr(GenericPointerManager):
         
         # 2. 首次获取
         if current_pointer is None:
-            first_stock = self.get_first_stock()
+            first_stock = self.get_first_stock(params)
             if not first_stock:
                 return None
-            first_quarter = f"{start_year}-Q1"
+            first_quarter = f"{params.start_year}-Q1"
             return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE), (first_quarter, first_stock))
         
         # 3. 非首次获取
@@ -65,16 +66,16 @@ class QuarterStockPtrMgr(GenericPointerManager):
             current_stock = current_pointer.get_value(PointerField.STOCK_CODE)
             
             # 4. 尝试获取下一只股票
-            next_stock = self.get_next_stock(current_stock)
+            next_stock = self.get_next_stock(current_stock, params)
             if next_stock:
                 # 当前季度内有下一只股票
                 return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE), (current_quarter, next_stock))
             
             # 5. 切换到下一个季度
-            next_quarter = self.get_next_quarter(current_quarter, (start_year, end_year))
+            next_quarter = self.get_next_quarter(current_quarter, (params.start_year, params.end_year))
             if next_quarter:
                 # 有下一个季度
-                first_stock = self.get_first_stock()
+                first_stock = self.get_first_stock(params)
                 if not first_stock:
                     return None
                 return BlockPointer((PointerField.QUARTER, PointerField.STOCK_CODE), (next_quarter, first_stock))
@@ -85,5 +86,5 @@ class QuarterStockPtrMgr(GenericPointerManager):
         except Exception as e:
             return None
     
-    def get_completed_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
+    def get_completed_block_count(self, params: DownloadParameters, dl_pointer: BlockPointer) -> int:
         return 0

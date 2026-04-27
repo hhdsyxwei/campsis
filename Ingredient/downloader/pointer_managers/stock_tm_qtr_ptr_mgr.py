@@ -2,6 +2,7 @@
 # 股票-时间周期-季度 指针管理器
 
 from .generic_pointer_manager import GenericPointerManager
+from ..core.download_parameters import DownloadParameters
 from KitchenBase.block_pointer import BlockPointer
 from KitchenBase.download_enums import PointerField
 from typing import Optional, Tuple
@@ -25,15 +26,14 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
         self.time_frame_list = KLineConfig.DEFAULT_TIME_FRAMES
         self.logger = get_logger(__name__)
 
-    def get_next_blk_pointer(self, start_year: int, end_year: int, current_pointer: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
+    def get_next_blk_pointer(self, params: DownloadParameters, current_pointer: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
         """
         获取下一个区块指针
 
         迭代顺序：stock_code → time_frame → quarter
 
         Args:
-            start_year: 开始年份
-            end_year: 结束年份
+            params: 下载参数
             current_pointer: 当前区块指针（首次调用传None，返回第一个区块）
 
         Returns:
@@ -41,7 +41,7 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
         """
         # 1. 首次调用，返回第一个区块
         if not current_pointer:
-            first_stock = self.get_first_stock()
+            first_stock = self.get_first_stock(params)
             if not first_stock:
                 self.logger.error("无股票数据可用")
                 return None
@@ -49,7 +49,7 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
                 self.logger.error("时间周期列表为空")
                 return None
             first_time_frame = self.time_frame_list[0].value
-            first_quarter = f"{start_year}-Q1"
+            first_quarter = f"{params.start_year}-Q1"
             return BlockPointer(
                 (PointerField.STOCK_CODE, PointerField.TIME_FRAME, PointerField.QUARTER),
                 (first_stock, first_time_frame, first_quarter)
@@ -62,7 +62,7 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
             current_quarter = current_pointer.get_value(PointerField.QUARTER)
 
             # 3. 同股票、同时期 → 下一个季度
-            next_quarter = self.get_next_quarter(current_quarter, (start_year, end_year))
+            next_quarter = self.get_next_quarter(current_quarter, (params.start_year, params.end_year))
             if next_quarter:
                 self.logger.debug(f"同股票同时期，下一季度: {current_stock} {current_timeframe} {next_quarter}")
                 return BlockPointer(
@@ -82,17 +82,17 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
                 self.logger.debug(f"同股票，下一周期: {current_stock} {next_timeframe}")
                 return BlockPointer(
                     (PointerField.STOCK_CODE, PointerField.TIME_FRAME, PointerField.QUARTER),
-                    (current_stock, next_timeframe, f"{start_year}-Q1")
+                    (current_stock, next_timeframe, f"{params.start_year}-Q1")
                 )
 
             # 5. 下一只股票，重置周期和季度
-            next_stock = self.get_next_stock(current_stock)
+            next_stock = self.get_next_stock(current_stock, params)
             if next_stock and self.time_frame_list:
                 first_timeframe = self.time_frame_list[0].value
                 self.logger.debug(f"下一只股票: {next_stock} {first_timeframe}")
                 return BlockPointer(
                     (PointerField.STOCK_CODE, PointerField.TIME_FRAME, PointerField.QUARTER),
-                    (next_stock, first_timeframe, f"{start_year}-Q1")
+                    (next_stock, first_timeframe, f"{params.start_year}-Q1")
                 )
 
             # 6. 没有更多区块
@@ -103,14 +103,13 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
             self.logger.error(f"获取下一个区块指针失败: {str(e)}")
             return None
 
-    def is_dl_pointer_valid(self, pointer: Optional[BlockPointer], start_year: int, end_year: int) -> bool:
+    def is_dl_pointer_valid(self, pointer: Optional[BlockPointer], params: DownloadParameters) -> bool:
         """
         验证指针是否有效
 
         Args:
             pointer: 要验证的指针
-            start_year: 开始年份
-            end_year: 结束年份
+            params: 下载参数
 
         Returns:
             bool: 指针是否有效
@@ -133,8 +132,8 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
             year_str, quarter_part = quarter.split('-Q')
             quarter_year = int(year_str)
 
-            if quarter_year < start_year or quarter_year >= end_year:
-                self.logger.error(f"季度年份超出范围: {quarter_year} not in [{start_year}, {end_year})")
+            if quarter_year < params.start_year or quarter_year >= params.end_year:
+                self.logger.error(f"季度年份超出范围: {quarter_year} not in [{params.start_year}, {params.end_year})")
                 return False
 
             quarter_num = int(quarter_part)
@@ -152,9 +151,9 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
             self.logger.error(f"时间周期无效: {time_frame}")
             return False
 
-        # 5. 验证股票代码是否在 stock_fixed_seq 表中
-        if not self.stock_exists(stock_code):
-            self.logger.error(f"股票代码不存在于 stock_fixed_seq 表: {stock_code}")
+        # 5. 验证股票代码是否在股票列表中
+        if not self.stock_exists(stock_code, params):
+            self.logger.error(f"股票代码不存在于股票列表: {stock_code}")
             return False
 
         return True

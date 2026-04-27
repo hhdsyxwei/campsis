@@ -1,4 +1,5 @@
 # trade_date_map_downloader.py
+from Ingredient.downloader.core.download_parameters import DownloadParameters
 from KitchenBase.download_enums import DlTaskType
 from Ingredient.downloader.core.abstract_downloader import SimpleDownloader
 from KitchenBase.logger_config import get_logger
@@ -159,22 +160,15 @@ class TradeDateMapDownloader(SimpleDownloader):
 # 保留原有的对外接口函数，以保持兼容性
 def download_trade_date_map(
     conn, 
-    start_year: int = 2015, 
-    end_year: Optional[int] = None
+    params: DownloadParameters
 ) -> bool:
     """
     对外暴露的核心函数：按年下载交易日数据并保存到数据库
     规则：包含 start_year 全年，不包含 end_year
     :param conn: 数据库连接对象
-    :param start_year: 起始年份（默认2015）
-    :param end_year: 结束年份（默认当前年份）
+    :param params: 下载参数
     :return: 成功返回True，失败返回False
     """
-    # 处理默认结束年份：默认使用当前年份
-    current_year = datetime.now().year
-    if end_year is None:
-        end_year = current_year
-        logger.info(f"未指定结束年份，默认使用当前年份：{end_year}")
-    
+
     downloader = TradeDateMapDownloader(conn)
-    return downloader.download(start_year, end_year)
+    return downloader.download(params)

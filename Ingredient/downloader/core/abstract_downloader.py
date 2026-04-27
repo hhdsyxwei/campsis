@@ -12,6 +12,8 @@ from .abs_block_manager import BlockManager
 from .abs_status_manager import TaskStatusManager
 from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
+from .abs_collection_manager import StockCollectionManager
+from .download_parameters import DownloadParameters
 
 
 class SimpleDownloader(ABC):
@@ -46,13 +48,12 @@ class SimpleDownloader(ABC):
         pass
 
     @abstractmethod
-    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def validate_parameters(self, params: DownloadParameters, **kwargs) -> bool:
         """
         验证参数有效性
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -61,13 +62,12 @@ class SimpleDownloader(ABC):
         pass
 
     @abstractmethod
-    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> Any:
+    def download_raw_data(self, params: DownloadParameters, **kwargs) -> Any:
         """
         下载原始数据
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -89,14 +89,13 @@ class SimpleDownloader(ABC):
         pass
 
     @abstractmethod
-    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
+    def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """
         保存数据到数据库
 
         Args:
             data: 清洗后的数据
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -104,13 +103,12 @@ class SimpleDownloader(ABC):
         """
         pass
 
-    def download(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def download(self, params: DownloadParameters, **kwargs) -> bool:
         """
         执行一次性下载
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -118,7 +116,7 @@ class SimpleDownloader(ABC):
         """
         from ..strategies.simple_download_strategy import SimpleDownloadStrategy
         strategy = SimpleDownloadStrategy(self)
-        return strategy.execute(start_year, end_year, **kwargs)
+        return strategy.execute(params, **kwargs)
 
 
 class BlockDownloader(SimpleDownloader):
@@ -137,18 +135,25 @@ class BlockDownloader(SimpleDownloader):
         super().__init__(db_conn)
         self.support_block_status = False
 
+        # 加载启动参数
+        params = self.load_startup_parameters()
+        if params:
+            self.start_year, self.end_year, self.stock_codes, self.extra_params = params
+        else:
+            self.start_year = None
+            self.end_year = None
+            self.stock_codes = None
+            self.extra_params = {}
+        
+        # 初始化股票集合管理器
+        from ..collection_managers import GenericStockCollectionManager
+        self.collection_manager = GenericStockCollectionManager(self.db_conn, self.stock_codes)
+
+        # 创建其他管理器
         self.block_manager = self.create_block_manager()
         self.status_manager = self.create_status_manager()
         self.pointer_manager = self.create_pointer_manager()
         self.progress_calculator = self.create_progress_manager()
-
-        params = self.load_startup_parameters()
-        if params:
-            self.start_year, self.end_year, self.extra_params = params
-        else:
-            self.start_year = None
-            self.end_year = None
-            self.extra_params = {}
 
     @abstractmethod
     def get_pointer_fields(self) -> Tuple[PointerField, ...]:
@@ -160,7 +165,6 @@ class BlockDownloader(SimpleDownloader):
         """
         pass
 
-    @abstractmethod
     def create_block_manager(self) -> BlockManager:
         """
         创建区块管理器
@@ -168,7 +172,8 @@ class BlockDownloader(SimpleDownloader):
         Returns:
             BlockManager: 区块管理器实例
         """
-        pass
+        from .block_managers.generic_block_manager import GenericBlockManager
+        return GenericBlockManager(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
 
     @abstractmethod
     def create_status_manager(self) -> TaskStatusManager:
@@ -180,7 +185,6 @@ class BlockDownloader(SimpleDownloader):
         """
         pass
 
-    @abstractmethod
     def create_pointer_manager(self) -> PointerManager:
         """
         创建指针管理器
@@ -188,7 +192,8 @@ class BlockDownloader(SimpleDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        pass
+        from .pointer_managers.generic_pointer_manager import GenericPointerManager
+        return GenericPointerManager(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
 
     @abstractmethod
     def create_progress_manager(self) -> ProgressManager:
@@ -200,7 +205,7 @@ class BlockDownloader(SimpleDownloader):
         """
         pass
 
-    def download_block(self, block_pointer: BlockPointer, start_year: int, end_year: int) -> bool:
+    def download_block(self, block_pointer: BlockPointer, params: DownloadParameters) -> bool:
         """
         下载单个区块（模板方法）
 
@@ -213,20 +218,19 @@ class BlockDownloader(SimpleDownloader):
 
         Args:
             block_pointer: 区块指针
-            start_year: 开始年份（整体下载范围）
-            end_year: 结束年份（整体下载范围）
+            params: 下载参数
 
         Returns:
             bool: 是否下载成功
         """
         # 1. 验证参数（传递 block_pointer 作为 kwargs）
-        if not self.validate_parameters(start_year, end_year, block_pointer=block_pointer):
+        if not self.validate_parameters(params, block_pointer=block_pointer):
             self._update_block_status(block_pointer, DlBlockStatus.ERROR, "参数验证失败")
             return False
 
         try:
             # 2. 下载原始数据（直接传递 block_pointer）
-            raw_data = self.download_raw_data(start_year, end_year, block_pointer=block_pointer)
+            raw_data = self.download_raw_data(params, block_pointer=block_pointer)
 
             # 处理无数据情况
             if raw_data is None or (isinstance(raw_data, pd.DataFrame) and raw_data.empty):
@@ -241,7 +245,7 @@ class BlockDownloader(SimpleDownloader):
                 return True
 
             # 4. 保存数据（传递 block_pointer）
-            save_result = self.save_data(cleaned_data, start_year, end_year, block_pointer=block_pointer)
+            save_result = self.save_data(cleaned_data, params, block_pointer=block_pointer)
 
             if save_result:
                 self._update_block_status(block_pointer, DlBlockStatus.COMPLETED)
@@ -271,13 +275,12 @@ class BlockDownloader(SimpleDownloader):
         except Exception as e:
             self.logger.error(f"更新区块状态失败：{e}", exc_info=True)
 
-    def continue_download(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def continue_download(self, params: DownloadParameters, **kwargs) -> bool:
         """
         执行区块恢复下载
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -286,43 +289,43 @@ class BlockDownloader(SimpleDownloader):
         from ..strategies.block_download_strategy import BlockDownloadStrategy
         strategy = BlockDownloadStrategy(self)
         kwargs["download_type"] = "block_resume"
-        return strategy.execute(start_year, end_year, **kwargs)
+        return strategy.execute(params, **kwargs)
 
-    def start_new_download(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def start_new_download(self, params: DownloadParameters, **kwargs) -> bool:
         """
         执行区块全新下载
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
             bool: 下载是否成功
         """
-        if not self.save_startup_parameters(start_year, end_year, **kwargs):
+        if not self.save_startup_parameters(params.start_year, params.end_year, stock_codes=params.stock_codes, **kwargs):
             self.logger.error(f"[{self.get_task_type().value}] 保存启动参数失败")
             return False
 
         from ..strategies.block_download_strategy import BlockDownloadStrategy
         strategy = BlockDownloadStrategy(self)
         kwargs["download_type"] = "block_new"
-        return strategy.execute(start_year, end_year, **kwargs)
+        return strategy.execute(params, **kwargs)
 
-    def load_startup_parameters(self) -> Optional[Tuple[int, int, Dict]]:
+    def load_startup_parameters(self) -> Optional[Tuple[int, int, Optional[list], Dict]]:
         """
         从数据库加载启动参数
 
         Returns:
-            Optional[Tuple[int, int, Dict]]: (start_year, end_year, extra_params)，如果没有则返回 None
+            Optional[Tuple[int, int, Optional[list], Dict]]: (start_year, end_year, stock_codes, extra_params)，如果没有则返回 None
         """
         startup_params = self.progress_manager.read_startup_params(self.get_task_type())
 
         if startup_params and "start_year" in startup_params and "end_year" in startup_params:
             start_year = startup_params["start_year"]
             end_year = startup_params["end_year"]
-            extra_params = {k: v for k, v in startup_params.items() if k not in ["start_year", "end_year"]}
-            return (start_year, end_year, extra_params)
+            stock_codes = startup_params.get("stock_codes")
+            extra_params = {k: v for k, v in startup_params.items() if k not in ["start_year", "end_year", "stock_codes"]}
+            return (start_year, end_year, stock_codes, extra_params)
 
         return None
 

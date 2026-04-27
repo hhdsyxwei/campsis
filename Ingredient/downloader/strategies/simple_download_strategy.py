@@ -2,6 +2,7 @@
 # 一次性下载策略
 
 from ..core.download_strategy import DownloadStrategy
+from ..core.download_parameters import DownloadParameters
 
 class SimpleDownloadStrategy(DownloadStrategy):
     """
@@ -17,13 +18,12 @@ class SimpleDownloadStrategy(DownloadStrategy):
         """
         self.downloader = downloader
     
-    def execute(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def execute(self, params: DownloadParameters, **kwargs) -> bool:
         """
         执行一次性下载策略
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
             
         Returns:
@@ -33,15 +33,15 @@ class SimpleDownloadStrategy(DownloadStrategy):
         
         # 记录开始时间
         start_time = time.time()
-        self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 开始下载任务，年份范围: {start_year}-{end_year}")
+        self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 开始下载任务，年份范围: {params.start_year}-{params.end_year}")
         
         # 验证参数
-        if not self.downloader.validate_parameters(start_year, end_year, **kwargs):
+        if not self.downloader.validate_parameters(params, **kwargs):
             self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 参数验证失败")
             return False
         
         # 下载原始数据
-        raw_data = self.downloader.download_raw_data(start_year, end_year, **kwargs)
+        raw_data = self.downloader.download_raw_data(params, **kwargs)
         if raw_data is None:
             self.downloader.logger.info(f"[{self.downloader.get_task_type().value}] 原始数据下载失败")
             return False
@@ -53,7 +53,7 @@ class SimpleDownloadStrategy(DownloadStrategy):
             return False
         
         # 保存数据
-        save_result = self.downloader.save_data(cleaned_data, start_year, end_year, **kwargs)
+        save_result = self.downloader.save_data(cleaned_data, params, **kwargs)
         
         # 记录结束时间和总耗时
         end_time = time.time()

@@ -5,6 +5,7 @@ from typing import Tuple, Optional
 import pandas as pd
 import datetime
 from Ingredient.downloader.core.abstract_downloader import BlockDownloader
+from Ingredient.downloader.core.download_parameters import DownloadParameters
 from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager
@@ -100,20 +101,19 @@ class StockIndustryDownloader(BlockDownloader):
         """
         return GenericProgressManager(self.db_conn)
 
-    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def validate_parameters(self, params: DownloadParameters, **kwargs) -> bool:
         """
         验证参数有效性
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
             bool: 参数是否有效
         """
-        if start_year >= end_year:
-            self.logger.error(f"无效年份范围: start_year ({start_year}) 必须小于 end_year ({end_year})")
+        if params.start_year >= params.end_year:
+            self.logger.error(f"无效年份范围: start_year ({params.start_year}) 必须小于 end_year ({params.end_year})")
             return False
         
         block_pointer = kwargs.get('block_pointer')
@@ -125,15 +125,14 @@ class StockIndustryDownloader(BlockDownloader):
         
         return True
 
-    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> Optional[pd.DataFrame]:
+    def download_raw_data(self, params: DownloadParameters, **kwargs) -> Optional[pd.DataFrame]:
         """
         下载原始行业数据
 
         批量获取全市场行业数据，不传股票代码参数
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -222,14 +221,13 @@ class StockIndustryDownloader(BlockDownloader):
             self.logger.error(f"数据清洗失败: {str(e)}")
             return pd.DataFrame()
 
-    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
+    def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """
         保存行业数据到数据库
 
         Args:
             data: 清洗后的数据
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -254,7 +252,7 @@ class StockIndustryDownloader(BlockDownloader):
             return False
 
 
-def start_new_industry_download(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None) -> bool:
+def start_new_industry_download(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
     """
     从头开始下载行业分类数据
     
@@ -262,6 +260,7 @@ def start_new_industry_download(db_conn, start_year: Optional[int] = None, end_y
         db_conn: 数据库连接
         start_year: 起始年份（默认使用 2000）
         end_year: 结束年份（默认使用当前年份）
+        stock_codes: 股票代码列表，可选
         **kwargs: 额外参数
         
     Returns:
@@ -273,9 +272,10 @@ def start_new_industry_download(db_conn, start_year: Optional[int] = None, end_y
         end_year = datetime.datetime.now().year + 1
     
     downloader = StockIndustryDownloader(db_conn)
-    return downloader.start_new_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.start_new_download(params)
 
-def continue_industry_download(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None) -> bool:
+def continue_industry_download(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
     """
     继续下载行业分类数据
     
@@ -283,6 +283,7 @@ def continue_industry_download(db_conn, start_year: Optional[int] = None, end_ye
         db_conn: 数据库连接
         start_year: 起始年份（默认使用 2000）
         end_year: 结束年份（默认使用当前年份）
+        stock_codes: 股票代码列表，可选
         
     Returns:
         bool: 是否下载成功
@@ -293,4 +294,5 @@ def continue_industry_download(db_conn, start_year: Optional[int] = None, end_ye
         end_year = datetime.datetime.now().year + 1
     
     downloader = StockIndustryDownloader(db_conn)
-    return downloader.continue_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.continue_download(params)
