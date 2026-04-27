@@ -158,13 +158,13 @@ class GenericBlockStatusDM:
 
         return field_mapping
 
-    def get_block_count(self, task_type: DlTaskType, year_range: Tuple[int, int], pointer_fields: Tuple[PointerField, ...], status: List[DlBlockStatus] = []) -> int:
+    def get_block_count(self, task_type: DlTaskType, year_range: Tuple[int, int], pointer_fields: Tuple[PointerField, ...], status: List[DlBlockStatus] = [], stock_table: Optional[str] = "stock_fixed_seq") -> int:
         """
         获取指定状态的股票时间周期区块数量
 
         条件：
         1. task_type 类型匹配
-        2. stock code 在 stock_fixed_seq 中存在（如果提供）
+        2. stock code 在指定的股票表中存在（如果提供）
         3. time_frame 值在 KLineConfig.DEFAULT_TIME_FRAMES 的列表中（如果提供）
         4. 季度/年份在指定的范围中，前闭后开（如果提供）
 
@@ -185,6 +185,7 @@ class GenericBlockStatusDM:
         :param year_range: 年份范围 (start_year, end_year)，前闭后开
         :param pointer_fields: 指针字段元组，描述 block_key_1/2/3 的含义
         :param status: 区块状态列表（空列表表示所有状态）
+        :param stock_table: 股票表名，默认为stock_fixed_seq
         :return: 区块数量
         """
         func_name = "get_block_count"
@@ -216,7 +217,7 @@ class GenericBlockStatusDM:
 
         # 添加 JOIN 子句（如果提供了股票代码字段）
         if stock_block_key:
-            sql += f"JOIN stock_fixed_seq sfs ON gbs.{stock_block_key} = sfs.std_stock_code\n"
+            sql += f"JOIN {stock_table} sfs ON gbs.{stock_block_key} = sfs.std_stock_code\n"
 
         # 构建 WHERE 子句
         where_conditions = ["gbs.task_type = %s"]

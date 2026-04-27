@@ -54,7 +54,7 @@ class GenericStockCollectionManager(StockCollectionManager):
         else:
             # 从 stock_fixed_seq 表获取股票数量
             try:
-                count = udm.get_stock_count(self.db_conn)
+                count = udm.count_stocks_in_fixed_seq(self.db_conn)
                 return count
             except Exception as e:
                 logger.error(f"获取股票数量失败: {str(e)}")
