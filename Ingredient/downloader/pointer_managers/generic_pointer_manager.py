@@ -54,7 +54,9 @@ class GenericPointerManager(PointerManager):
 
         self.db_conn = db_conn
         self.stock_manager = StockFixedSeqManager(db_conn) if db_conn else None
-        self.collection_manager = collection_manager
+        # 如果没有提供collection_manager，创建默认的GenericStockCollectionManager
+        from ..collection_managers import GenericStockCollectionManager
+        self.collection_manager = collection_manager or GenericStockCollectionManager(db_conn)
 
 
     def get_dl_pointer(self) -> Optional[BlockPointer]:
@@ -253,17 +255,7 @@ class GenericPointerManager(PointerManager):
             Optional[str]: 第一只股票代码
         """
         try:
-            # 如果有股票集合管理器，使用它获取第一只股票
-            if self.collection_manager:
-                return self.collection_manager.get_first_stock()
-            # 如果有自定义股票列表，返回第一只
-            if params and params.has_custom_stock_list():
-                return params.stock_codes[0]
-            # 否则从数据库获取
-            stock = udm.next_fixed_stock(self.db_conn, None)
-            if stock:
-                return stock
-            return None
+            return self.collection_manager.get_first_stock()
         except Exception as e:
             self.logger.error(f"获取第一只股票失败: {str(e)}")
             return None
@@ -280,22 +272,7 @@ class GenericPointerManager(PointerManager):
             Optional[str]: 下一只股票代码
         """
         try:
-            # 如果有股票集合管理器，使用它获取下一只股票
-            if self.collection_manager:
-                return self.collection_manager.get_next_stock(current_stock)
-            # 如果有自定义股票列表，在列表中查找
-            if params and params.has_custom_stock_list():
-                stock_list = params.stock_codes
-                try:
-                    current_idx = stock_list.index(current_stock)
-                    if current_idx < len(stock_list) - 1:
-                        return stock_list[current_idx + 1]
-                    return None
-                except ValueError:
-                    return None
-            # 否则从数据库获取
-            std_stock_code = udm.next_fixed_stock(self.db_conn, current_stock)
-            return std_stock_code
+            return self.collection_manager.get_next_stock(current_stock)
         except Exception as e:
             self.logger.error(f"获取下一只股票失败: {str(e)}")
             return None
@@ -311,15 +288,7 @@ class GenericPointerManager(PointerManager):
             int: 股票总数
         """
         try:
-            # 如果有股票集合管理器，使用它获取股票总数
-            if self.collection_manager:
-                return self.collection_manager.get_stock_count()
-            # 如果有自定义股票列表，返回列表长度
-            if params and params.has_custom_stock_list():
-                return len(params.stock_codes)
-            # 否则从数据库获取
-            total_count = udm.count_stocks_in_fixed_seq(self.db_conn)
-            return total_count
+            return self.collection_manager.get_stock_count()
         except Exception as e:
             self.logger.error(f"获取股票总数失败: {str(e)}")
             return 0
@@ -336,10 +305,11 @@ class GenericPointerManager(PointerManager):
             bool: 股票是否存在
         """
         try:
-            # 如果有自定义股票列表，在列表中查找
-            if params and params.has_custom_stock_list():
-                return stock_code in params.stock_codes
-            # 否则检查数据库
+            # 从collection_manager获取股票列表并检查
+            stock_list = self.collection_manager.get_stock_list()
+            if stock_list:
+                return stock_code in stock_list
+            # 如果没有自定义股票列表，检查数据库
             if not self.stock_manager:
                 self.logger.error("stock_manager 未初始化")
                 return False

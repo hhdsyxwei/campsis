@@ -14,7 +14,8 @@ from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
 from .abs_collection_manager import StockCollectionManager
 from .download_parameters import DownloadParameters
-
+from ..block_managers.generic_block_manager import GenericBlockManager
+from ..pointer_managers.generic_pointer_manager import GenericPointerManager
 
 class SimpleDownloader(ABC):
     """
@@ -165,6 +166,7 @@ class BlockDownloader(SimpleDownloader):
         """
         pass
 
+    @abstractmethod
     def create_block_manager(self) -> BlockManager:
         """
         创建区块管理器
@@ -172,8 +174,9 @@ class BlockDownloader(SimpleDownloader):
         Returns:
             BlockManager: 区块管理器实例
         """
-        from .block_managers.generic_block_manager import GenericBlockManager
-        return GenericBlockManager(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
+        pass
+
+
 
     @abstractmethod
     def create_status_manager(self) -> TaskStatusManager:
@@ -185,6 +188,7 @@ class BlockDownloader(SimpleDownloader):
         """
         pass
 
+    @abstractmethod
     def create_pointer_manager(self) -> PointerManager:
         """
         创建指针管理器
@@ -192,8 +196,7 @@ class BlockDownloader(SimpleDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        from .pointer_managers.generic_pointer_manager import GenericPointerManager
-        return GenericPointerManager(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
+        pass
 
     @abstractmethod
     def create_progress_manager(self) -> ProgressManager:

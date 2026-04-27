@@ -188,10 +188,11 @@ class YearStockPtrMgr(GenericPointerManager):
                 return 0
 
             # 获取当前股票的位置
-            if params.has_custom_stock_list():
+            stock_list = self.collection_manager.get_stock_list()
+            if stock_list:
                 # 使用自定义股票列表的位置
                 try:
-                    stock_position = params.stock_codes.index(current_stock)
+                    stock_position = stock_list.index(current_stock)
                 except ValueError:
                     return 0
             else:

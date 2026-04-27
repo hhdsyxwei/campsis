@@ -110,6 +110,7 @@ def download_stock_data(conn):
     start_year = 2022
     end_year = 2027
     stock_code = "001331.SZ"
+    params = DownloadParameters(stock_code=stock_code, start_year=start_year, end_year=end_year)
 
     try:
         download_trade_date_map(conn, start_year, end_year)  # 下载交易日映射表，覆盖start_year-end_year年

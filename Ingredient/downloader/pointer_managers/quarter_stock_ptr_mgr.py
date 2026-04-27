@@ -48,8 +48,8 @@ class QuarterStockPtrMgr(GenericPointerManager):
             BlockPointer: 下一个区块指针，无更多区块时返回 None
         """
         # 1. 初始化检查
-        if not self.stock_manager:
-            self.logger.error("未初始化 StockFixedSeqManager")
+        if not self.collection_manager:
+            self.logger.error("未初始化 StockCollectionManager")
             return None
         
         # 2. 首次获取
@@ -84,6 +84,7 @@ class QuarterStockPtrMgr(GenericPointerManager):
             return None
             
         except Exception as e:
+            self.logger.error(f"获取下一个区块指针失败: {str(e)}")
             return None
     
     def get_completed_block_count(self, params: DownloadParameters, dl_pointer: BlockPointer) -> int:
