@@ -39,7 +39,7 @@ class ParallelBacktestRunner:
 
             data = self.data_adapter.get_stock_data(stock_code, start_date, end_date)
 
-            if not data:
+            if data is None:
                 logger.error(f"No data found for {stock_code}")
                 return {"strategy": strategy_name, "error": f"No data found for {stock_code}"}
 

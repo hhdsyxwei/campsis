@@ -33,6 +33,7 @@ class CampsisLogger:
         #暂时关闭Picker模块志输出
         "CookingEngine.Picker": logging.DEBUG,
         "Ingredient.downloader.TradeDateMapDownloader": logging.DEBUG,
+        "Ingredient.DataNest.dm_daily": logging.DEBUG,
         # 测试包单独控制
         "tests": logging.ERROR,
         # 第三方包控制（如屏蔽 pandas 日志）
