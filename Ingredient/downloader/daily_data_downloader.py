@@ -27,14 +27,14 @@ class DailyDataDownloader(BlockDownloader):
     - 指针字段：STOCK_CODE, YEAR
     """
 
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化日线数据下载器
 
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn)
+        super().__init__(db_conn, params)
         self.support_block_status = True
 
     def get_task_type(self) -> DlTaskType:
@@ -253,7 +253,7 @@ def continue_download_daily(db_conn, params: DownloadParameters) -> bool:
     Returns:
         bool: 是否下载完成
     """
-    downloader = DailyDataDownloader(db_conn)
+    downloader = DailyDataDownloader(db_conn, params)
     return downloader.continue_download(params)
 
 
@@ -268,5 +268,5 @@ def start_new_daily_download(db_conn, params: DownloadParameters) -> bool:
     Returns:
         bool: 是否下载完成
     """
-    downloader = DailyDataDownloader(db_conn)
+    downloader = DailyDataDownloader(db_conn, params)
     return downloader.start_new_download(params)

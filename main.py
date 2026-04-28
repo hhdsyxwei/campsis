@@ -119,9 +119,9 @@ def download_stock_data(conn):
         return
     logger.info("Baostock 登录成功。")
 
-    start_year = 2022
+    start_year = 2025
     end_year = 2027
-    stock_codes = ["000001.SZ"]
+    stock_codes = ["000001.SZ", "000002.SZ", "000004.SZ", "000006.SZ"]
     params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
     download_trade_date_map(conn, params)  # 下载交易日映射表，覆盖start_year-end_year年
@@ -143,8 +143,8 @@ def download_stock_data(conn):
     # start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
     # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
     # 8. 第七步：下载股票利润数据
-    # start_new_profit_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的股票利润数据
-    
+    # start_new_profit_download(conn, params)  # 从头开始下载2026-2027年的股票利润数据
+
     # 9. 第八步：下载公司偿债能力数据
     # start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
     # continue_download_company_balance(conn, start_year, end_year)  # 继续下载2026-2027年的公司偿债能力数据

@@ -94,18 +94,18 @@ class FactorCalculator:
             logger.debug(f"slope_normalized: {slope_normalized}, 类型: {type(slope_normalized)}")
 
             # 综合计算分数
-            score = 0
+            score = 0.0
             if price_above_ma20:
-                score += 20
+                score += 20.0
             if price_above_ma60:
-                score += 25
+                score += 25.0
             if price_above_ma120:
-                score += 30
+                score += 30.0
             if ma_bullish:
-                score += 15
+                score += 15.0
 
             # 趋势斜率贡献
-            slope_score = max(0, min(10, slope_normalized * 2))
+            slope_score = max(0.0, min(10.0, slope_normalized * 2.0))
             score += slope_score
 
             final_score = min(100, score)
@@ -149,40 +149,40 @@ class FactorCalculator:
             # 计算不同时间周期的收益率
             # 1个月收益率
             if len(price_data) >= 20:
-                one_month_return = (price_data['close'].iloc[-1] / price_data['close'].iloc[-20]) - 1
+                one_month_return = (float(price_data['close'].iloc[-1]) / float(price_data['close'].iloc[-20])) - 1
             else:
-                one_month_return = 0
+                one_month_return = 0.0
             
             # 3个月收益率
             if len(price_data) >= 60:
-                three_month_return = (price_data['close'].iloc[-1] / price_data['close'].iloc[-60]) - 1
+                three_month_return = (float(price_data['close'].iloc[-1]) / float(price_data['close'].iloc[-60])) - 1
             else:
-                three_month_return = 0
+                three_month_return = 0.0
             
             # 6个月收益率
             if len(price_data) >= 120:
-                six_month_return = (price_data['close'].iloc[-1] / price_data['close'].iloc[-120]) - 1
+                six_month_return = (float(price_data['close'].iloc[-1]) / float(price_data['close'].iloc[-120])) - 1
             else:
-                six_month_return = 0
+                six_month_return = 0.0
             
             # 12个月收益率
             if len(price_data) >= 240:
-                twelve_month_return = (price_data['close'].iloc[-1] / price_data['close'].iloc[-240]) - 1
+                twelve_month_return = (float(price_data['close'].iloc[-1]) / float(price_data['close'].iloc[-240])) - 1
             else:
-                twelve_month_return = 0
+                twelve_month_return = 0.0
             
             # 计算相对强弱
             # 假设获取沪深300指数作为基准
             benchmark_data = self.data_provider.get_index_data('000300.SH', start_date, end_date)
             if not benchmark_data.empty:
-                benchmark_return = (benchmark_data['close'].iloc[-1] / benchmark_data['close'].iloc[0]) - 1
-                stock_return = (price_data['close'].iloc[-1] / price_data['close'].iloc[0]) - 1
+                benchmark_return = (float(benchmark_data['close'].iloc[-1]) / float(benchmark_data['close'].iloc[0])) - 1
+                stock_return = (float(price_data['close'].iloc[-1]) / float(price_data['close'].iloc[0])) - 1
                 relative_strength = stock_return - benchmark_return
             else:
-                relative_strength = 0
+                relative_strength = 0.0
             
             # 综合计算分数
-            score = 0
+            score = 0.0
             score += one_month_return * 100 * 0.2
             score += three_month_return * 100 * 0.3
             score += six_month_return * 100 * 0.3
@@ -228,30 +228,30 @@ class FactorCalculator:
             # 获取最新财务数据
             latest_financial = financial_data.iloc[-1]
             
-            # 计算财务指标
+            # 计算财务指标，将 Decimal 转换为 float 避免类型冲突
             # 1. 净资产收益率 (ROE)
-            roe = latest_financial.get('roe', 0)
+            roe = float(latest_financial.get('roe', 0))
             
             # 2. 资产负债率
-            debt_to_asset = latest_financial.get('debt_to_asset', 1)
+            debt_to_asset = float(latest_financial.get('debt_to_asset', 1))
             
             # 3. 净利润增长率
             if len(financial_data) >= 2:
-                profit_growth = (latest_financial.get('net_profit', 0) / financial_data.iloc[-2].get('net_profit', 1)) - 1
+                profit_growth = (float(latest_financial.get('net_profit', 0)) / float(financial_data.iloc[-2].get('net_profit', 1))) - 1
             else:
-                profit_growth = 0
+                profit_growth = 0.0
             
             # 4. 营业收入增长率
             if len(financial_data) >= 2:
-                revenue_growth = (latest_financial.get('revenue', 0) / financial_data.iloc[-2].get('revenue', 1)) - 1
+                revenue_growth = (float(latest_financial.get('revenue', 0)) / float(financial_data.iloc[-2].get('revenue', 1))) - 1
             else:
-                revenue_growth = 0
+                revenue_growth = 0.0
             
             # 5. 毛利率
-            gross_margin = latest_financial.get('gross_margin', 0)
+            gross_margin = float(latest_financial.get('gross_margin', 0))
             
             # 综合计算分数
-            score = 0
+            score = 0.0
             
             # ROE贡献 (0-30分)
             roe_score = min(30, roe * 2)

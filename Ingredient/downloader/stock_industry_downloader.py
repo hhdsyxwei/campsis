@@ -27,15 +27,14 @@ class StockIndustryDownloader(BlockDownloader):
     通过区块管理和断点续传机制，解决 API 限流问题
     支持批量获取全市场行业数据
     """
-    
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化行业分类数据下载器
         
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn)
+        super().__init__(db_conn, params)
         self.industry_manager = StockIndustryDataManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
@@ -252,7 +251,7 @@ class StockIndustryDownloader(BlockDownloader):
             return False
 
 
-def start_new_industry_download(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
+def start_new_industry_download(db_conn, params: DownloadParameters, **kwargs) -> bool:
     """
     从头开始下载行业分类数据
     
@@ -266,16 +265,10 @@ def start_new_industry_download(db_conn, start_year: Optional[int] = None, end_y
     Returns:
         bool: 是否下载成功
     """
-    if start_year is None:
-        start_year = 2000
-    if end_year is None:
-        end_year = datetime.datetime.now().year + 1
-    
-    downloader = StockIndustryDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
-    return downloader.start_new_download(params)
+    downloader = StockIndustryDownloader(db_conn, params)
+    return downloader.start_new_download(params, **kwargs)
 
-def continue_industry_download(db_conn, start_year: Optional[int] = None, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
+def continue_industry_download(db_conn, params: DownloadParameters, **kwargs) -> bool:
     """
     继续下载行业分类数据
     
@@ -287,12 +280,6 @@ def continue_industry_download(db_conn, start_year: Optional[int] = None, end_ye
         
     Returns:
         bool: 是否下载成功
-    """
-    if start_year is None:
-        start_year = 2000
-    if end_year is None:
-        end_year = datetime.datetime.now().year + 1
-    
-    downloader = StockIndustryDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
-    return downloader.continue_download(params)
+    """    
+    downloader = StockIndustryDownloader(db_conn, params)
+    return downloader.continue_download(params, **kwargs)

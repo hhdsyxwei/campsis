@@ -30,14 +30,14 @@ class KLineDownloader(BlockDownloader):
     - 区块排序规则：先按股票代码升序，再按时间周期，最后按季度升序
     """
 
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化K线数据下载器
 
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn)
+        super().__init__(db_conn, params)
         self.support_block_status = True
 
     def get_task_type(self) -> DlTaskType:
@@ -303,7 +303,7 @@ class KLineDownloader(BlockDownloader):
         return True, real_s, real_e
 
 
-def continue_download_kline(db_conn, start_year: int, end_year: int, stock_codes: Optional[list] = None) -> bool:
+def continue_download_kline(db_conn, params: DownloadParameters, **kwargs) -> bool:
     """
     【全局唯一对外接口】继续下载K线数据（支持断点续传）
 
@@ -326,12 +326,11 @@ def continue_download_kline(db_conn, start_year: int, end_year: int, stock_codes
     :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
-    downloader = KLineDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
-    return downloader.continue_download(params)
+    downloader = KLineDownloader(db_conn, params)
+    return downloader.continue_download(params, **kwargs)
 
 
-def start_new_kline_download(db_conn, start_year: int, end_year: int, stock_codes: Optional[list] = None) -> bool:
+def start_new_kline_download(db_conn, params: DownloadParameters, **kwargs) -> bool:
     """
     【全局唯一对外接口】开始新的K线数据下载任务（清空之前的下载进度）
 
@@ -353,6 +352,5 @@ def start_new_kline_download(db_conn, start_year: int, end_year: int, stock_code
     :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
-    downloader = KLineDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
-    return downloader.start_new_download(params)
+    downloader = KLineDownloader(db_conn, params)
+    return downloader.start_new_download(params, **kwargs)

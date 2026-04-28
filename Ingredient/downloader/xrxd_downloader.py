@@ -29,14 +29,14 @@ class XrxdDownloader(BlockDownloader):
     - 区块排序规则：先按年份升序，同一年内按 stock_fixed_seq 表顺序
     """
 
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化分红送配数据下载器
 
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn)
+        super().__init__(db_conn, params)
         self.xrxd_manager = XrxdManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
@@ -259,7 +259,7 @@ class XrxdDownloader(BlockDownloader):
         return True
 
 
-def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
+def continue_download_xrxd(db_conn, params: DownloadParameters) -> bool:
     """
     【全局唯一对外接口】继续下载分红送配数据（支持断点续传）
 
@@ -277,20 +277,12 @@ def continue_download_xrxd(db_conn, start_year: int, end_year: Optional[int] = N
     5. 完成后清空下载指针
 
     :param db_conn: 使用者创建的数据库连接
-    :param start_year: 起始年份（包含）
-    :param end_year: 结束年份（包含，默认当前年份）
-    :param stock_codes: 股票代码列表，可选
-    :return: True 表示全部下载完成，False 表示未完成
+    :param params: 下载参数
     """
-    if end_year is None:
-        end_year = datetime.now().year
-
-    downloader = XrxdDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
+    downloader = XrxdDownloader(db_conn, params)
     return downloader.continue_download(params)
 
-
-def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
+def start_new_xrxd_download(db_conn, params: DownloadParameters) -> bool:
     """
     【全局唯一对外接口】开始新的分红送配数据下载任务（清空之前的下载进度）
 
@@ -312,9 +304,6 @@ def start_new_xrxd_download(db_conn, start_year: int, end_year: Optional[int] = 
     :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成， False 表示未完成
     """
-    if end_year is None:
-        end_year = datetime.now().year
 
-    downloader = XrxdDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
+    downloader = XrxdDownloader(db_conn, params)
     return downloader.start_new_download(params)
