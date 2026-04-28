@@ -23,18 +23,17 @@ class YearBlkMgr(GenericBlockManager):
         """
         super().__init__(db_conn, task_type)
     
-    def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
+    def get_total_block_count(self, params, **kwargs) -> int:
         """
         计算总区块数：结束年份 - 开始年份
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数（包含 start_year 和 end_year）
             **kwargs: 额外参数
             
         Returns:
             int: 总区块数
         """
-        return end_year - start_year
+        return params.end_year - params.start_year
 
 

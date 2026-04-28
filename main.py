@@ -2,7 +2,6 @@
 # ==============================================
 # 1. 必须放在所有其他导入 【最前面】
 # ==============================================
-from Ingredient.downloader.daily_data_downloader import download_daily_data
 from KitchenBase.package_manager import PackageManager
 from KitchenBase.logger_config import setup_logging,get_logger
 setup_logging()
@@ -20,18 +19,19 @@ from Ingredient.DataNest import create_database_and_tables
 from Ingredient.downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from CookingEngine.Picker.stock_scorer import score_single_stock
-from Ingredient.downloader.daily_data_downloader import download_all_stocks_daily_data
-from Ingredient.downloader import start_new_profit_download
-from Ingredient.downloader.company_balance_downloader import start_new_balance_download
-from Ingredient.downloader.stock_industry_downloader import start_new_industry_download
-from Ingredient.downloader.adj_factor_downloader import start_new_adj_factor_download
-from Ingredient.downloader.kline_unified_downloader import start_new_kline_download
-from Ingredient.downloader.company_cash_flow_downloader import start_new_cash_flow_download, continue_cash_flow_download
 from CookingEngine.Analysis.performance_analyzer import PerformanceAnalyzer
 from CookingEngine.Backtest.parallel_runner import ParallelBacktestRunner
 from tools.count_code import count_project_code
-from Ingredient.downloader import download_stock_basic
 from Ingredient.downloader.core import DownloadParameters
+from Ingredient.downloader import start_new_daily_download
+from Ingredient.downloader import start_new_balance_download
+from Ingredient.downloader import start_new_profit_download
+from Ingredient.downloader import start_new_cash_flow_download
+from Ingredient.downloader import start_new_adj_factor_download
+from Ingredient.downloader import start_new_xrxd_download
+from Ingredient.downloader import start_new_kline_download
+from Ingredient.downloader import download_stock_basic
+
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -109,7 +109,7 @@ def download_stock_data(conn):
 
     start_year = 2022
     end_year = 2027
-    stock_codes = ["001331.SZ"]
+    stock_codes = ["000001.SZ"]
     params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
     try:
@@ -119,8 +119,7 @@ def download_stock_data(conn):
 
         # 3. 第二步：下载所有活跃股票的日线数据
         # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-        # download_daily_data(conn, "000001.SZ", "2025-10-01", "2026-04-15")
-        download_all_stocks_daily_data(conn, start_date="2026-01-01", end_date="2026-03-17")
+        start_new_daily_download(conn, params)
 
         # 4. 第三步：下载行业分类数据
         # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据

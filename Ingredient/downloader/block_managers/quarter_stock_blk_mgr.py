@@ -26,7 +26,7 @@ class QuarterStockBlkMgr(GenericBlockManager):
         """
         super().__init__(db_conn, task_type, collection_manager=collection_manager)
 
-    def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
+    def get_total_block_count(self, params, **kwargs) -> int:
         """
         获取总区块数量
         
@@ -34,14 +34,17 @@ class QuarterStockBlkMgr(GenericBlockManager):
         股票数量从 stock_fixed_seq 表中获取
         
         Args:
-            start_year: 开始年份
-            end_year: 结束年份
+            params: 下载参数（包含 start_year 和 end_year）
             **kwargs: 额外参数
             
         Returns:
             int: 总区块数量
         """
         try:
+            # 从 params 中提取年份范围
+            start_year = params.start_year
+            end_year = params.end_year
+            
             # 获取股票数量
             stock_count = self.get_stock_count()
             

@@ -18,13 +18,12 @@ class QuarterStockPeriodBlockManager(GenericBlockManager):
         """
         super().__init__(db_conn, task_type)
         
-    def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
+    def get_total_block_count(self, params, **kwargs) -> int:
         """
         计算总区块数：(结束年份 - 开始年份) * 4 * 股票总数
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数（包含 start_year 和 end_year）
             **kwargs: 额外参数
             
         Returns:
@@ -32,7 +31,7 @@ class QuarterStockPeriodBlockManager(GenericBlockManager):
         """
         from Ingredient.DataNest import UnifiedDataManager as dm
         stock_count = dm.count_stocks_in_fixed_seq(self.db_conn)
-        quarter_count = (end_year - start_year) * 4
+        quarter_count = (params.end_year - params.start_year) * 4
         return stock_count * quarter_count
 
     
