@@ -67,7 +67,7 @@ class XrxdDownloader(BlockDownloader):
             BlockManager: 区块管理器实例
         """
         from .block_managers.year_stock_blk_mgr import YearStockBlkMgr
-        return YearStockBlkMgr(self.db_conn, self.get_task_type())
+        return YearStockBlkMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_status_manager(self) -> TaskStatusManager:
         """
@@ -87,7 +87,7 @@ class XrxdDownloader(BlockDownloader):
             PointerManager: 指针管理器实例
         """
         from .pointer_managers import YearStockPtrMgr
-        return YearStockPtrMgr(self.db_conn, self.get_task_type())
+        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

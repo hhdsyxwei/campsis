@@ -66,7 +66,7 @@ class KLineDownloader(BlockDownloader):
             BlockManager: 区块管理器实例
         """
         from .block_managers.stock_tm_qtr_blk_mgr import StockTmQtrBlkMgr
-        return StockTmQtrBlkMgr(self.db_conn, self.get_task_type())
+        return StockTmQtrBlkMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_status_manager(self) -> TaskStatusManager:
         """
@@ -86,7 +86,7 @@ class KLineDownloader(BlockDownloader):
             PointerManager: 指针管理器实例
         """
         from .pointer_managers.stock_tm_qtr_ptr_mgr import StockTimeFrameQuarterPtrMgr
-        return StockTimeFrameQuarterPtrMgr(self.db_conn, self.get_task_type())
+        return StockTimeFrameQuarterPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

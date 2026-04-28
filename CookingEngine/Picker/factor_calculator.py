@@ -228,27 +228,40 @@ class FactorCalculator:
             # 获取最新财务数据
             latest_financial = financial_data.iloc[-1]
             
+            # 安全转换函数：将值转换为 float，处理 None 的情况
+            def safe_float(value, default):
+                if value is None:
+                    return default
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
+            
             # 计算财务指标，将 Decimal 转换为 float 避免类型冲突
             # 1. 净资产收益率 (ROE)
-            roe = float(latest_financial.get('roe', 0))
+            roe = safe_float(latest_financial.get('roe'), 0)
             
             # 2. 资产负债率
-            debt_to_asset = float(latest_financial.get('debt_to_asset', 1))
+            debt_to_asset = safe_float(latest_financial.get('debt_to_asset'), 1)
             
             # 3. 净利润增长率
             if len(financial_data) >= 2:
-                profit_growth = (float(latest_financial.get('net_profit', 0)) / float(financial_data.iloc[-2].get('net_profit', 1))) - 1
+                current_profit = safe_float(latest_financial.get('net_profit'), 0)
+                previous_profit = safe_float(financial_data.iloc[-2].get('net_profit'), 1)
+                profit_growth = (current_profit / previous_profit) - 1 if previous_profit != 0 else 0.0
             else:
                 profit_growth = 0.0
             
             # 4. 营业收入增长率
             if len(financial_data) >= 2:
-                revenue_growth = (float(latest_financial.get('revenue', 0)) / float(financial_data.iloc[-2].get('revenue', 1))) - 1
+                current_revenue = safe_float(latest_financial.get('revenue'), 0)
+                previous_revenue = safe_float(financial_data.iloc[-2].get('revenue'), 1)
+                revenue_growth = (current_revenue / previous_revenue) - 1 if previous_revenue != 0 else 0.0
             else:
                 revenue_growth = 0.0
             
             # 5. 毛利率
-            gross_margin = float(latest_financial.get('gross_margin', 0))
+            gross_margin = safe_float(latest_financial.get('gross_margin'), 0)
             
             # 综合计算分数
             score = 0.0

@@ -8,6 +8,7 @@ from .abs_status_manager import TaskStatusManager
 from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
 from .download_parameters import DownloadParameters
+from .abs_collection_manager import StockCollectionManager
 
 
 

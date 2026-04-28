@@ -7,6 +7,7 @@ from KitchenBase.download_enums import PointerField
 from typing import Tuple
 from Ingredient.config import KLineConfig
 from KitchenBase.logger_config import get_logger
+from ..core.abs_collection_manager import StockCollectionManager
 
 class StockTmQtrBlkMgr(GenericBlockManager):
     """
@@ -15,11 +16,11 @@ class StockTmQtrBlkMgr(GenericBlockManager):
     计算总区块数：股票数 × 季度数 × 时间周期数
     """
 
-    def __init__(self, db_conn, task_type: DlTaskType):
+    def __init__(self, db_conn, task_type: DlTaskType, collection_manager: StockCollectionManager):
         """
         初始化区块管理器
         """
-        super().__init__(db_conn, task_type)
+        super().__init__(db_conn, task_type, collection_manager)
         self.time_frame_list = KLineConfig.DEFAULT_TIME_FRAMES
         self.logger = get_logger(__name__)
 

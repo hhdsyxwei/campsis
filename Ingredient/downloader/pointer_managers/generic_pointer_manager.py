@@ -1,6 +1,7 @@
 # general_pointer_manager.py
 # 通用指针管理器实现，集成策略模式
 
+from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager
 from KitchenBase.download_enums import DlTaskType
 from Ingredient.DataNest.dm_unified import UnifiedDataManager
 from ..core.abs_pointer_manager import PointerManager
@@ -29,7 +30,8 @@ class GenericPointerManager(PointerManager):
     2. 指针验证功能，指针的验证基于字段的不同而不同
     """
 
-    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None, time_frame=None, collection_manager=None):
+    def __init__(self, db_conn, task_type: DlTaskType, collection_manager: StockCollectionManager,
+                  global_manager=None, time_frame=None, ):
         """
         初始化通用指针管理器
 

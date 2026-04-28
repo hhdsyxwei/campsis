@@ -1,6 +1,6 @@
 # dm_generic_block_status.py
 from KitchenBase.download_enums import PointerField
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Tuple, Dict, List, Union
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 
@@ -166,13 +166,17 @@ class GenericBlockStatusDM:
 
         return field_mapping
 
-    def get_block_count(self, task_type: DlTaskType, year_range: Tuple[int, int], pointer_fields: Tuple[PointerField, ...], status: List[DlBlockStatus] = [], stock_table: Optional[str] = "stock_fixed_seq") -> int:
+    def get_block_count(self, task_type: DlTaskType, 
+                        year_range: Tuple[int, int], 
+                        pointer_fields: Tuple[PointerField, ...], 
+                        status: List[DlBlockStatus] = [], 
+                        stock_table: Optional[Union[str, List[str]]] = "stock_fixed_seq") -> int:
         """
         获取指定状态的股票时间周期区块数量
 
         条件：
         1. task_type 类型匹配
-        2. stock code 在指定的股票表中存在（如果提供）
+        2. stock code 在指定的股票表或列表中存在（如果提供且 pointer_fields 包含 STOCK_CODE）
         3. time_frame 值在 KLineConfig.DEFAULT_TIME_FRAMES 的列表中（如果提供）
         4. 季度/年份在指定的范围中，前闭后开（如果提供）
 
@@ -185,6 +189,12 @@ class GenericBlockStatusDM:
         - 所有字段都是可选字段
         - PointerField.QUARTER 和 PointerField.YEAR 不能同时使用
         - 如果同时存在，优先使用 PointerField.YEAR 而忽略 PointerField.QUARTER
+        - 如果 pointer_fields 不包含 STOCK_CODE，则不进行任何股票过滤
+
+        stock_table 参数说明：
+        - str: 数据库表名（如 "stock_fixed_seq"），通过 JOIN 过滤
+        - List[str]: 股票代码列表，通过 IN 子句过滤
+        - None: 不进行股票过滤
 
         例如：pointer_fields=(STOCK_CODE, TIME_FRAME, QUARTER)
         表示 block_key_1 是股票代码，block_key_2 是时间周期，block_key_3 是季度
@@ -193,7 +203,7 @@ class GenericBlockStatusDM:
         :param year_range: 年份范围 (start_year, end_year)，前闭后开
         :param pointer_fields: 指针字段元组，描述 block_key_1/2/3 的含义
         :param status: 区块状态列表（空列表表示所有状态）
-        :param stock_table: 股票表名，默认为stock_fixed_seq
+        :param stock_table: 股票表名或股票代码列表，默认为 "stock_fixed_seq"
         :return: 区块数量
         """
         func_name = "get_block_count"
@@ -203,6 +213,17 @@ class GenericBlockStatusDM:
         start_year, end_year = year_range
 
         self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, {start_year}-{end_year}, {[s.value for s in status] if status else 'all'}")
+
+        # 参数验证
+        if stock_table is not None:
+            if isinstance(stock_table, str):
+                if stock_table == "":
+                    raise ValueError("stock_table 不能为空字符串")
+            elif isinstance(stock_table, list):
+                if len(stock_table) == 0:
+                    raise ValueError("stock_table 不能为空列表")
+            else:
+                raise TypeError(f"stock_table 必须是 str 或 list，实际是 {type(stock_table)}")
 
         field_mapping = self._map_pointer_fields_to_block_keys(pointer_fields)
         stock_block_key = field_mapping.get(PointerField.STOCK_CODE)
@@ -223,13 +244,20 @@ class GenericBlockStatusDM:
         FROM generic_block_status gbs
         """
 
-        # 添加 JOIN 子句（如果提供了股票代码字段）
-        if stock_block_key:
-            sql += f"JOIN {stock_table} sfs ON gbs.{stock_block_key} = sfs.std_stock_code\n"
-
         # 构建 WHERE 子句
         where_conditions = ["gbs.task_type = %s"]
         params = [task_type.value]
+
+        # 添加股票过滤（只有当存在股票字段时）
+        if stock_block_key and stock_table is not None:
+            if isinstance(stock_table, str):
+                # 使用 JOIN 表方式
+                sql += f"JOIN {stock_table} sfs ON gbs.{stock_block_key} = sfs.std_stock_code\n"
+            elif isinstance(stock_table, list):
+                # 使用 IN 子句方式
+                placeholders = ','.join(['%s'] * len(stock_table))
+                where_conditions.append(f"gbs.{stock_block_key} IN ({placeholders})")
+                params.extend(stock_table)
 
         # 添加时间周期过滤（如果提供）
         if time_frame_block_key and valid_time_frames:

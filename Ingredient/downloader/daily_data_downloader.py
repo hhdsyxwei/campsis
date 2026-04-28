@@ -82,8 +82,8 @@ class DailyDataDownloader(BlockDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        from .pointer_managers.year_stock_ptr_mgr import YearStockPtrMgr
-        return YearStockPtrMgr(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
+        from .pointer_managers.stock_year_ptr_mgr import StockYearPtrMgr
+        return StockYearPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

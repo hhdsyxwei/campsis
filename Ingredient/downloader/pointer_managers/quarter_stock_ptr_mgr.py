@@ -1,6 +1,9 @@
 # quarter_stock_ptr_mgr.py
 # 按季度和股票划分的指针管理器
 
+from KitchenBase.stock_enums import KLinePeriod
+from KitchenBase.download_enums import DlTaskType
+from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager
 from .generic_pointer_manager import GenericPointerManager
 from ..core.download_parameters import DownloadParameters
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
@@ -8,6 +11,8 @@ from KitchenBase.download_enums import PointerField
 from typing import Optional, Tuple, Dict, Any
 from Ingredient.DataNest import UnifiedDataManager as dm
 from KitchenBase.logger_config import get_logger
+from Ingredient.DataNest import GlobalDlCtrlBlockManager
+
 
 
 class QuarterStockPtrMgr(GenericPointerManager):
@@ -20,19 +25,21 @@ class QuarterStockPtrMgr(GenericPointerManager):
     3. 提供指针验证和转换功能
     """
     
-    def __init__(self, db_conn, task_type=None, global_manager=None, time_frame=None, collection_manager=None):
+    def __init__(self, db_conn, task_type: DlTaskType, 
+                 collection_manager: StockCollectionManager,
+                 global_manager=None, 
+                 time_frame=None):
         """
         初始化季度股票指针管理器
         
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型（可选）
-            pointer_fields: 指针字段枚举元组（可选）
+            collection_manager: 股票集合管理器（必须提供）
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选，仅 QuarterStockPeriodStrategy 需要）
-            collection_manager: 股票集合管理器（可选）
         """
-        super().__init__(db_conn, task_type, global_manager, time_frame, collection_manager=collection_manager)
+        super().__init__(db_conn, task_type, collection_manager, global_manager, time_frame)
         self.logger = get_logger(__name__)
 
     def get_next_blk_pointer(self, params: DownloadParameters, current_pointer: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:

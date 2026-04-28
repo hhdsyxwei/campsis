@@ -69,7 +69,7 @@ class StockIndustryDownloader(BlockDownloader):
         Returns:
             BlockManager: 区块管理器实例
         """
-        return YearBlkMgr(self.db_conn, self.get_task_type())
+        return YearBlkMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
 
 
@@ -89,7 +89,7 @@ class StockIndustryDownloader(BlockDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        return YearPtrMgr(self.db_conn, self.get_task_type())
+        return YearPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

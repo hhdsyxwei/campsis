@@ -10,6 +10,10 @@ from Ingredient.DataNest import UnifiedDataManager as udm
 from Ingredient.config import KLineConfig
 from KitchenBase.logger_config import get_logger
 from Ingredient.config import DlTaskType
+from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager
+
+
+
 
 
 class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
@@ -18,11 +22,14 @@ class StockTimeFrameQuarterPtrMgr(GenericPointerManager):
     迭代顺序：stock_code → time_frame → quarter
     """
 
-    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None):
+    def __init__(self, db_conn, task_type: DlTaskType, 
+                 collection_manager: StockCollectionManager, 
+                 global_manager=None,
+                 time_frame=None):
         """
         初始化指针管理器
         """
-        super().__init__(db_conn, task_type, global_manager)
+        super().__init__(db_conn, task_type, collection_manager, global_manager, time_frame)
         self.time_frame_list = KLineConfig.DEFAULT_TIME_FRAMES
         self.logger = get_logger(__name__)
 
