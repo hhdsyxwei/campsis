@@ -24,14 +24,14 @@ class AdjFactorDownloader(BlockDownloader):
     通过区块管理和断点续传机制，解决 API 限流问题
     """
     
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化复权因子数据下载器
         
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn)
+        super().__init__(db_conn, params)
         self.adj_factor_manager = AdjustmentFactorManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
@@ -230,7 +230,7 @@ class AdjFactorDownloader(BlockDownloader):
         return True
 
 # ===================== 全局唯一对外接口函数 =====================
-def continue_adj_factor_download(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
+def continue_adj_factor_download(db_conn, params: DownloadParameters, **kwargs) -> bool:
     """
     【全局唯一对外接口】继续下载复权因子数据（支持断点续传）
     
@@ -253,17 +253,20 @@ def continue_adj_factor_download(db_conn, start_year: int, end_year: Optional[in
     :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
+    # start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None
+    start_year = params.start_year
+    end_year = params.end_year
+
     if end_year is None:
         end_year = datetime.now().year + 1
     
     if start_year >= end_year:
         raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
     
-    downloader = AdjFactorDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
+    downloader = AdjFactorDownloader(db_conn, params)
     return downloader.continue_download(params)
 
-def start_new_adj_factor_download(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
+def start_new_adj_factor_download(db_conn, params: DownloadParameters) -> bool:
     """
     【全局唯一对外接口】开始新的复权因子数据下载任务（清空之前的下载进度）
     
@@ -285,12 +288,15 @@ def start_new_adj_factor_download(db_conn, start_year: int, end_year: Optional[i
     :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
+    # start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None
+    start_year = params.start_year
+    end_year = params.end_year
+    
     if end_year is None:
         end_year = datetime.now().year + 1
     
     if start_year >= end_year:
         raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
     
-    downloader = AdjFactorDownloader(db_conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
+    downloader = AdjFactorDownloader(db_conn, params)
     return downloader.start_new_download(params)

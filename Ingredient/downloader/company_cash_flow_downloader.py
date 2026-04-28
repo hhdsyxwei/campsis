@@ -25,14 +25,14 @@ class StockCashFlowDownloader(BlockDownloader):
     通过区块管理和断点续传机制，解决 API 限流问题
     """
     
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化股票现金流量数据下载器
         
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn)
+        super().__init__(db_conn, params)
         self.cash_flow_manager = CompanyCashFlowManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
@@ -242,35 +242,29 @@ class StockCashFlowDownloader(BlockDownloader):
             self.logger.error(f"保存数据异常：{stock_code} - {str(e)}", exc_info=True)
             return False
 
-def start_new_cash_flow_download(conn, start_year: int, end_year: int, stock_codes: Optional[list] = None, **kwargs) -> bool:
+def start_new_cash_flow_download(conn, params: DownloadParameters, **kwargs) -> bool:
     """
     从头开始下载股票现金流量数据
     
     Args:
-        start_year: 开始年份
-        end_year: 结束年份
-        stock_codes: 股票代码列表，可选
+        params: 下载参数
         **kwargs: 包含 block_pointer 等参数
         
     Returns:
         bool: 是否下载成功
     """
-    downloader = StockCashFlowDownloader(conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
+    downloader = StockCashFlowDownloader(conn, params)
     return downloader.start_new_download(params, **kwargs)
 
-def continue_cash_flow_download(conn, start_year: int, end_year: int, stock_codes: Optional[list] = None) -> bool:
+def continue_cash_flow_download(conn, params: DownloadParameters) -> bool:
     """
     继续下载股票现金流量数据
     
     Args:
-        start_year: 开始年份
-        end_year: 结束年份
-        stock_codes: 股票代码列表，可选
+        params: 下载参数
         
     Returns:
         bool: 是否下载成功
     """
-    downloader = StockCashFlowDownloader(conn)
-    params = DownloadParameters(start_year, end_year, stock_codes)
+    downloader = StockCashFlowDownloader(conn, params)
     return downloader.continue_download(params)

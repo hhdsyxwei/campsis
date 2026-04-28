@@ -138,7 +138,7 @@ class BlockDownloader(SimpleDownloader):
     继承自 SimpleDownloader，添加区块管理相关功能
     """
 
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化区块下载器
 
@@ -147,20 +147,10 @@ class BlockDownloader(SimpleDownloader):
         """
         super().__init__(db_conn)
         self.support_block_status = False
-
-        # 加载启动参数
-        params = self.load_startup_parameters()
-        if params:
-            self.start_year, self.end_year, self.stock_codes, self.extra_params = params
-        else:
-            self.start_year = None
-            self.end_year = None
-            self.stock_codes = None
-            self.extra_params = {}
         
         # 初始化股票集合管理器
         from ..collection_managers import GenericStockCollectionManager
-        self.collection_manager = GenericStockCollectionManager(self.db_conn, self.stock_codes)
+        self.collection_manager = GenericStockCollectionManager(self.db_conn, params.stock_codes)
 
         # 创建其他管理器
         self.block_manager = self.create_block_manager()
