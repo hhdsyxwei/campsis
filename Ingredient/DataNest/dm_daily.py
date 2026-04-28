@@ -144,53 +144,6 @@ class DailyDataManager:
             if cursor:
                 cursor.close()
 
-    def get_latest_tradedate_for_stock(self, std_stock_code: str) -> str:
-        """
-        获取股票的最新交易日
-        
-        Args:
-            std_stock_code: 股票代码
-            
-        Returns:
-            最新交易日，格式为 'YYYY-MM-DD'
-            
-        Raises:
-            ValueError: 当股票不存在或无交易数据时
-            RuntimeError: 当数据库操作或日期格式错误时
-        """
-        func_name = "get_latest_tradedate_for_stock"
-        cursor = None
-        try:
-            cursor = self.conn.cursor(pymysql.cursors.DictCursor)
-            
-            # 先检查股票是否存在
-            cursor.execute("SELECT 1 FROM stock_basic WHERE std_stock_code = %s", (std_stock_code,))
-            if not cursor.fetchone():
-                raise ValueError(f"股票 {std_stock_code} 不存在")
-            
-            # 查询最新交易日
-            cursor.execute("SELECT MAX(trade_date) AS latest FROM stock_daily WHERE std_stock_code = %s", (std_stock_code,))
-            result = cursor.fetchone()
-            if not result:
-                raise RuntimeError("查询结果异常")
-            
-            latest = result['latest']
-            if not latest:
-                raise ValueError(f"股票 {std_stock_code} 无交易数据")
-            
-            try:
-                return latest.strftime('%Y-%m-%d')
-            except Exception as e:
-                raise RuntimeError(f"日期格式错误: {str(e)}")
-        except (ValueError, RuntimeError):
-            raise
-        except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 查询失败 {std_stock_code}：{str(e)}")
-            raise RuntimeError(f"数据库操作错误: {str(e)}") from e
-        finally:
-            if cursor:
-                cursor.close()
-
     def get_price_data(self, std_stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         """
         获取股票价格数据
@@ -208,6 +161,22 @@ class DailyDataManager:
         try:
             cursor = self.conn.cursor()
             
+            # ========== 调试信息 ==========
+            logger.info(f"[{__name__}.{func_name}] 开始查询 - 股票代码: {std_stock_code}")
+            logger.info(f"[{__name__}.{func_name}] 查询日期范围: {start_date} ~ {end_date}")
+            logger.info(f"[{__name__}.{func_name}] 股票代码类型: {type(std_stock_code)}")
+            logger.info(f"[{__name__}.{func_name}] 开始日期类型: {type(start_date)}")
+            logger.info(f"[{__name__}.{func_name}] 结束日期类型: {type(end_date)}")
+            
+            # 先检查数据库连接
+            try:
+                cursor.execute("SELECT DATABASE()")
+                db_name = cursor.fetchone()[0]
+                logger.info(f"[{__name__}.{func_name}] 当前数据库: {db_name}")
+            except Exception as e:
+                logger.warning(f"[{__name__}.{func_name}] 获取数据库名称失败: {str(e)}")
+            # ==============================
+            
             # 从stock_daily表查询数据
             sql = """
             SELECT trade_date, open, high, low, close, volume, amount
@@ -216,10 +185,26 @@ class DailyDataManager:
             ORDER BY trade_date
             """
             
+            logger.info(f"[{__name__}.{func_name}] 执行SQL查询")
+            logger.info(f"[{__name__}.{func_name}] 查询参数: ({std_stock_code}, {start_date}, {end_date})")
+            
             cursor.execute(sql, (std_stock_code, start_date, end_date))
             rows = cursor.fetchall()
             
+            logger.info(f"[{__name__}.{func_name}] 查询结果行数: {len(rows) if rows else 0}")
+            
             if not rows:
+                # 调试：检查是否存在该股票的任何数据
+                cursor.execute("SELECT COUNT(*) FROM stock_daily WHERE std_stock_code = %s", (std_stock_code,))
+                total_count = cursor.fetchone()[0]
+                logger.warning(f"[{__name__}.{func_name}] 日期范围内无数据，但该股票总记录数: {total_count}")
+                
+                if total_count > 0:
+                    # 获取该股票的日期范围
+                    cursor.execute("SELECT MIN(trade_date), MAX(trade_date) FROM stock_daily WHERE std_stock_code = %s", (std_stock_code,))
+                    date_range = cursor.fetchone()
+                    logger.warning(f"[{__name__}.{func_name}] 该股票实际日期范围: {date_range[0]} ~ {date_range[1]}")
+                
                 # 返回空的DataFrame
                 columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
                 return pd.DataFrame(columns=columns)
@@ -228,25 +213,40 @@ class DailyDataManager:
             columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
             df = pd.DataFrame(rows, columns=columns)
             
+            logger.info(f"[{__name__}.{func_name}] 转换后DataFrame行数: {len(df)}")
+            logger.info(f"[{__name__}.{func_name}] DataFrame列: {df.columns.tolist()}")
+            if not df.empty:
+                logger.info(f"[{__name__}.{func_name}] 数据日期范围: {df['date'].min()} ~ {df['date'].max()}")
+            
             # 转换为PyArrow类型
             from pandas import ArrowDtype
             
-            df = df.astype({
-                'date': ArrowDtype(pa.date32()),
-                'open': ArrowDtype(pa.decimal128(10, 3)),
-                'high': ArrowDtype(pa.decimal128(10, 3)),
-                'low': ArrowDtype(pa.decimal128(10, 3)),
-                'close': ArrowDtype(pa.decimal128(10, 3)),
-                'volume': ArrowDtype(pa.int64()),
-                'amount': ArrowDtype(pa.decimal128(15, 2))
-            })
+            try:
+                df = df.astype({
+                    'date': ArrowDtype(pa.date32()),
+                    'open': ArrowDtype(pa.decimal128(10, 3)),
+                    'high': ArrowDtype(pa.decimal128(10, 3)),
+                    'low': ArrowDtype(pa.decimal128(10, 3)),
+                    'close': ArrowDtype(pa.decimal128(10, 3)),
+                    'volume': ArrowDtype(pa.int64()),
+                    'amount': ArrowDtype(pa.decimal128(15, 2))
+                })
+                logger.info(f"[{__name__}.{func_name}] PyArrow类型转换成功")
+            except Exception as e:
+                logger.error(f"[{__name__}.{func_name}] PyArrow类型转换失败: {str(e)}")
+                # 回退到普通类型
+                df['date'] = pd.to_datetime(df['date'])
+                numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'amount']
+                for col in numeric_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                logger.info(f"[{__name__}.{func_name}] 已回退到普通类型转换")
             
-            logger.info(f"[{__name__}.{func_name}] 获取价格数据 {std_stock_code}: {len(df)} 条")
+            logger.info(f"[{__name__}.{func_name}] 获取价格数据完成 {std_stock_code}: {len(df)} 条")
             logger.debug(f"数据类型: {df.dtypes}")
             return df
             
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 获取价格数据失败 {std_stock_code}: {str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 获取价格数据失败 {std_stock_code}: {str(e)}", exc_info=True)
             return pd.DataFrame()
         finally:
             if cursor:

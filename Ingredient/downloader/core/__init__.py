@@ -7,6 +7,8 @@ from .abs_block_manager import BlockManager
 from .abs_status_manager import TaskStatusManager
 from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
+from .download_parameters import DownloadParameters
+
 
 
 __all__ = [
@@ -16,5 +18,6 @@ __all__ = [
     "BlockManager",
     "TaskStatusManager",
     "PointerManager",
-    "ProgressManager"
+    "ProgressManager",
+    "DownloadParameters"
 ]

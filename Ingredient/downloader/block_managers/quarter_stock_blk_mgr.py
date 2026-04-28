@@ -14,7 +14,7 @@ class QuarterStockBlkMgr(GenericBlockManager):
     只重写get_total_block_count方法，其他方法使用父类实现
     """
     
-    def __init__(self, db_conn, task_type: DlTaskType):
+    def __init__(self, db_conn, task_type: DlTaskType, collection_manager=None):
         """
         初始化自定义区块管理器
         
@@ -22,10 +22,11 @@ class QuarterStockBlkMgr(GenericBlockManager):
             db_conn: 数据库连接对象
             task_type: 任务类型枚举值
             pointer_fields: 指针字段枚举元组
+            collection_manager: 股票集合管理器，可选
         """
-        super().__init__(db_conn, task_type)
+        super().__init__(db_conn, task_type, collection_manager=collection_manager)
 
-    def get_total_block_count(self, start_year: int, end_year: int, **kwargs) -> int:
+    def get_total_block_count(self, params, **kwargs) -> int:
         """
         获取总区块数量
         
@@ -33,14 +34,17 @@ class QuarterStockBlkMgr(GenericBlockManager):
         股票数量从 stock_fixed_seq 表中获取
         
         Args:
-            start_year: 开始年份
-            end_year: 结束年份
+            params: 下载参数（包含 start_year 和 end_year）
             **kwargs: 额外参数
             
         Returns:
             int: 总区块数量
         """
         try:
+            # 从 params 中提取年份范围
+            start_year = params.start_year
+            end_year = params.end_year
+            
             # 获取股票数量
             stock_count = self.get_stock_count()
             
@@ -63,13 +67,14 @@ class QuarterStockBlkMgr(GenericBlockManager):
         """
         获取股票数量
         
-        从 stock_fixed_seq 表中获取股票数量
-        
         Returns:
             int: 股票数量
-        """        
+        """
         try:
-            # 使用 UnifiedDataManager.count_stocks_in_fixed_seq() 方法获取股票数量  
+            # 如果有股票集合管理器，使用它获取股票数量
+            if self.collection_manager:
+                return self.collection_manager.get_stock_count()
+            # 否则从数据库获取
             return udm.count_stocks_in_fixed_seq(self.db_conn)
         except Exception as e:
             self.logger.error(f"获取股票数量异常：{e}", exc_info=True)

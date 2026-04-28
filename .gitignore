@@ -86,7 +86,7 @@ data/tmp/  # 临时处理数据
 # !.vscode/settings.json    # 共享的代码格式化/解释器配置
 # !.vscode/extensions.json # 共享的必装插件列表
 # !.vscode/tasks.json       # 共享的构建/运行任务
-# !.vscode/launch.json     # 共享的调试配置
+!.vscode/launch.json     # 共享的调试配置
 
 # PyCharm 配置目录（含本地调试/运行配置，必忽略）
 .idea/

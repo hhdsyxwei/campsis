@@ -2,6 +2,7 @@
 # 下载策略接口
 
 from abc import ABC, abstractmethod
+from .download_parameters import DownloadParameters
 
 class DownloadStrategy(ABC):
     """
@@ -9,13 +10,12 @@ class DownloadStrategy(ABC):
     """
     
     @abstractmethod
-    def execute(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def execute(self, params: DownloadParameters, **kwargs) -> bool:
         """
         执行下载策略
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
             
         Returns:

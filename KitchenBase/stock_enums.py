@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class KLinePeriod(Enum):
     """
     K线周期类型枚举（标准金融行业命名）

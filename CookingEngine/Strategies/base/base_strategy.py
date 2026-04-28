@@ -14,7 +14,7 @@ class BaseStrategy(bt.Strategy):
         self.order = None
         self.data_provider = data_provider
         self.factor_calculator = factor_calculator
-        self.positions = {}
+        self.stock_position_map = {}  # 以股票代码为键的持仓字典
         self.initial_cash = initial_cash
         self.max_positions = max_positions
         self.risk_per_trade = risk_per_trade
@@ -33,15 +33,15 @@ class BaseStrategy(bt.Strategy):
         if order.status in [order.Completed]:
             if order.isbuy():
                 self.log(f"BUY EXECUTED, Price: {order.executed.price:.2f}, Cost: {order.executed.value:.2f}, Commission: {order.executed.comm:.2f}")
-                self.positions[order.data._name] = {
-                    "price": order.executed.price,
-                    "size": order.executed.size,
-                    "cost": order.executed.value
-                }
+                self.stock_position_map[order.data._name] = {
+                        "price": order.executed.price,
+                        "size": order.executed.size,
+                        "cost": order.executed.value
+                    }
             else:
                 self.log(f"SELL EXECUTED, Price: {order.executed.price:.2f}, Cost: {order.executed.value:.2f}, Commission: {order.executed.comm:.2f}")
-                if order.data._name in self.positions:
-                    del self.positions[order.data._name]
+                if order.data._name in self.stock_position_map:
+                    del self.stock_position_map[order.data._name]
 
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
             self.log("Order Canceled/Margin/Rejected")

@@ -7,10 +7,10 @@ import backtrader as bt
 from CookingEngine.Strategies.base import BaseStrategy
 from CookingEngine.Strategies import register_strategy
 from KitchenBase.logger_config import get_logger
-
+from backtrader.indicators import SMA, RSI
 
 logger = get_logger(__name__)
-
+logger.error(dir(bt.indicators))
 
 @register_strategy("factor_strategy")
 class FactorStrategy(BaseStrategy):
@@ -29,9 +29,13 @@ class FactorStrategy(BaseStrategy):
         self.buy_threshold = buy_threshold
         self.sell_threshold = sell_threshold
 
-        self.ma20 = bt.indicators.SimpleMovingAverage(self.datas[0], period=20)
-        self.ma60 = bt.indicators.SimpleMovingAverage(self.datas[0], period=60)
-        self.rsi = bt.indicators.RelativeStrengthIndex(self.datas[0], period=14)
+        self.ma20 = bt.indicators.SMA(self.datas[0], period=20) # pyright: ignore[reportCallIssue]
+        self.ma60 = bt.indicators.SMA(self.datas[0], period=60) # pyright: ignore[reportCallIssue]  
+        self.rsi = bt.indicators.RSI(self.datas[0], period=14) # pyright: ignore[reportCallIssue]
+
+        logger.info(f"ma20: {self.ma20}")
+        logger.info(f"ma60: {self.ma60}")
+        logger.info(f"rsi: {self.rsi}")
 
         logger.info("FactorStrategy initialized with weights: trend=0.25, momentum=0.25, quality=0.25, timing=0.25")
 
@@ -40,20 +44,30 @@ class FactorStrategy(BaseStrategy):
         stock_code = self.datas[0]._name
 
         try:
+            # 获取最近60天的股票数据，用于计算因子
+            start_date=self.datas[0].datetime.date(-60).isoformat()
+            end_date = current_date
             price_data = self.data_provider.get_price_data(
                 stock_code,
-                start_date=self.datas[0].datetime.date(-60).isoformat(),
-                end_date=current_date
+                start_date=start_date,
+                end_date=end_date
             )
 
+            # 参数检查
             if price_data is None or price_data.empty:
                 logger.warning(f"No price data for {stock_code}")
                 return
 
-            trend_score = self.factor_calculator.calculate_trend_score(stock_code, price_data)
-            momentum_score = self.factor_calculator.calculate_momentum_score(stock_code, price_data)
-            quality_score = self.factor_calculator.calculate_quality_score(stock_code, price_data)
-            timing_score = self.factor_calculator.calculate_timing_score(stock_code, price_data)
+            # 计算因子
+            trend_score = self.factor_calculator.calculate_trend_score(stock_code, start_date, end_date)
+            momentum_score = self.factor_calculator.calculate_momentum_score(stock_code,  start_date, end_date)
+            quality_score = self.factor_calculator.calculate_quality_score(stock_code,  start_date, end_date)
+            timing_score = self.factor_calculator.calculate_timing_score(stock_code, start_date, end_date)
+
+            logger.info(f"trend_score: {trend_score}")
+            logger.info(f"momentum_score: {momentum_score}")
+            logger.info(f"quality_score: {quality_score}")
+            logger.info(f"timing_score: {timing_score}")
 
             total_score = (
                 trend_score * self.trend_weight +

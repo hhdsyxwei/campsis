@@ -9,6 +9,9 @@ class KLineConfig:
         KLinePeriod.MIN_5
     ]
 
+# 下载股票池类型配置
+
+# 下载区块对应字段列表配置
 class DownloadBlockConfig:
     """下载配置"""
     # 下载类型与区块字段列表的映射

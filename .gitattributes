@@ -24,6 +24,9 @@
 *.rst text=auto eol=lf
 *.txt text=auto eol=lf
 
+# SQL Jinja2 模板文件
+*.sql.j2 text=auto eol=lf
+
 # Git/工程配置文件（协作核心配置）
 .gitignore text=auto eol=lf
 .gitattributes text=auto eol=lf

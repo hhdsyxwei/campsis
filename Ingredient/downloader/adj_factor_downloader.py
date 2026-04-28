@@ -8,6 +8,7 @@ from KitchenBase.baostock_wrapper import query_adjust_factor
 from Ingredient.DataNest import AdjustmentFactorManager, BasicStockDataManager
 from KitchenBase.block_pointer import BlockPointer
 from .core.abstract_downloader import BlockDownloader
+from .core.download_parameters import DownloadParameters
 from .core.abs_block_manager import BlockManager
 from .core.abs_status_manager import TaskStatusManager
 from .core.abs_pointer_manager import PointerManager
@@ -61,7 +62,7 @@ class AdjFactorDownloader(BlockDownloader):
             BlockManager: 区块管理器实例
         """
         from .block_managers.year_stock_blk_mgr import YearStockBlkMgr
-        return YearStockBlkMgr(self.db_conn, self.get_task_type())
+        return YearStockBlkMgr(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
 
     def create_status_manager(self) -> TaskStatusManager:
         """
@@ -81,7 +82,7 @@ class AdjFactorDownloader(BlockDownloader):
             PointerManager: 指针管理器实例
         """
         from .pointer_managers import YearStockPtrMgr
-        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields())
+        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields(), collection_manager=self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """
@@ -93,20 +94,19 @@ class AdjFactorDownloader(BlockDownloader):
         from .progress_managers.generic_progress_manager import GenericProgressManager
         return GenericProgressManager(self.db_conn)
 
-    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def validate_parameters(self, params: DownloadParameters, **kwargs) -> bool:
         """
         验证参数有效性
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
             bool: 参数是否有效
         """
-        if start_year >= end_year:
-            self.logger.error(f"无效年份范围: start_year ({start_year}) 必须小于 end_year ({end_year})")
+        if params.start_year >= params.end_year:
+            self.logger.error(f"无效年份范围: start_year ({params.start_year}) 必须小于 end_year ({params.end_year})")
             return False
         
         block_pointer = kwargs.get('block_pointer')
@@ -119,13 +119,12 @@ class AdjFactorDownloader(BlockDownloader):
         
         return True
 
-    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> Optional[pd.DataFrame]:
+    def download_raw_data(self, params: DownloadParameters, **kwargs) -> Optional[pd.DataFrame]:
         """
         下载原始数据
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -198,14 +197,13 @@ class AdjFactorDownloader(BlockDownloader):
 
         return df
 
-    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
+    def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """
         保存数据到数据库
 
         Args:
             data: 清洗后的数据
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
@@ -232,7 +230,7 @@ class AdjFactorDownloader(BlockDownloader):
         return True
 
 # ===================== 全局唯一对外接口函数 =====================
-def continue_adj_factor_download(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
+def continue_adj_factor_download(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
     """
     【全局唯一对外接口】继续下载复权因子数据（支持断点续传）
     
@@ -252,6 +250,7 @@ def continue_adj_factor_download(db_conn, start_year: int, end_year: Optional[in
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（不包含，默认当前年份+1）
+    :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
     if end_year is None:
@@ -261,9 +260,10 @@ def continue_adj_factor_download(db_conn, start_year: int, end_year: Optional[in
         raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
     
     downloader = AdjFactorDownloader(db_conn)
-    return downloader.continue_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.continue_download(params)
 
-def start_new_adj_factor_download(db_conn, start_year: int, end_year: Optional[int] = None) -> bool:
+def start_new_adj_factor_download(db_conn, start_year: int, end_year: Optional[int] = None, stock_codes: Optional[list] = None) -> bool:
     """
     【全局唯一对外接口】开始新的复权因子数据下载任务（清空之前的下载进度）
     
@@ -282,6 +282,7 @@ def start_new_adj_factor_download(db_conn, start_year: int, end_year: Optional[i
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（不包含，默认当前年份+1）
+    :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
     if end_year is None:
@@ -291,4 +292,5 @@ def start_new_adj_factor_download(db_conn, start_year: int, end_year: Optional[i
         raise RuntimeError(f"Invalid year range: start_year ({start_year}) must be less than end_year ({end_year})")
     
     downloader = AdjFactorDownloader(db_conn)
-    return downloader.start_new_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.start_new_download(params)

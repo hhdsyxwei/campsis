@@ -5,9 +5,10 @@
 from venv import logger
 import pandas as pd
 import time
-from typing import Tuple
+from typing import Tuple, Optional
 from Ingredient.downloader.progress_managers.generic_progress_manager import GenericProgressManager
 from .core.abstract_downloader import BlockDownloader
+from .core.download_parameters import DownloadParameters
 from .block_managers.generic_block_manager import GenericBlockManager
 from .status_managers.generic_status_manager import GenericStatusManager
 from .pointer_managers.generic_pointer_manager import GenericPointerManager
@@ -51,19 +52,19 @@ class StockCashFlowDownloader(BlockDownloader):
         """
         return (PointerField.QUARTER, PointerField.STOCK_CODE)
     
-    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def validate_parameters(self, params: DownloadParameters, **kwargs) -> bool:
         """
         验证参数有效性
         """
         # 年份合法性校验
-        if not isinstance(start_year, int) or not isinstance(end_year, int):
+        if not isinstance(params.start_year, int) or not isinstance(params.end_year, int):
             self.logger.error("年份必须为整数类型")
             return False
-        if start_year <= 0 or end_year <= 0:
+        if params.start_year <= 0 or params.end_year <= 0:
             self.logger.error("年份必须为正整数")
             return False
-        if start_year >= end_year:
-            self.logger.error(f"年份范围异常：start_year({start_year}) >= end_year({end_year})")
+        if params.start_year >= params.end_year:
+            self.logger.error(f"年份范围异常：start_year({params.start_year}) >= end_year({params.end_year})")
             return False
         return True
     
@@ -71,7 +72,7 @@ class StockCashFlowDownloader(BlockDownloader):
         """
         创建区块管理器
         """
-        return QuarterStockBlkMgr(self.db_conn, self.get_task_type())
+        return QuarterStockBlkMgr(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
     
     def create_status_manager(self) -> GenericStatusManager:
         """
@@ -84,7 +85,7 @@ class StockCashFlowDownloader(BlockDownloader):
         创建指针管理器
         """
         # 这里可以使用通用的指针管理器实现
-        return QuarterStockPtrMgr(self.db_conn, self.get_task_type())
+        return QuarterStockPtrMgr(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
     
     def create_progress_manager(self) -> GenericProgressManager:
         """
@@ -132,13 +133,12 @@ class StockCashFlowDownloader(BlockDownloader):
             self.logger.error(f"清洗现金流量数据异常：{e}", exc_info=True)
             return pd.DataFrame()
     
-    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> pd.DataFrame:
+    def download_raw_data(self, params: DownloadParameters, **kwargs) -> pd.DataFrame:
         """
         下载原始数据
         
         Args:
-            start_year: 开始年份
-            end_year: 结束年份
+            params: 下载参数
             **kwargs: 包含 block_pointer 等参数
             
         Returns:
@@ -204,14 +204,13 @@ class StockCashFlowDownloader(BlockDownloader):
             # 避免 API 限流
             time.sleep(0.1)
     
-    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
+    def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """
         保存数据
         
         Args:
             data: 清洗后的数据
-            start_year: 开始年份
-            end_year: 结束年份
+            params: 下载参数
             **kwargs: 包含 block_pointer 等参数
             
         Returns:
@@ -243,32 +242,35 @@ class StockCashFlowDownloader(BlockDownloader):
             self.logger.error(f"保存数据异常：{stock_code} - {str(e)}", exc_info=True)
             return False
 
-def start_new_cash_flow_download(conn, start_year: int, end_year: int, **kwargs) -> bool:
+def start_new_cash_flow_download(conn, start_year: int, end_year: int, stock_codes: Optional[list] = None, **kwargs) -> bool:
     """
     从头开始下载股票现金流量数据
     
     Args:
         start_year: 开始年份
         end_year: 结束年份
+        stock_codes: 股票代码列表，可选
         **kwargs: 包含 block_pointer 等参数
         
     Returns:
         bool: 是否下载成功
     """
     downloader = StockCashFlowDownloader(conn)
-    return downloader.start_new_download(start_year, end_year, **kwargs)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.start_new_download(params, **kwargs)
 
-def continue_cash_flow_download(conn, start_year: int, end_year: int) -> bool:
+def continue_cash_flow_download(conn, start_year: int, end_year: int, stock_codes: Optional[list] = None) -> bool:
     """
     继续下载股票现金流量数据
     
     Args:
         start_year: 开始年份
         end_year: 结束年份
-        **kwargs: 包含 block_pointer 等参数
+        stock_codes: 股票代码列表，可选
         
     Returns:
         bool: 是否下载成功
     """
     downloader = StockCashFlowDownloader(conn)
-    return downloader.continue_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.continue_download(params)

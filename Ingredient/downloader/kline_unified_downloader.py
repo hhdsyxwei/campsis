@@ -10,6 +10,7 @@ from KitchenBase.baostock_wrapper import query_history_k_data_plus
 from KitchenBase.baostock_wrapper import BaostockWrapper as bsw
 from Ingredient.DataNest import UnifiedDataManager as dm
 from Ingredient.downloader.core.abstract_downloader import BlockDownloader
+from Ingredient.downloader.core.download_parameters import DownloadParameters
 from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager
@@ -97,20 +98,19 @@ class KLineDownloader(BlockDownloader):
         from .progress_managers.generic_progress_manager import GenericProgressManager
         return GenericProgressManager(self.db_conn)
 
-    def validate_parameters(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def validate_parameters(self, params: DownloadParameters, **kwargs) -> bool:
         """
         验证参数有效性
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
             bool: 参数是否有效
         """
-        if start_year >= end_year:
-            self.logger.error(f"无效年份范围: start_year ({start_year}) 必须小于 end_year ({end_year})")
+        if params.start_year >= params.end_year:
+            self.logger.error(f"无效年份范围: start_year ({params.start_year}) 必须小于 end_year ({params.end_year})")
             return False
 
         block_pointer = kwargs.get('block_pointer')
@@ -124,13 +124,12 @@ class KLineDownloader(BlockDownloader):
 
         return True
 
-    def download_raw_data(self, start_year: int, end_year: int, **kwargs) -> Optional[pd.DataFrame]:
+    def download_raw_data(self, params: DownloadParameters, **kwargs) -> Optional[pd.DataFrame]:
         """
         下载原始K线数据
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数，包含 block_pointer
 
         Returns:
@@ -213,14 +212,13 @@ class KLineDownloader(BlockDownloader):
         df = df.dropna(subset=["timestamp"])
         return df
 
-    def save_data(self, data: pd.DataFrame, start_year: int, end_year: int, **kwargs) -> bool:
+    def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """
         保存K线数据到数据库
 
         Args:
             data: 清洗后的数据
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数，包含 block_pointer
 
         Returns:
@@ -305,7 +303,7 @@ class KLineDownloader(BlockDownloader):
         return True, real_s, real_e
 
 
-def continue_download_kline(db_conn, start_year: int, end_year: int) -> bool:
+def continue_download_kline(db_conn, start_year: int, end_year: int, stock_codes: Optional[list] = None) -> bool:
     """
     【全局唯一对外接口】继续下载K线数据（支持断点续传）
 
@@ -325,13 +323,15 @@ def continue_download_kline(db_conn, start_year: int, end_year: int) -> bool:
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（不包含）
+    :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
     downloader = KLineDownloader(db_conn)
-    return downloader.continue_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.continue_download(params)
 
 
-def start_new_kline_download(db_conn, start_year: int, end_year: int) -> bool:
+def start_new_kline_download(db_conn, start_year: int, end_year: int, stock_codes: Optional[list] = None) -> bool:
     """
     【全局唯一对外接口】开始新的K线数据下载任务（清空之前的下载进度）
 
@@ -350,7 +350,9 @@ def start_new_kline_download(db_conn, start_year: int, end_year: int) -> bool:
     :param db_conn: 使用者创建的数据库连接
     :param start_year: 起始年份（包含）
     :param end_year: 结束年份（不包含）
+    :param stock_codes: 股票代码列表，可选
     :return: True 表示全部下载完成，False 表示未完成
     """
     downloader = KLineDownloader(db_conn)
-    return downloader.start_new_download(start_year, end_year)
+    params = DownloadParameters(start_year, end_year, stock_codes)
+    return downloader.start_new_download(params)

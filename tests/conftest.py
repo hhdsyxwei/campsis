@@ -124,9 +124,10 @@ def mock_db_conn():
             )
         """)
         
-        # 7. 股票日线数据表
+        # 7. 股票日线数据表（先删除旧表以确保使用新结构）
+        cursor.execute("DROP TABLE IF EXISTS stock_daily")
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS stock_daily (
+            CREATE TABLE stock_daily (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 std_stock_code VARCHAR(10),
                 trade_date DATE,
@@ -134,8 +135,13 @@ def mock_db_conn():
                 high DECIMAL(10,3),
                 low DECIMAL(10,3),
                 close DECIMAL(10,3),
+                pre_close DECIMAL(10,3),
+                change_rate DECIMAL(10,4),
                 volume BIGINT,
                 amount DECIMAL(20,2),
+                turnover_rate DECIMAL(10,4),
+                pe DECIMAL(10,3),
+                pb DECIMAL(10,3),
                 create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uk_stock_date (std_stock_code, trade_date)
@@ -157,10 +163,10 @@ def mock_db_conn():
         
         # 插入测试日线数据
         cursor.execute("""
-            INSERT INTO stock_daily (std_stock_code, trade_date, open, high, low, close, volume, amount)
-            VALUES ('000001.SZ', '2025-01-02', 11.73, 11.77, 11.39, 11.43, 181959699, 2102923078.11),
-                   ('000001.SZ', '2025-01-03', 11.44, 11.54, 11.36, 11.38, 115468044, 1320520977.59),
-                   ('000001.SZ', '2025-01-06', 11.38, 11.48, 11.22, 11.44, 108553630, 1234305778.04)
+            INSERT INTO stock_daily (std_stock_code, trade_date, open, high, low, close, pre_close, change_rate, volume, amount, turnover_rate, pe, pb)
+            VALUES ('000001.SZ', '2025-01-02', 11.73, 11.77, 11.39, 11.43, 11.20, 0.0205, 181959699, 2102923078.11, 0.55, 8.50, 0.95),
+                   ('000001.SZ', '2025-01-03', 11.44, 11.54, 11.36, 11.38, 11.43, -0.0044, 115468044, 1320520977.59, 0.35, 8.45, 0.94),
+                   ('000001.SZ', '2025-01-06', 11.38, 11.48, 11.22, 11.44, 11.38, 0.0053, 108553630, 1234305778.04, 0.33, 8.50, 0.95)
         """)
 
         conn.commit()

@@ -19,6 +19,15 @@ from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
 logger = get_logger(__name__)
 
 class KLineUnifiedQuarterlyExtendedManager:
+    """
+    K线数据统一季度扩展管理器
+    
+    注意：
+    - 相关函数（如get_completed_block_count和get_skipped_block_count）添加了stock_table参数
+    - 这样设计的原因是为了支持灵活的股票范围过滤，不再局限于默认的stock_fixed_seq表
+    - 当需要统计特定股票集合的K线数据区块状态时，可以通过指定不同的股票表来实现
+    - 默认值仍为"stock_fixed_seq"，保持向后兼容性
+    """
     def __init__(self, db_conn):
         self.db_conn = db_conn
         self.block_status_manager = GenericBlockStatusDM(db_conn)
@@ -144,7 +153,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_completed_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
+    def get_completed_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod, stock_table: Optional[str] = "stock_fixed_seq") -> int:
         """
         查询kline_block_status表中状态为completed的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
@@ -153,6 +162,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             start_year: 可选，起始年份（如2024），不传则不限制起始年份
             end_year: 可选，结束年份（如2025），不传则不限制结束年份
             time_frame: 可选，时间周期，不传则不限制
+            stock_table: 股票表名，默认为stock_fixed_seq
 
         Returns:
             状态为completed的区块总数
@@ -165,12 +175,12 @@ class KLineUnifiedQuarterlyExtendedManager:
 
         cursor = None
         try:
-            # 基础SQL：查询completed状态的总数，过滤掉不在stock_fixed_seq表中的股票代码
-            sql = """
+            # 基础SQL：查询completed状态的总数，过滤掉不在指定股票表中的股票代码
+            sql = f"""
             SELECT COUNT(*) FROM kline_block_status kbs
             WHERE kbs.status = 'completed'
             AND EXISTS (
-                SELECT 1 FROM stock_fixed_seq sfs
+                SELECT 1 FROM {stock_table} sfs
                 WHERE sfs.std_stock_code = kbs.std_stock_code
             )
             """
@@ -211,7 +221,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             if cursor:
                 cursor.close()
 
-    def get_skipped_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod) -> int:
+    def get_skipped_block_count(self, start_year: int, end_year: int, time_frame: KLinePeriod, stock_table: Optional[str] = "stock_fixed_seq") -> int:
         """
         查询kline_block_status表中状态为skipped的区块总数
         支持按年份范围过滤（仅匹配quarter字段中的年份部分）
@@ -220,6 +230,7 @@ class KLineUnifiedQuarterlyExtendedManager:
             start_year: 可选，起始年份（如2024），不传则不限制起始年份
             end_year: 可选，结束年份（如2025），不传则不限制结束年份
             time_frame: 可选，时间周期，不传则不限制
+            stock_table: 股票表名，默认为stock_fixed_seq
 
         Returns:
             状态为skipped的区块总数
@@ -232,12 +243,12 @@ class KLineUnifiedQuarterlyExtendedManager:
 
         cursor = None
         try:
-            # 基础SQL：查询skipped状态的总数，过滤掉不在stock_fixed_seq表中的股票代码
-            sql = """
+            # 基础SQL：查询skipped状态的总数，过滤掉不在指定股票表中的股票代码
+            sql = f"""
             SELECT COUNT(*) FROM kline_block_status kbs
             WHERE kbs.status = 'skipped'
             AND EXISTS (
-                SELECT 1 FROM stock_fixed_seq sfs
+                SELECT 1 FROM {stock_table} sfs
                 WHERE sfs.std_stock_code = kbs.std_stock_code
             )
             """

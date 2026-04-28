@@ -4,6 +4,7 @@ from enum import Enum
 class DlTaskType(Enum):
     """下载任务类型枚举"""
     KLINE = "kline"  # K线数据
+    DAILY = "daily"  # 日线数据
     XRXD = "xrxd"  # 分红送配数据
     ADJ_FACTOR = "adj_factor"  # 复权因子
     INDUSTRY = "industry"  # 行业数据

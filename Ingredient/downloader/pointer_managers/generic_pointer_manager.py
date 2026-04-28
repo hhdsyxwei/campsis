@@ -4,6 +4,7 @@
 from KitchenBase.download_enums import DlTaskType
 from Ingredient.DataNest.dm_unified import UnifiedDataManager
 from ..core.abs_pointer_manager import PointerManager
+from ..core.download_parameters import DownloadParameters
 from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
 from typing import Optional, Tuple, Dict, Any
 from KitchenBase.download_enums import PointerField
@@ -28,7 +29,7 @@ class GenericPointerManager(PointerManager):
     2. 指针验证功能，指针的验证基于字段的不同而不同
     """
 
-    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None, time_frame=None, collection_manager=None):
         """
         初始化通用指针管理器
 
@@ -37,6 +38,7 @@ class GenericPointerManager(PointerManager):
             task_type: 任务类型（可选）
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选，仅 QuarterStockPeriodStrategy 需要）
+            collection_manager: 股票集合管理器（可选，用于依赖注入）
         """
         self.db_conn = db_conn
         self.task_type = task_type
@@ -52,6 +54,9 @@ class GenericPointerManager(PointerManager):
 
         self.db_conn = db_conn
         self.stock_manager = StockFixedSeqManager(db_conn) if db_conn else None
+        # 如果没有提供collection_manager，创建默认的GenericStockCollectionManager
+        from ..collection_managers import GenericStockCollectionManager
+        self.collection_manager = collection_manager or GenericStockCollectionManager(db_conn)
 
 
     def get_dl_pointer(self) -> Optional[BlockPointer]:
@@ -93,14 +98,13 @@ class GenericPointerManager(PointerManager):
         except Exception as e:
             print(f"[{self.__class__.__name__}] 设置指针失败: {e}")
 
-    def is_dl_pointer_valid(self, pointer: Optional[BlockPointer], start_year: int, end_year: int) -> bool:
+    def is_dl_pointer_valid(self, pointer: Optional[BlockPointer], params: DownloadParameters) -> bool:
         """
         验证指针是否有效
 
         Args:
             pointer: 要验证的指针
-            start_year: 开始年份
-            end_year: 结束年份
+            params: 下载参数
 
         Returns:
             bool: 指针是否有效
@@ -109,7 +113,7 @@ class GenericPointerManager(PointerManager):
             return False
 
         year = pointer.get_value(PointerField.YEAR)
-        if not isinstance(year, int) or year < start_year or year >= end_year:
+        if not isinstance(year, int) or year < params.start_year or year >= params.end_year:
             return False
 
         return True
@@ -126,27 +130,25 @@ class GenericPointerManager(PointerManager):
         except Exception as e:
             print(f"[{self.__class__.__name__}] 清空指针失败: {e}")
 
-    def get_first_blk_pointer(self, start_year: int, end_year: int, **kwargs) -> Optional[BlockPointer]:
+    def get_first_blk_pointer(self, params: DownloadParameters, **kwargs) -> Optional[BlockPointer]:
         """
         获取第一个待下载区块的指针
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
 
         Returns:
-            Optional[BlockPointer]: 第一个区块的指针
+            Optional[BlockPointer]: 第一个区块指针
         """
-        return self.get_next_blk_pointer(start_year, end_year, None, **kwargs)
+        return self.get_next_blk_pointer(params, None, **kwargs)
 
-    def get_skipped_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
+    def get_skipped_block_count(self, params: DownloadParameters, dl_pointer: BlockPointer) -> int:
         """
         基于指针获取已跳过区块数
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             dl_pointer: 当前下载指针，包含当前处理的区块信息
 
         Returns:
@@ -242,64 +244,72 @@ class GenericPointerManager(PointerManager):
         
         return f"{next_year}-Q{next_quarter}"
 
-    def get_first_stock(self) -> Optional[str]:
+    def get_first_stock(self, params: Optional[DownloadParameters] = None) -> Optional[str]:
         """
         获取第一只股票代码
         
+        Args:
+            params: 下载参数，可选
+            
         Returns:
             Optional[str]: 第一只股票代码
         """
         try:
-            stock = udm.next_fixed_stock(self.db_conn, None)
-            if stock:
-                return stock
-            return None
+            return self.collection_manager.get_first_stock()
         except Exception as e:
             self.logger.error(f"获取第一只股票失败: {str(e)}")
             return None
     
-    def get_next_stock(self, current_stock: str) -> Optional[str]:
+    def get_next_stock(self, current_stock: str, params: Optional[DownloadParameters] = None) -> Optional[str]:
         """
         获取下一只股票代码
         
         Args:
             current_stock: 当前股票代码
-        
+            params: 下载参数，可选
+            
         Returns:
             Optional[str]: 下一只股票代码
         """
         try:
-            std_stock_code = udm.next_fixed_stock(self.db_conn, current_stock)
-            return std_stock_code
+            return self.collection_manager.get_next_stock(current_stock)
         except Exception as e:
             self.logger.error(f"获取下一只股票失败: {str(e)}")
             return None
 
-    def get_stock_total_count(self) -> int:
+    def get_stock_total_count(self, params: Optional[DownloadParameters] = None) -> int:
         """
         获取股票总数
         
+        Args:
+            params: 下载参数，可选
+            
         Returns:
             int: 股票总数
         """
         try:
-            total_count = udm.count_stocks_in_fixed_seq(self.db_conn)
-            return total_count
+            return self.collection_manager.get_stock_count()
         except Exception as e:
             self.logger.error(f"获取股票总数失败: {str(e)}")
             return 0
     
-    def stock_exists(self, stock_code: str) -> bool:
+    def stock_exists(self, stock_code: str, params: Optional[DownloadParameters] = None) -> bool:
         """
-        检查股票代码是否在 stock_fixed_seq 表中
+        检查股票代码是否在股票列表中
         
         Args:
             stock_code: 股票代码
+            params: 下载参数，可选
             
         Returns:
             bool: 股票是否存在
         """
         try:
+            # 从collection_manager获取股票列表并检查
+            stock_list = self.collection_manager.get_stock_list()
+            if stock_list:
+                return stock_code in stock_list
+            # 如果没有自定义股票列表，检查数据库
             if not self.stock_manager:
                 self.logger.error("stock_manager 未初始化")
                 return False
@@ -308,13 +318,12 @@ class GenericPointerManager(PointerManager):
             self.logger.error(f"检查股票是否存在失败: {str(e)}")
             return False
 
-    def get_completed_block_count(self, start_year: int, end_year: int, dl_pointer: BlockPointer) -> int:
+    def get_completed_block_count(self, params: DownloadParameters, dl_pointer: BlockPointer) -> int:
         """
         基于指针获取已完成区块数
 
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             dl_pointer: 当前下载指针，包含当前处理的区块信息
 
         Returns:

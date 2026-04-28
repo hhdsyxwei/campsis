@@ -3,8 +3,9 @@
 
 from ..core.abstract_downloader import BlockDownloader
 from ..core.download_strategy import DownloadStrategy
+from ..core.download_parameters import DownloadParameters
 from KitchenBase.download_enums import DlTaskStatus
-
+from pandas import DataFrame as pdDataFrame
 class BlockDownloadStrategy(DownloadStrategy):
     """
     区块下载策略，实现区块下载逻辑
@@ -19,13 +20,12 @@ class BlockDownloadStrategy(DownloadStrategy):
         """
         self.downloader = downloader
     
-    def execute(self, start_year: int, end_year: int, **kwargs) -> bool:
+    def execute(self, params: DownloadParameters, **kwargs) -> bool:
         """
         执行区块下载策略
         
         Args:
-            start_year: 开始年份（包含）
-            end_year: 结束年份（不包含）
+            params: 下载参数
             **kwargs: 额外参数
             
         Returns:
@@ -53,8 +53,8 @@ class BlockDownloadStrategy(DownloadStrategy):
             self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.IN_PROGRESS)
         
         # 计算总区块数
-        total_blocks = self.downloader.block_manager.get_total_block_count(start_year, end_year, **kwargs)
-        self.downloader.logger.info(f"{task_identifier} 总区块数: {total_blocks} (年份范围: {start_year}-{end_year-1})")
+        total_blocks = self.downloader.block_manager.get_total_block_count(params, **kwargs)
+        self.downloader.logger.info(f"{task_identifier} 总区块数: {total_blocks} (年份范围: {params.start_year}-{params.end_year-1})")
 
         if total_blocks <= 0:
             self.downloader.logger.info(f"{task_identifier} 无数据可下载")
@@ -62,8 +62,8 @@ class BlockDownloadStrategy(DownloadStrategy):
         
         # 获取下一个下载区块
         next_block = self.downloader.pointer_manager.get_dl_pointer()
-        if not next_block or not self.downloader.pointer_manager.is_dl_pointer_valid(next_block, start_year, end_year):
-            next_block = self.downloader.pointer_manager.get_first_blk_pointer(start_year, end_year)
+        if not next_block or not self.downloader.pointer_manager.is_dl_pointer_valid(next_block, params):
+            next_block = self.downloader.pointer_manager.get_first_blk_pointer(params)
             self.downloader.logger.info(f"{task_identifier} 下载指针无效或不存在，使用第一个区块: {next_block}")
         else:
             self.downloader.logger.info(f"{task_identifier} 启动后：第一个下载区块: {next_block}")
@@ -77,17 +77,17 @@ class BlockDownloadStrategy(DownloadStrategy):
                 self.downloader.pointer_manager.set_dl_pointer(next_block)
                 
                 # 下载区块
-                self.downloader.download_block(next_block, start_year, end_year)
+                self.downloader.download_block(next_block, params)
 
                 # 记录进度
-                completed_blocks = self.downloader.block_manager.get_completed_block_count(start_year, end_year)
-                skipped_blocks = self.downloader.block_manager.get_skipped_block_count(start_year, end_year)
+                completed_blocks = self.downloader.block_manager.get_completed_block_count(params)
+                skipped_blocks = self.downloader.block_manager.get_skipped_block_count(params)
                 if total_blocks > 0:
                     progress = self.downloader.progress_calculator.calculate_progress(completed_blocks, skipped_blocks, total_blocks)
                     self.downloader.logger.info(f"{task_identifier} 下载进度: {progress:.2f}% ({completed_blocks + skipped_blocks}/{total_blocks}) | 当前区块: {next_block}")
 
                 # 获取下一个区块
-                next_block = self.downloader.pointer_manager.get_next_blk_pointer(start_year, end_year, next_block)
+                next_block = self.downloader.pointer_manager.get_next_blk_pointer(params, next_block)
             except Exception as e:
                 self.downloader.logger.error(f"{task_identifier} 下载失败: {str(e)} | 当前区块: {next_block}")
                 return False
@@ -96,6 +96,10 @@ class BlockDownloadStrategy(DownloadStrategy):
         self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.COMPLETED)
         self.downloader.pointer_manager.clear_dl_pointer()
         self.downloader.logger.info(f"{task_identifier} 全部下载完成，已清空下载指针")
+        
+        # 调用全部区块下载完成钩子
+        self.downloader.on_download_completed(params, pdDataFrame(), success=True)
+        
         return True
     
     def can_handle(self, download_type: str) -> bool:
