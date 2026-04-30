@@ -2,7 +2,7 @@
 # 下载策略接口
 
 from abc import ABC, abstractmethod
-from .download_parameters import DownloadParameters
+from KitchenBase import DownloadParameters
 
 class DownloadStrategy(ABC):
     """

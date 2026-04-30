@@ -22,8 +22,8 @@ class DownloadBlockConfig:
             PointerField.QUARTER
         ),
         DlTaskType.DAILY: (
-            PointerField.YEAR,
-            PointerField.STOCK_CODE
+            PointerField.STOCK_CODE,
+            PointerField.YEAR
         ),
         DlTaskType.ADJ_FACTOR: (
             PointerField.YEAR,

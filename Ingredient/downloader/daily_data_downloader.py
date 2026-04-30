@@ -7,9 +7,9 @@ from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_history_k_data_plus
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
+from KitchenBase import DownloadParameters
 from Ingredient.DataNest import DailyDataManager
 from Ingredient.downloader.core.abstract_downloader import BlockDownloader
-from Ingredient.downloader.core.download_parameters import DownloadParameters
 from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager
@@ -82,8 +82,8 @@ class DailyDataDownloader(BlockDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        from .pointer_managers.year_stock_ptr_mgr import YearStockPtrMgr
-        return YearStockPtrMgr(self.db_conn, self.get_task_type(), collection_manager=self.collection_manager)
+        from .pointer_managers.stock_year_ptr_mgr import StockYearPtrMgr
+        return StockYearPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

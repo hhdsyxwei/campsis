@@ -1,8 +1,9 @@
 # dm_generic_block_status.py
 from KitchenBase.download_enums import PointerField
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Tuple, Dict, List, Union
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
+from KitchenBase import DownloadParameters
 
 logger = get_logger(__name__)
 
@@ -166,15 +167,18 @@ class GenericBlockStatusDM:
 
         return field_mapping
 
-    def get_block_count(self, task_type: DlTaskType, year_range: Tuple[int, int], pointer_fields: Tuple[PointerField, ...], status: List[DlBlockStatus] = [], stock_table: Optional[str] = "stock_fixed_seq") -> int:
+    def get_block_count(self,
+                        task_type: DlTaskType,
+                        pointer_fields: Tuple[PointerField, ...],
+                        download_params: DownloadParameters) -> int:
         """
         获取指定状态的股票时间周期区块数量
 
-        条件：
+        过滤条件（根据 pointer_fields 动态启用）：
         1. task_type 类型匹配
-        2. stock code 在指定的股票表中存在（如果提供）
-        3. time_frame 值在 KLineConfig.DEFAULT_TIME_FRAMES 的列表中（如果提供）
-        4. 季度/年份在指定的范围中，前闭后开（如果提供）
+        2. STOCK_CODE 存在时：进行股票过滤
+        3. TIME_FRAME 存在时：使用 download_params.kline_period_list 进行过滤
+        4. YEAR/QUARTER 存在时：使用 download_params.year_range 进行年份过滤
 
         字段映射（通过 pointer_fields 参数指定）：
         - pointer_fields[0] 对应 block_key_1
@@ -182,27 +186,21 @@ class GenericBlockStatusDM:
         - pointer_fields[2] 对应 block_key_3
 
         特殊处理：
-        - 所有字段都是可选字段
-        - PointerField.QUARTER 和 PointerField.YEAR 不能同时使用
-        - 如果同时存在，优先使用 PointerField.YEAR 而忽略 PointerField.QUARTER
-
-        例如：pointer_fields=(STOCK_CODE, TIME_FRAME, QUARTER)
-        表示 block_key_1 是股票代码，block_key_2 是时间周期，block_key_3 是季度
+        - PointerField.YEAR 优先于 PointerField.QUARTER
+        - 如果 pointer_fields 不包含 STOCK_CODE，则不进行股票过滤
+        - 如果 pointer_fields 不包含 TIME_FRAME，则不进行时间周期过滤
 
         :param task_type: 任务类型（DlTaskType枚举）
-        :param year_range: 年份范围 (start_year, end_year)，前闭后开
         :param pointer_fields: 指针字段元组，描述 block_key_1/2/3 的含义
-        :param status: 区块状态列表（空列表表示所有状态）
-        :param stock_table: 股票表名，默认为stock_fixed_seq
+        :param download_params: 下载参数容器
         :return: 区块数量
         """
         func_name = "get_block_count"
-        if status is None:
-            status = []
 
+        self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, pointer_fields={pointer_fields}")
+
+        year_range = download_params.year_range
         start_year, end_year = year_range
-
-        self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, {start_year}-{end_year}, {[s.value for s in status] if status else 'all'}")
 
         field_mapping = self._map_pointer_fields_to_block_keys(pointer_fields)
         stock_block_key = field_mapping.get(PointerField.STOCK_CODE)
@@ -210,57 +208,48 @@ class GenericBlockStatusDM:
         quarter_block_key = field_mapping.get(PointerField.QUARTER)
         year_block_key = field_mapping.get(PointerField.YEAR)
 
-        # 处理 QUARTER 和 YEAR 同时存在的情况，优先使用 YEAR
         time_period_block_key = year_block_key if year_block_key else quarter_block_key
         use_year = bool(year_block_key)
 
-        from Ingredient.config import KLineConfig
-        valid_time_frames = [tf.value for tf in KLineConfig.DEFAULT_TIME_FRAMES]
+        kline_period_list = download_params.kline_period_list
+        time_frame_values = [kp.value for kp in kline_period_list] if kline_period_list else []
 
-        # 构建 SQL 基础部分
         sql = """
         SELECT COUNT(*)
         FROM generic_block_status gbs
         """
 
-        # 添加 JOIN 子句（如果提供了股票代码字段）
-        if stock_block_key:
-            sql += f"JOIN {stock_table} sfs ON gbs.{stock_block_key} = sfs.std_stock_code\n"
-
-        # 构建 WHERE 子句
         where_conditions = ["gbs.task_type = %s"]
         params = [task_type.value]
 
-        # 添加时间周期过滤（如果提供）
-        if time_frame_block_key and valid_time_frames:
-            time_frame_placeholders = ','.join(['%s'] * len(valid_time_frames))
-            where_conditions.append(f"gbs.{time_frame_block_key} IN ({time_frame_placeholders})")
-            params.extend(valid_time_frames)
+        if stock_block_key:
+            if download_params.has_custom_stock_list() and download_params.stock_codes:
+                stock_codes = download_params.stock_codes
+                placeholders = ','.join(['%s'] * len(stock_codes))
+                where_conditions.append(f"gbs.{stock_block_key} IN ({placeholders})")
+                params.extend(stock_codes)
+            else:
+                stock_table = download_params.stock_table
+                sql += f" JOIN {stock_table} sfs ON gbs.{stock_block_key} = sfs.std_stock_code\n"
 
-        # 添加年份范围过滤（如果提供了时间周期字段）
+        if time_frame_block_key and time_frame_values:
+            time_frame_placeholders = ','.join(['%s'] * len(time_frame_values))
+            where_conditions.append(f"gbs.{time_frame_block_key} IN ({time_frame_placeholders})")
+            params.extend(time_frame_values)
+
         if time_period_block_key:
             if use_year:
-                # 使用 YEAR 字段，直接比较
                 where_conditions.append(f"gbs.{time_period_block_key} >= %s")
                 where_conditions.append(f"gbs.{time_period_block_key} < %s")
                 params.extend([str(start_year), str(end_year)])
             else:
-                # 使用 QUARTER 字段，提取年份
                 where_conditions.append(f"SUBSTRING(gbs.{time_period_block_key}, 1, 4) >= %s")
                 where_conditions.append(f"SUBSTRING(gbs.{time_period_block_key}, 1, 4) < %s")
                 params.extend([str(start_year), str(end_year)])
 
-        # 添加状态过滤
-        if status:
-            status_placeholders = ','.join(['%s'] * len(status))
-            where_conditions.append(f"gbs.status IN ({status_placeholders})")
-            params.extend([s.value for s in status])
-
-        # 组合完整 SQL
         if where_conditions:
             sql += "WHERE " + " AND ".join(where_conditions)
 
-        # 执行查询
         cursor = None
         try:
             cursor = self.db_conn.cursor()

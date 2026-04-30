@@ -5,7 +5,7 @@ from KitchenBase.block_pointer import BlockPointer
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 from KitchenBase.download_enums import PointerField
-from .download_parameters import DownloadParameters
+from KitchenBase import DownloadParameters
 
 class PointerManager(ABC):
     """

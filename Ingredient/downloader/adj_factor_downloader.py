@@ -1,5 +1,6 @@
 # adjustment_factor_downloader.py
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType, PointerField
+from KitchenBase import DownloadParameters
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple
@@ -8,7 +9,6 @@ from KitchenBase.baostock_wrapper import query_adjust_factor
 from Ingredient.DataNest import AdjustmentFactorManager, BasicStockDataManager
 from KitchenBase.block_pointer import BlockPointer
 from .core.abstract_downloader import BlockDownloader
-from .core.download_parameters import DownloadParameters
 from .core.abs_block_manager import BlockManager
 from .core.abs_status_manager import TaskStatusManager
 from .core.abs_pointer_manager import PointerManager
@@ -82,7 +82,7 @@ class AdjFactorDownloader(BlockDownloader):
             PointerManager: 指针管理器实例
         """
         from .pointer_managers import YearStockPtrMgr
-        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.get_pointer_fields(), collection_manager=self.collection_manager)
+        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

@@ -6,13 +6,13 @@ from KitchenBase.block_pointer import BlockPointerFactory
 from KitchenBase.download_enums import DlTaskType
 from .generic_block_manager import GenericBlockManager
 from ...DataNest.dm_unified import UnifiedDataManager as udm
-
+from ..core.abs_collection_manager import StockCollectionManager
 class YearBlkMgr(GenericBlockManager):
     """
     年份区块管理器，适用于按年份划分区块的下载器
     """
     
-    def __init__(self, db_conn, task_type: DlTaskType):
+    def __init__(self, db_conn, task_type: DlTaskType, collection_manager: StockCollectionManager):
         """
         初始化年份区块管理器
         
@@ -21,7 +21,7 @@ class YearBlkMgr(GenericBlockManager):
             task_type: 任务类型枚举值
             
         """
-        super().__init__(db_conn, task_type)
+        super().__init__(db_conn, task_type, collection_manager)
     
     def get_total_block_count(self, params, **kwargs) -> int:
         """

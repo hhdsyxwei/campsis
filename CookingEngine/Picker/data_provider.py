@@ -114,7 +114,7 @@ class HarvestDataProvider(DataProvider):
         try:
             # 调用DailyDataManager的get_price_data方法
             df = self.daily_manager.get_price_data(index_code, start_date, end_date)
-            logger.info(f"从数据库获取指数数据 {index_code}: {len(df)} 条")
+            logger.info(f"从数据库获取指数数据 {index_code}{start_date}{end_date}: {len(df)} 条")
             return df
             
         except Exception as e:

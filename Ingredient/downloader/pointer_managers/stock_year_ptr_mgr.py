@@ -1,5 +1,5 @@
-# year_stock_ptr_mrg.py
-# 按年份和股票划分的指针管理器
+# stock_year_ptr_mgr.py
+# 按股票和年份划分的指针管理器
 
 from Ingredient.config import DownloadBlockConfig
 from KitchenBase.download_enums import DlTaskType
@@ -11,13 +11,16 @@ from typing import Optional
 from KitchenBase.logger_config import get_logger
 from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager
 
-class YearStockPtrMgr(GenericPointerManager):
+class StockYearPtrMgr(GenericPointerManager):
     """
-    按年份和股票划分的指针管理器
+    按股票和年份划分的指针管理器
+    
+    区块结构：(STOCK_CODE, YEAR)
+    迭代顺序：先按股票顺序，同股票内按年份升序
     
     职责：
-    1. 管理按年份和股票划分的下载指针
-    2. 实现年份和股票的迭代逻辑
+    1. 管理按股票和年份划分的下载指针
+    2. 实现股票和年份的迭代逻辑
     3. 提供指针验证和转换功能
     """
     
@@ -26,7 +29,7 @@ class YearStockPtrMgr(GenericPointerManager):
                  global_manager=None,
                  time_frame=None):
         """
-        初始化年份股票指针管理器
+        初始化股票年份指针管理器
         
         Args:
             db_conn: 数据库连接对象
@@ -37,17 +40,17 @@ class YearStockPtrMgr(GenericPointerManager):
         """
         super().__init__(db_conn, task_type, collection_manager, global_manager, time_frame)
         self.logger = get_logger(__name__)
-
+    
     def get_next_blk_pointer(self, params: DownloadParameters, current_block: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:
         """
         获取下一个待下载区块的指针
         
         实现思路：
-        1. 区块按照年份和股票顺序排序
-        2. 当current_block为None时，返回第一个区块（起始年份的第一只股票）
-        3. 同一年份内，获取下一只股票
-        4. 如果是年份内的最后一只股票，则获取下一年份的第一只股票
-        5. 超出年份范围时，返回None
+        1. 区块按照股票和年份顺序排序
+        2. 当current_block为None时，返回第一个区块（第一只股票的起始年份）
+        3. 同一只股票内，获取下一个年份
+        4. 如果是股票的最后一个年份，则获取下一只股票的起始年份
+        5. 超出股票或年份范围时，返回None
         6. 处理异常情况，确保函数在各种情况下都能正常返回
         
         特殊参数：
@@ -57,14 +60,14 @@ class YearStockPtrMgr(GenericPointerManager):
         
         异常情况：
         1. 股票数量为0时，返回None
-        2. 超出年份范围时，返回None
-        3. 解析区块指针失败时，返回None
-        4. 获取下一只股票失败时，继续处理下一年份
+        2. 超出股票范围时，返回None
+        3. 超出年份范围时，返回None
+        4. 解析区块指针失败时，返回None
         5. 所有其他异常，返回None
         
         注意：
         - 年份范围是前闭后开区间 [params.start_year, params.end_year)
-        - 区块顺序：先按年份升序，同一年份内按股票顺序
+        - 区块顺序：先按股票顺序，同股票内按年份升序
         
         Args:
             params: 下载参数
@@ -74,66 +77,49 @@ class YearStockPtrMgr(GenericPointerManager):
         Returns:
             Optional[BlockPointer]: 下一个区块的指针
         """
-        # 当current_block为None时，返回第一个区块（起始年份的第一只股票）
         pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
+        
         if current_block is None:
             try:
-                # 检查股票数量
                 stock_count = self.get_stock_total_count(params)
                 if stock_count == 0:
                     self.logger.warning("股票数量为0，无法获取区块指针")
                     return None
                 
-                # 获取第一只股票
                 first_stock = self.get_first_stock(params)
                 if not first_stock:
                     self.logger.warning("无法获取第一只股票，无法创建区块指针")
                     return None
                 
-                # 构建第一个年份的指针
-                pointer_values = (params.start_year, first_stock)
+                pointer_values = (first_stock, params.start_year)
                 return BlockPointerFactory.create_pointer(pointer_fields, pointer_values)
             except Exception as e:
                 self.logger.error(f"获取第一个区块指针失败: {str(e)}")
                 return None
         
         try:
-            # 解析当前区块指针
-            current_year = current_block.get_value(PointerField.YEAR)
             current_stock = current_block.get_value(PointerField.STOCK_CODE)
+            current_year = current_block.get_value(PointerField.YEAR)
             
-            # 检查当前年份是否在有效范围内
+            if not self.stock_exists(current_stock, params):
+                self.logger.warning(f"当前股票 {current_stock} 不在有效范围内")
+                return None
+            
             if current_year < params.start_year or current_year >= params.end_year:
                 self.logger.warning(f"当前年份 {current_year} 超出范围 [{params.start_year}, {params.end_year})")
                 return None
             
-            # 获取下一只股票
-            next_stock = self.get_next_stock(current_stock, params)
-            if next_stock:
-                # 同一年份内的下一只股票
-                pointer_values = (current_year, next_stock)
+            next_year = current_year + 1
+            if next_year < params.end_year:
+                pointer_values = (current_stock, next_year)
                 return BlockPointerFactory.create_pointer(pointer_fields, pointer_values)
             else:
-                # 当前年份的股票已遍历完毕，获取下一个年份
-                next_year = current_year + 1
-                if next_year < params.end_year:
-                    # 检查股票数量
-                    stock_count = self.get_stock_total_count(params)
-                    if stock_count == 0:
-                        self.logger.warning("股票数量为0，无法获取下一年份的区块指针")
-                        return None
-                    
-                    # 下一年份的第一只股票
-                    first_stock = self.get_first_stock(params)
-                    if first_stock:
-                        pointer_values = (next_year, first_stock)
-                        return BlockPointerFactory.create_pointer(pointer_fields, pointer_values)
-                    else:
-                        self.logger.warning("无法获取第一只股票，无法创建下一年份的区块指针")
-                        return None
-            
-            # 没有下一个区块（超出年份范围）
-            return None
+                next_stock = self.get_next_stock(current_stock, params)
+                if next_stock:
+                    pointer_values = (next_stock, params.start_year)
+                    return BlockPointerFactory.create_pointer(pointer_fields, pointer_values)
+                else:
+                    return None
         except Exception as e:
             self.logger.error(f"获取下一个区块指针失败: {str(e)}")
             return None
@@ -153,56 +139,51 @@ class YearStockPtrMgr(GenericPointerManager):
             return False
         
         try:
-            # 验证年份是否在年份范围内
+            stock = dl_pointer.get_value(PointerField.STOCK_CODE)
             year = dl_pointer.get_value(PointerField.YEAR)
+            
+            if not self.stock_exists(stock, params):
+                return False
+            
             return params.start_year <= year < params.end_year
         except Exception as e:
             self.logger.error(f"验证指针有效性失败: {str(e)}")
             return False
-
+    
     def get_completed_block_count(self, params: DownloadParameters, current_pointer: BlockPointer) -> int:
         """
         计算已完成的区块数量
-
+        
+        计算公式：
+        已完成区块数 = (已完成股票数 × 年份总数) + 当前股票的已完成年数
+        
         Args:
             params: 下载参数
             current_pointer: 当前区块指针
-
+        
         Returns:
             int: 已完成的区块数量
         """
         if not current_pointer:
             return 0
-
-        current_year = current_pointer.get_value(PointerField.YEAR)
-        current_stock = current_pointer.get_value(PointerField.STOCK_CODE)
-
+        
         try:
-            from Ingredient.DataNest import UnifiedDataManager as dm
-
-            # 计算已完成的年份数
-            completed_years = current_year - params.start_year
-
-            # 获取股票总数
-            stock_count = self.get_stock_total_count(params)
-            if stock_count == 0:
-                return 0
-
-            # 获取当前股票的位置
+            current_stock = current_pointer.get_value(PointerField.STOCK_CODE)
+            current_year = current_pointer.get_value(PointerField.YEAR)
+            
             stock_list = self.collection_manager.get_stock_list()
-            if stock_list:
-                # 使用自定义股票列表的位置
-                try:
-                    stock_position = stock_list.index(current_stock)
-                except ValueError:
-                    return 0
-            else:
-                # 使用数据库的位置
-                stock_position = dm.get_stock_position(self.db_conn, current_stock)
-                if stock_position is None:
-                    return 0
-
-            return completed_years * stock_count + stock_position
+            if not stock_list:
+                return 0
+            
+            try:
+                stock_position = stock_list.index(current_stock)
+            except ValueError:
+                return 0
+            
+            year_count = params.end_year - params.start_year
+            completed_years_in_current = current_year - params.start_year
+            
+            return stock_position * year_count + completed_years_in_current
         except Exception as e:
-            print(f"[YearStockStrategy] 计算已完成区块数失败: {e}")
+            self.logger.error(f"计算已完成区块数失败: {e}")
             return 0

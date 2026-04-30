@@ -2,6 +2,7 @@
 # K线数据下载器，继承 BlockDownloader
 
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
+from KitchenBase import DownloadParameters
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple
@@ -10,7 +11,6 @@ from KitchenBase.baostock_wrapper import query_history_k_data_plus
 from KitchenBase.baostock_wrapper import BaostockWrapper as bsw
 from Ingredient.DataNest import UnifiedDataManager as dm
 from Ingredient.downloader.core.abstract_downloader import BlockDownloader
-from Ingredient.downloader.core.download_parameters import DownloadParameters
 from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager
@@ -66,7 +66,7 @@ class KLineDownloader(BlockDownloader):
             BlockManager: 区块管理器实例
         """
         from .block_managers.stock_tm_qtr_blk_mgr import StockTmQtrBlkMgr
-        return StockTmQtrBlkMgr(self.db_conn, self.get_task_type())
+        return StockTmQtrBlkMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_status_manager(self) -> TaskStatusManager:
         """
@@ -86,7 +86,7 @@ class KLineDownloader(BlockDownloader):
             PointerManager: 指针管理器实例
         """
         from .pointer_managers.stock_tm_qtr_ptr_mgr import StockTimeFrameQuarterPtrMgr
-        return StockTimeFrameQuarterPtrMgr(self.db_conn, self.get_task_type())
+        return StockTimeFrameQuarterPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

@@ -1,9 +1,9 @@
 # block_download_strategy.py
 # 区块下载策略
 
+from KitchenBase import DownloadParameters
 from ..core.abstract_downloader import BlockDownloader
 from ..core.download_strategy import DownloadStrategy
-from ..core.download_parameters import DownloadParameters
 from KitchenBase.download_enums import DlTaskStatus
 from pandas import DataFrame as pdDataFrame
 class BlockDownloadStrategy(DownloadStrategy):

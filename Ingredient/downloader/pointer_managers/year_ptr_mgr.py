@@ -3,13 +3,13 @@
 
 from Ingredient.config import DownloadBlockConfig
 from .generic_pointer_manager import GenericPointerManager
-from ..core.download_parameters import DownloadParameters
-from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
+from KitchenBase import DownloadParameters
+from KitchenBase.block_pointer import BlockPointer
 from KitchenBase.download_enums import PointerField
-from typing import Optional, Tuple
+from typing import Optional
 from Ingredient.config import DlTaskType
 from KitchenBase.logger_config import get_logger
-
+from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager
 
 class YearPtrMgr(GenericPointerManager):
     """
@@ -21,17 +21,21 @@ class YearPtrMgr(GenericPointerManager):
     3. 提供指针验证和转换功能
     """
     
-    def __init__(self, db_conn, task_type: DlTaskType, global_manager=None, time_frame=None):
+    def __init__(self, db_conn, task_type: DlTaskType, 
+                 collection_manager: StockCollectionManager, 
+                 global_manager=None,
+                 time_frame=None):
         """
         初始化年份指针管理器
         
         Args:
             db_conn: 数据库连接对象
             task_type: 任务类型（可选）
+            collection_manager: 股票集合管理器
             global_manager: GlobalDlCtrlBlockManager 实例（可选，用于依赖注入）
             time_frame: 时间周期（可选）
         """
-        super().__init__(db_conn, task_type, global_manager, time_frame)
+        super().__init__(db_conn, task_type, collection_manager, global_manager, time_frame)
         self.logger = get_logger(__name__)
 
     def get_next_blk_pointer(self, params: DownloadParameters, current_block: Optional[BlockPointer] = None, **kwargs) -> Optional[BlockPointer]:

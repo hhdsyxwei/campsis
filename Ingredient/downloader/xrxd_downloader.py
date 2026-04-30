@@ -8,9 +8,9 @@ from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_dividend_data
 from KitchenBase.block_pointer import BlockPointer
+from KitchenBase import DownloadParameters
 from Ingredient.DataNest import XrxdManager, BasicStockDataManager
 from .core.abstract_downloader import BlockDownloader
-from .core.download_parameters import DownloadParameters
 from .core.abs_block_manager import BlockManager
 from .core.abs_status_manager import TaskStatusManager
 from .core.abs_pointer_manager import PointerManager
@@ -67,7 +67,7 @@ class XrxdDownloader(BlockDownloader):
             BlockManager: 区块管理器实例
         """
         from .block_managers.year_stock_blk_mgr import YearStockBlkMgr
-        return YearStockBlkMgr(self.db_conn, self.get_task_type())
+        return YearStockBlkMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_status_manager(self) -> TaskStatusManager:
         """
@@ -87,7 +87,7 @@ class XrxdDownloader(BlockDownloader):
             PointerManager: 指针管理器实例
         """
         from .pointer_managers import YearStockPtrMgr
-        return YearStockPtrMgr(self.db_conn, self.get_task_type())
+        return YearStockPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

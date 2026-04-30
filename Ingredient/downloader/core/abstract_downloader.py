@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any, Dict, Tuple
 import pandas as pd
 from KitchenBase.logger_config import get_logger
+from KitchenBase import DownloadParameters
 from Ingredient.DataNest import GlobalDlCtrlBlockManager
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.block_pointer import BlockPointer
@@ -13,7 +14,6 @@ from .abs_status_manager import TaskStatusManager
 from .abs_pointer_manager import PointerManager
 from .abs_progress_manager import ProgressManager
 from .abs_collection_manager import StockCollectionManager
-from .download_parameters import DownloadParameters
 from ..block_managers.generic_block_manager import GenericBlockManager
 from ..pointer_managers.generic_pointer_manager import GenericPointerManager
 

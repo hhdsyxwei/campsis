@@ -3,20 +3,21 @@
 
 from KitchenBase.download_enums import DlTaskType
 from .generic_block_manager import GenericBlockManager
+from ..core.abs_collection_manager import StockCollectionManager
 
 class QuarterStockPeriodBlockManager(GenericBlockManager):
     """
     季度-股票-周期区块管理器，适用于按季度、股票和K线周期划分区块的下载器
     """
     
-    def __init__(self, db_conn,task_type: DlTaskType):
+    def __init__(self, db_conn,task_type: DlTaskType, collection_manager: StockCollectionManager):
         """
         初始化季度-股票-周期区块管理器
         
         Args:
             db_conn: 数据库连接对象
         """
-        super().__init__(db_conn, task_type)
+        super().__init__(db_conn, task_type, collection_manager)
         
     def get_total_block_count(self, params, **kwargs) -> int:
         """
@@ -29,8 +30,7 @@ class QuarterStockPeriodBlockManager(GenericBlockManager):
         Returns:
             int: 总区块数
         """
-        from Ingredient.DataNest import UnifiedDataManager as dm
-        stock_count = dm.count_stocks_in_fixed_seq(self.db_conn)
+        stock_count = self.collection_manager.get_stock_count()
         quarter_count = (params.end_year - params.start_year) * 4
         return stock_count * quarter_count
 

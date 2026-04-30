@@ -3,9 +3,8 @@
 
 from KitchenBase.download_enums import DlTaskType
 from .generic_block_manager import GenericBlockManager
-from KitchenBase.download_enums import PointerField
-from typing import Tuple
 from Ingredient.DataNest import UnifiedDataManager as udm
+from ..core.abs_collection_manager import StockCollectionManager
 
 class QuarterStockBlkMgr(GenericBlockManager):
     """
@@ -14,7 +13,7 @@ class QuarterStockBlkMgr(GenericBlockManager):
     只重写get_total_block_count方法，其他方法使用父类实现
     """
     
-    def __init__(self, db_conn, task_type: DlTaskType, collection_manager=None):
+    def __init__(self, db_conn, task_type: DlTaskType, collection_manager: StockCollectionManager):
         """
         初始化自定义区块管理器
         
@@ -22,7 +21,7 @@ class QuarterStockBlkMgr(GenericBlockManager):
             db_conn: 数据库连接对象
             task_type: 任务类型枚举值
             pointer_fields: 指针字段枚举元组
-            collection_manager: 股票集合管理器，可选
+            collection_manager: 股票集合管理器，必须提供
         """
         super().__init__(db_conn, task_type, collection_manager=collection_manager)
 

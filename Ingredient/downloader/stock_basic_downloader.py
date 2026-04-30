@@ -4,12 +4,12 @@ from typing import List
 import pandas as pd
 import baostock as bs
 from KitchenBase.logger_config import get_logger
+from KitchenBase import DownloadParameters
 from KitchenBase.stock_enums import MarketType
 from KitchenBase.download_utils import baostock_code_to_market, convert_baostock_code
 from KitchenBase.download_enums import DlTaskType
 from Ingredient.DataNest import BasicStockDataManager, UnifiedDataManager as UDM
 from .core.abstract_downloader import SimpleDownloader
-from .core.download_parameters import DownloadParameters
 
 logger = get_logger(__name__)
 

@@ -4,8 +4,8 @@
 from typing import Tuple, Optional
 import pandas as pd
 import datetime
+from KitchenBase import DownloadParameters
 from Ingredient.downloader.core.abstract_downloader import BlockDownloader
-from Ingredient.downloader.core.download_parameters import DownloadParameters
 from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager
@@ -69,7 +69,7 @@ class StockIndustryDownloader(BlockDownloader):
         Returns:
             BlockManager: 区块管理器实例
         """
-        return YearBlkMgr(self.db_conn, self.get_task_type())
+        return YearBlkMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
 
 
@@ -89,7 +89,7 @@ class StockIndustryDownloader(BlockDownloader):
         Returns:
             PointerManager: 指针管理器实例
         """
-        return YearPtrMgr(self.db_conn, self.get_task_type())
+        return YearPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
 
     def create_progress_manager(self) -> ProgressManager:
         """

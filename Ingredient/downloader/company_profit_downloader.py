@@ -5,9 +5,9 @@
 import pandas as pd
 import time
 from typing import Tuple, Optional
+from KitchenBase import DownloadParameters
 from Ingredient.downloader.progress_managers.generic_progress_manager import GenericProgressManager
 from .core.abstract_downloader import BlockDownloader
-from .core.download_parameters import DownloadParameters
 from .block_managers.generic_block_manager import GenericBlockManager
 from .status_managers.generic_status_manager import GenericStatusManager
 from .pointer_managers.generic_pointer_manager import GenericPointerManager
@@ -71,7 +71,7 @@ class StockProfitDownloader(BlockDownloader):
         """
         创建区块管理器
         """
-        return QuarterStockBlkMgr(self.db_conn, self.get_task_type())
+        return QuarterStockBlkMgr(self.db_conn, self.get_task_type(), self.collection_manager)
     
     def create_status_manager(self) -> GenericStatusManager:
         """
@@ -84,7 +84,7 @@ class StockProfitDownloader(BlockDownloader):
         创建指针管理器
         """
         # 这里可以使用通用的指针管理器实现
-        return QuarterStockPtrMgr(self.db_conn, self.get_task_type())
+        return QuarterStockPtrMgr(self.db_conn, self.get_task_type(), self.collection_manager)
     
     def create_progress_manager(self) -> GenericProgressManager:
         """
