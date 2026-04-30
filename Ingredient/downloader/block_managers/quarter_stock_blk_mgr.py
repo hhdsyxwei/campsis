@@ -3,8 +3,6 @@
 
 from KitchenBase.download_enums import DlTaskType
 from .generic_block_manager import GenericBlockManager
-from KitchenBase.download_enums import PointerField
-from typing import Tuple
 from Ingredient.DataNest import UnifiedDataManager as udm
 from ..core.abs_collection_manager import StockCollectionManager
 

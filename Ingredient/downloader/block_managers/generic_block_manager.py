@@ -3,13 +3,12 @@
 
 from KitchenBase.download_enums import DlTaskType
 from typing import Tuple
+from KitchenBase import DownloadParameters
 from ..core.abs_block_manager import BlockManager
-from ..core.download_parameters import DownloadParameters
 from ..core.abs_collection_manager import StockCollectionManager
 from KitchenBase.logger_config import get_logger
-from KitchenBase.download_enums import DlBlockStatus, PointerField
+from KitchenBase.download_enums import DlBlockStatus
 from Ingredient.DataNest import GenericBlockStatusDM
-from Ingredient.DataNest import UnifiedDataManager as udm
 from Ingredient.config import DownloadBlockConfig
 
 

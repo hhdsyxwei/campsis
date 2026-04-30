@@ -4,8 +4,8 @@
 from typing import Tuple, Optional
 import pandas as pd
 import datetime
+from KitchenBase import DownloadParameters
 from Ingredient.downloader.core.abstract_downloader import BlockDownloader
-from Ingredient.downloader.core.download_parameters import DownloadParameters
 from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager

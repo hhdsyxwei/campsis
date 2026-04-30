@@ -1,8 +1,8 @@
 # simple_download_strategy.py
 # 一次性下载策略
 
+from KitchenBase import DownloadParameters
 from ..core.download_strategy import DownloadStrategy
-from ..core.download_parameters import DownloadParameters
 
 class SimpleDownloadStrategy(DownloadStrategy):
     """

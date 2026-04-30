@@ -2,11 +2,10 @@
 # 股票-时间周期-季度 指针管理器
 
 from .generic_pointer_manager import GenericPointerManager
-from ..core.download_parameters import DownloadParameters
+from KitchenBase import DownloadParameters
 from KitchenBase.block_pointer import BlockPointer
 from KitchenBase.download_enums import PointerField
-from typing import Optional, Tuple
-from Ingredient.DataNest import UnifiedDataManager as udm
+from typing import Optional
 from Ingredient.config import KLineConfig
 from KitchenBase.logger_config import get_logger
 from Ingredient.config import DlTaskType

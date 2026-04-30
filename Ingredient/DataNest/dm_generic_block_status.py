@@ -173,7 +173,7 @@ class GenericBlockStatusDM:
                         stock_table: Optional[Union[str, List[str]]] = "stock_fixed_seq") -> int:
         """
         获取指定状态的股票时间周期区块数量
-
+ 
         条件：
         1. task_type 类型匹配
         2. stock code 在指定的股票表或列表中存在（如果提供且 pointer_fields 包含 STOCK_CODE）

@@ -8,9 +8,9 @@ from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_dividend_data
 from KitchenBase.block_pointer import BlockPointer
+from KitchenBase import DownloadParameters
 from Ingredient.DataNest import XrxdManager, BasicStockDataManager
 from .core.abstract_downloader import BlockDownloader
-from .core.download_parameters import DownloadParameters
 from .core.abs_block_manager import BlockManager
 from .core.abs_status_manager import TaskStatusManager
 from .core.abs_pointer_manager import PointerManager

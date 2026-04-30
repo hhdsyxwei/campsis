@@ -3,14 +3,12 @@
 
 from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager
 from KitchenBase.download_enums import DlTaskType
-from Ingredient.DataNest.dm_unified import UnifiedDataManager
+from KitchenBase import DownloadParameters
 from ..core.abs_pointer_manager import PointerManager
-from ..core.download_parameters import DownloadParameters
-from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
+from KitchenBase.block_pointer import BlockPointer
 from typing import Optional, Tuple, Dict, Any
 from KitchenBase.download_enums import PointerField
 from Ingredient.DataNest import StockFixedSeqManager
-from Ingredient.DataNest import UnifiedDataManager as udm
 from KitchenBase.logger_config import get_logger
 
 class GenericPointerManager(PointerManager):

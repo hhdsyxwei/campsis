@@ -3,15 +3,13 @@
 
 from KitchenBase.stock_enums import KLinePeriod
 from KitchenBase.download_enums import DlTaskType
+from KitchenBase import DownloadParameters
 from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager
 from .generic_pointer_manager import GenericPointerManager
-from ..core.download_parameters import DownloadParameters
-from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
+from KitchenBase.block_pointer import BlockPointer
 from KitchenBase.download_enums import PointerField
-from typing import Optional, Tuple, Dict, Any
-from Ingredient.DataNest import UnifiedDataManager as dm
+from typing import Optional
 from KitchenBase.logger_config import get_logger
-from Ingredient.DataNest import GlobalDlCtrlBlockManager
 
 
 

@@ -7,9 +7,9 @@ from typing import Optional, Tuple
 from KitchenBase.logger_config import get_logger
 from KitchenBase.baostock_wrapper import query_history_k_data_plus
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
+from KitchenBase import DownloadParameters
 from Ingredient.DataNest import DailyDataManager
 from Ingredient.downloader.core.abstract_downloader import BlockDownloader
-from Ingredient.downloader.core.download_parameters import DownloadParameters
 from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager

@@ -3,10 +3,10 @@
 
 from Ingredient.config import DownloadBlockConfig
 from .generic_pointer_manager import GenericPointerManager
-from ..core.download_parameters import DownloadParameters
-from KitchenBase.block_pointer import BlockPointer, BlockPointerFactory
+from KitchenBase import DownloadParameters
+from KitchenBase.block_pointer import BlockPointer
 from KitchenBase.download_enums import PointerField
-from typing import Optional, Tuple
+from typing import Optional
 from Ingredient.config import DlTaskType
 from KitchenBase.logger_config import get_logger
 from Ingredient.downloader.core.abs_collection_manager import StockCollectionManager

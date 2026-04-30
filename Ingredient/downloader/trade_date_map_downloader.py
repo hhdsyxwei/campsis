@@ -1,5 +1,5 @@
 # trade_date_map_downloader.py
-from Ingredient.downloader.core.download_parameters import DownloadParameters
+from KitchenBase import DownloadParameters
 from KitchenBase.download_enums import DlTaskType
 from Ingredient.downloader.core.abstract_downloader import SimpleDownloader
 from KitchenBase.logger_config import get_logger

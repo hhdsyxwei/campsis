@@ -4,7 +4,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple, Dict, List, Any
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
-from .download_parameters import DownloadParameters
+from KitchenBase import DownloadParameters
 
 class BlockManager(ABC):
     """
