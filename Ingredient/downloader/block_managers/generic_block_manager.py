@@ -4,13 +4,12 @@
 from KitchenBase.download_enums import DlTaskType
 from typing import Tuple
 from KitchenBase import DownloadParameters
-from ..core.abs_block_manager import BlockManager
-from ..core.abs_collection_manager import StockCollectionManager
 from KitchenBase.logger_config import get_logger
 from KitchenBase.download_enums import DlBlockStatus
 from Ingredient.DataNest import GenericBlockStatusDM
 from Ingredient.config import DownloadBlockConfig
-
+from ..core.abs_block_manager import BlockManager
+from ..core.abs_collection_manager import StockCollectionManager
 
 
 class GenericBlockManager(BlockManager):
@@ -71,16 +70,14 @@ class GenericBlockManager(BlockManager):
         try:
             pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
-                task_type=self.task_type, 
-                year_range=(params.start_year, params.end_year), 
+                task_type=self.task_type,
                 pointer_fields=pointer_fields,
-                status=[DlBlockStatus.COMPLETED],
-                stock_table=self.collection_manager.get_stock_list()
+                download_params=params
             )
         except Exception as e:
             self.logger.error(f"获取已完成区块数失败: {str(e)}")
             return 0
-    
+
     def get_skipped_block_count(self, params: DownloadParameters) -> int:
         """
         获取已跳过区块数
@@ -96,16 +93,14 @@ class GenericBlockManager(BlockManager):
         try:
             pointer_fields = DownloadBlockConfig.get_pointer_fields(self.task_type)
             return self.status_dm.get_block_count(
-                task_type=self.task_type, 
-                year_range=(params.start_year, params.end_year), 
+                task_type=self.task_type,
                 pointer_fields=pointer_fields,
-                status=[DlBlockStatus.SKIPPED],
-                stock_table=self.collection_manager.get_stock_list()
+                download_params=params
             )
         except Exception as e:
             self.logger.error(f"获取已跳过区块数失败: {str(e)}")
             return 0
-    
+
     def get_block_status(self, *block_identifier) -> DlBlockStatus:
         """
         获取区块状态
