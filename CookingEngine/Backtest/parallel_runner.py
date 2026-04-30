@@ -2,12 +2,12 @@
 # Parallel backtest runner for multiple strategies
 
 import backtrader as bt
-from concurrent.futures import ProcessPoolExecutor
 import traceback
-from CookingEngine.Strategies.factors import FactorStrategy
+
 from CookingEngine.Backtest.data_adapter import BacktraderDataAdapter
 from CookingEngine.Strategies.strategy_factory import StrategyFactory
 from KitchenBase.logger_config import get_logger
+from CookingEngine.Strategies.factors import FactorStrategy
 from CookingEngine.Strategies import strategy_registry
 print("Registered strategies:", strategy_registry.list_strategies())
 
@@ -60,6 +60,10 @@ class ParallelBacktestRunner:
             cerebro.addanalyzer(bt.analyzers.DrawDown)
             cerebro.addanalyzer(bt.analyzers.Returns)
             cerebro.addanalyzer(bt.analyzers.TradeAnalyzer)
+            #cerebro.addanalyzer(bt.analyzers.Position)    # 持仓信息
+            cerebro.addanalyzer(bt.analyzers.Transactions)  # 交易记录。只包含已成交的委托记录
+            #cerebro.addanalyzer(bt.analyzers.AnnualReturn)        # 年化收益率分析
+            #cerebro.addanalyzer(bt.analyzers.Calmar)        # Calmar Ratio分析
 
             results = cerebro.run()
             strategy_results = results[0]
@@ -69,6 +73,7 @@ class ParallelBacktestRunner:
             dd = analyzers.drawdown.get_analysis()
             ret = analyzers.returns.get_analysis()
             ta = analyzers.tradeanalyzer.get_analysis()
+            transactions = analyzers.transactions.get_analysis()
 
             metrics = {
                 "final_value": cerebro.broker.getvalue(),
@@ -84,7 +89,8 @@ class ParallelBacktestRunner:
                 "strategy": strategy_name,
                 "params": strategy_params,
                 "metrics": metrics,
-                "trades": strategy_results.trades
+                "trades": strategy_results.trades,
+                "transactions": transactions
             }
 
         except Exception as e:

@@ -9,6 +9,7 @@ PackageManager.install_missing_requirements()
 
 import os
 import sys
+import json
 
 # Add current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -96,10 +97,46 @@ def run_backtest(db_conn):
     
     # 3. Execute backtest
     results = runner.run_batch(configs)
-    
+
+    # 交易净收益列表
+    for result in results:
+        if 'error' in result:
+            logger.error(f"回测出错: {result['error']}")
+            continue
+        strategy = result['strategy']
+        
+        # 打印交易记录（成交记录）
+        if 'transactions' in result and result['transactions']:
+            print(f"\n=== {strategy} 买卖记录 ===")
+            txs = result['transactions']
+            
+            # 解析 Backtrader Transactions 格式
+            # 格式: OrderedDict({datetime: [[amount, price, commission, stock_code, total_amount]]})
+            for dt, tx_list in txs.items():
+                for tx_sub_list in tx_list:
+                    if len(tx_sub_list) >= 4:
+                        amount = tx_sub_list[0]
+                        price = tx_sub_list[1]
+                        comm = tx_sub_list[2]
+                        tx_type = "买入" if amount > 0 else "卖出"
+                        date_str = dt.date().isoformat() if hasattr(dt, 'date') else str(dt)
+                        print(f"  {date_str} | {tx_type:4} | 数量: {abs(amount):5} | 价格: {price:8.2f} | 佣金: {comm:6.2f}")
+        
+        # 打印交易盈亏
+        if 'trades' in result and result['trades']:
+            print(f"\n=== {strategy} 交易盈亏 ===")
+            for trade in result['trades']:
+                print(f"  日期: {trade['date']}, 净收益: {trade['net']:.2f}")
+
+            print(f"\n--- {strategy} 统计 ---")
+            print(f"  总交易次数: {len(result['trades'])}")
+            print(f"  盈利交易: {len([t for t in result['trades'] if t['net'] > 0])}")
+            print(f"  亏损交易: {len([t for t in result['trades'] if t['net'] < 0])}")
+
     # 4. Analyze results
     analyzer = PerformanceAnalyzer()
     analysis = analyzer.compare(results)
+    logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
 
 def download_stock_data(conn):
 
