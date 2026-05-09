@@ -250,7 +250,7 @@ def main_filter(db_conn, strategy_list=['box_breakout', 'bottom_reverse', 'trend
     for idx, row in enumerate(stock_list.itertuples(index=False)):
         stock_code = row.stock_code
         stock_name = row.stock_name
-        market_cap = row.market_cap
+        market_cap = float(row.market_cap) # type: ignore[arg-type]
         # 打印进度
         if (idx + 1) % 100 == 0:
             print(f"筛选进度：{idx + 1}/{total_count} 只股票")
