@@ -30,10 +30,10 @@ class TradeDateMapManager:
             """
             cursor.executemany(sql, records)
             self.conn.commit()
-            logger.info(f"[{__name__}.{func_name}] 成功保存 {len(records)} 条交易日数据")
+            logger.info(f"[{__name__}.{func_name}] ✅ 交易日映射表(trade_date_map) 成功保存 {len(records)} 条交易日数据")
             return True
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 保存失败：{str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 交易日映射表(trade_date_map) 保存失败：{str(e)}")
             self.conn.rollback()
             return False
         finally:

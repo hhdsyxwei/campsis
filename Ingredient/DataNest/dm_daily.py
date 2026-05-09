@@ -82,9 +82,15 @@ class DailyDataManager:
                     int(row['tradestatus']) if pd.notna(row['tradestatus']) else None,
                     int(row['isST']) if pd.notna(row['isST']) else None,
                 ))
-            except (ValueError, ZeroDivisionError) as e:
+            except (ValueError, ZeroDivisionError, NameError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row['date']}: {str(e)}")
                 logger.warning(f"当前完整记录: {row}")
+                continue
+            except Exception as e:
+                logger.error(f"[{__name__}.{func_name}] 未预期的异常 {std_stock_code} {row['date']}: {str(e)}")
+                logger.error(f"当前完整记录: {row}")
+                import traceback
+                logger.error(f"异常堆栈: {traceback.format_exc()}")
                 continue
 
         if not records:
@@ -107,10 +113,10 @@ class DailyDataManager:
             cursor = self.conn.cursor()
             cursor.executemany(sql, records)
             self.conn.commit()
-            logger.debug(f"[{__name__}.{func_name}] {std_stock_code} 入库成功 {len(records)} 条")
+            logger.info(f"[{__name__}.{func_name}] ✅ {std_stock_code} 日线数据(stock_daily)入库成功 {len(records)} 条")
             return True
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] {std_stock_code} 入库失败：{str(e)}")
+            logger.error(f"[{__name__}.{func_name}] {std_stock_code} 日线数据(stock_daily)入库失败：{str(e)}")
             self.conn.rollback()
             return False
         finally:
