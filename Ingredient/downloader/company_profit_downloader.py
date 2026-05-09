@@ -114,7 +114,7 @@ class StockProfitDownloader(BlockDownloader):
                 df['statDate'] = df['statDate'].dt.strftime('%Y-%m-%d') if not df['statDate'].isna().all() else df['statDate']
             
             # 转换数值类型
-            numeric_fields = ['roeAvg', 'npMargin', 'gpMargin', 'netProfit', 'epsTTM', 'MBRevenue']
+            numeric_fields = ['roeAvg', 'npMargin', 'gpMargin', 'netProfit', 'epsTTM', 'MBRevenue', 'totalShare', 'liqaShare']
             for field in numeric_fields:
                 if field in df.columns:
                     df[field] = pd.to_numeric(df[field], errors='coerce')

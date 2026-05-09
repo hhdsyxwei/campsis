@@ -32,7 +32,7 @@ from Ingredient.downloader import start_new_adj_factor_download
 from Ingredient.downloader import start_new_xrxd_download
 from Ingredient.downloader import start_new_kline_download
 from Ingredient.downloader import download_stock_basic
-
+from CookingEngine.next_day_bullish_strategy import main_filter
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -56,7 +56,8 @@ def main():
 
     try:
         download_stock_data(conn)
-        run_backtest(conn)
+        #run_backtest(conn)
+        main_filter(conn)
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息

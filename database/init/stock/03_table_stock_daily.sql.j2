@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS `{{ table_name | default('stock_daily') | safe }}` (
   `{{ col_turnover_rate | default('turnover_rate') | safe }}` decimal(10,4) DEFAULT NULL COMMENT '换手率(%)',
   `{{ col_pe | default('pe') | safe }}` decimal(12,2) DEFAULT NULL COMMENT '市盈率(TTM)',
   `{{ col_pb | default('pb') | safe }}` decimal(10,2) DEFAULT NULL COMMENT '市净率',
+  `{{ col_ps | default('ps') | safe }}` decimal(12,4) DEFAULT NULL COMMENT '市销率(TTM)',
+  `{{ col_pcf | default('pcf') | safe }}` decimal(12,4) DEFAULT NULL COMMENT '市现率(TTM)',
+  `{{ col_adjust_flag | default('adjust_flag') | safe }}` tinyint(1) DEFAULT NULL COMMENT '复权标志(1-不复权,2-前复权,3-后复权)',
+  `{{ col_trade_status | default('trade_status') | safe }}` tinyint(1) DEFAULT NULL COMMENT '交易状态(1-正常,0-停牌)',
+  `{{ col_is_st | default('is_st') | safe }}` tinyint(1) DEFAULT NULL COMMENT '是否ST(1-是,0-否)',
   `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `{{ col_update_time | default('update_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 

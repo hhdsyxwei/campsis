@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS `{{ table_name | default('company_profit') | safe }}`
     `{{ col_net_profit | default('net_profit') | safe }}` decimal(16,2) COMMENT '净利润(万元)',
     `{{ col_eps_ttm | default('eps_ttm') | safe }}` decimal(10,4) COMMENT '每股收益',
     `{{ col_mb_revenue | default('mb_revenue') | safe }}` decimal(16,2) COMMENT '主营营业收入(百万元)',
+    `{{ col_total_share | default('total_share') | safe }}` decimal(20,0) COMMENT '总股本(股数)',
+    `{{ col_liqa_share | default('liqa_share') | safe }}` decimal(20,0) COMMENT '流通股本(股数)',
     `{{ col_create_time | default('create_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `{{ col_update_time | default('update_time') | safe }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`{{ col_id | default('id') | safe }}`),

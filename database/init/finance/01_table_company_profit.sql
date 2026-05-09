@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS `company_profit` (
     `net_profit` decimal(16,2) COMMENT '净利润(万元)',
     `eps_ttm` decimal(10,4) COMMENT '每股收益',
     `mb_revenue` decimal(16,2) COMMENT '主营营业收入(百万元)',
+    `total_share` decimal(20,0) COMMENT '总股本(股数)',
+    `liqa_share` decimal(20,0) COMMENT '流通股本(股数)',
     `create_time` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),

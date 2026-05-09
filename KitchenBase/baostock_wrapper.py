@@ -707,6 +707,8 @@ def query_profit_data(
     - netProfit: 净利润(万元)
     - epsTTM: 每股收益
     - MBRevenue: 主营营业收入(百万元)
+    - totalShare: 总股本(股数)
+    - liqaShare: 流通股本(股数)
     
     返回值：原生ResultData对象
     异常：网络连接异常时抛出ConnectionError异常

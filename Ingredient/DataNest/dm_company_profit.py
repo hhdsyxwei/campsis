@@ -50,6 +50,8 @@ class CompanyProfitManager:
                     float(row['netProfit']) if pd.notna(row['netProfit']) else None,
                     float(row['epsTTM']) if pd.notna(row['epsTTM']) else None,
                     float(row['MBRevenue']) if pd.notna(row['MBRevenue']) else None,
+                    int(row['totalShare']) if pd.notna(row['totalShare']) else None,
+                    int(row['liqaShare']) if pd.notna(row['liqaShare']) else None,
                 ))
             except (ValueError, KeyError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row.get('statDate', '未知日期')}: {str(e)}")
@@ -63,12 +65,12 @@ class CompanyProfitManager:
         cursor = None
         sql = """
         INSERT INTO company_profit 
-        (std_stock_code, pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (std_stock_code, pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue, total_share, liqa_share)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             pub_date = VALUES(pub_date), roe_avg = VALUES(roe_avg), np_margin = VALUES(np_margin),
             gp_margin = VALUES(gp_margin), net_profit = VALUES(net_profit), eps_ttm = VALUES(eps_ttm),
-            mb_revenue = VALUES(mb_revenue)
+            mb_revenue = VALUES(mb_revenue), total_share = VALUES(total_share), liqa_share = VALUES(liqa_share)
         """
         try:
             cursor = self.conn.cursor()
@@ -128,7 +130,7 @@ class CompanyProfitManager:
             
             # 从company_profit表查询数据
             sql = """
-            SELECT pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue
+            SELECT pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue, total_share, liqa_share
             FROM company_profit
             WHERE std_stock_code = %s AND stat_date BETWEEN %s AND %s
             ORDER BY stat_date
@@ -139,11 +141,11 @@ class CompanyProfitManager:
             
             if not rows:
                 # 返回空的DataFrame
-                columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue']
+                columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue', 'total_share', 'liqa_share']
                 return pd.DataFrame(columns=columns)
             
             # 转换为DataFrame
-            columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue']
+            columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue', 'total_share', 'liqa_share']
             df = pd.DataFrame(rows, columns=columns)
             
             logger.info(f"[{__name__}.{func_name}] 获取利润数据 {std_stock_code}: {len(df)} 条")

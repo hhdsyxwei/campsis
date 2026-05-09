@@ -26,6 +26,7 @@ class PackageManager:
 
     # ===== 常见 import 名到 pip 发行名映射（可按项目持续扩充）=====
     IMPORT_TO_PIP_MAP: Dict[str, str] = {
+        "talib": "TA-Lib",
         "cv2": "opencv-python",
         "yaml": "pyyaml",
         "pil": "pillow",  # 修复：直接写小写键名，删除无效lower()
@@ -44,6 +45,7 @@ class PackageManager:
     # 某些“import 名 != 分发名”的已知兜底（已安装分发名时视为满足）
     # 例如 import PIL 时，只要装了 pillow 就算满足
     IMPORT_SATISFY_BY_DIST: Dict[str, Set[str]] = {
+        "talib": {"TA-Lib"},
         "pil": {"pillow"},
         "cv2": {"opencv-python", "opencv-contrib-python", "opencv-python-headless"},
         "yaml": {"pyyaml"},

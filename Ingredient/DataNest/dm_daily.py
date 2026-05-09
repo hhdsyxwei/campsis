@@ -76,6 +76,11 @@ class DailyDataManager:
                     float(row['turn']) if pd.notna(row['turn']) else None,
                     float(row['peTTM']) if pd.notna(row['peTTM']) else None,
                     float(row['pbMRQ']) if pd.notna(row['pbMRQ']) else None,
+                    float(row['psTTM']) if pd.notna(row['psTTM']) else None,
+                    float(row['pcfNcfTTM']) if pd.notna(row['pcfNcfTTM']) else None,
+                    int(row['adjustflag']) if pd.notna(row['adjustflag']) else None,
+                    int(row['tradestatus']) if pd.notna(row['tradestatus']) else None,
+                    int(row['isST']) if pd.notna(row['isST']) else None,
                 ))
             except (ValueError, ZeroDivisionError) as e:
                 logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row['date']}: {str(e)}")
@@ -90,12 +95,13 @@ class DailyDataManager:
         cursor = None
         sql = """
         INSERT INTO stock_daily 
-        (std_stock_code, trade_date, open, high, low, close, pre_close, change_rate, volume, amount, turnover_rate, pe, pb)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (std_stock_code, trade_date, open, high, low, close, pre_close, change_rate, volume, amount, turnover_rate, pe, pb, ps, pcf, adjust_flag, trade_status, is_st)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             open = VALUES(open), high = VALUES(high), low = VALUES(low), close = VALUES(close),
             pre_close = VALUES(pre_close), change_rate = VALUES(change_rate), volume = VALUES(volume),
-            amount = VALUES(amount), turnover_rate = VALUES(turnover_rate), pe = VALUES(pe), pb = VALUES(pb)
+            amount = VALUES(amount), turnover_rate = VALUES(turnover_rate), pe = VALUES(pe), pb = VALUES(pb),
+            ps = VALUES(ps), pcf = VALUES(pcf), adjust_flag = VALUES(adjust_flag), trade_status = VALUES(trade_status), is_st = VALUES(is_st)
         """
         try:
             cursor = self.conn.cursor()
@@ -179,7 +185,7 @@ class DailyDataManager:
             
             # 从stock_daily表查询数据
             sql = """
-            SELECT trade_date, open, high, low, close, volume, amount
+            SELECT trade_date, open, high, low, close, volume, amount, pe, pb, ps, pcf, adjust_flag, trade_status, is_st
             FROM stock_daily
             WHERE std_stock_code = %s AND trade_date BETWEEN %s AND %s
             ORDER BY trade_date
@@ -206,11 +212,11 @@ class DailyDataManager:
                     logger.warning(f"[{__name__}.{func_name}] 该股票实际日期范围: {date_range[0]} ~ {date_range[1]}")
                 
                 # 返回空的DataFrame
-                columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+                columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'pe', 'pb', 'ps', 'pcf', 'adjust_flag', 'trade_status', 'is_st']
                 return pd.DataFrame(columns=columns)
             
             # 转换为DataFrame，使用PyArrow类型
-            columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+            columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'pe', 'pb', 'ps', 'pcf', 'adjust_flag', 'trade_status', 'is_st']
             df = pd.DataFrame(rows, columns=columns)
             
             logger.info(f"[{__name__}.{func_name}] 转换后DataFrame行数: {len(df)}")
