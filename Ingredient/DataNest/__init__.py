@@ -17,11 +17,11 @@ from .dm_company_profit import CompanyProfitManager
 from .dm_company_balance import CompanyBalanceManager
 from .dm_company_cash_flow import CompanyCashFlowManager
 from .dm_utils import get_nearest_trade_date_before
-from .dm_columns import (
-    KlineUnifiedColumns,
-    StockBasicColumns,
-    StockDailyColumns,
-    StockXrxdColumns
+from .dm_standard_columns import (
+    KlineUnifiedStandardColumns,
+    StockBasicStandardColumns,
+    StockDailyStandardColumns,
+    StockXrxdStandardColumns
 )
 
 __all__ = [
@@ -43,8 +43,8 @@ __all__ = [
     'CompanyBalanceManager',
     'CompanyCashFlowManager',
     'get_nearest_trade_date_before',
-    'KlineUnifiedColumns',
-    'StockBasicColumns',
-    'StockDailyColumns',
-    'StockXrxdColumns'
+    'KlineUnifiedStandardColumns',
+    'StockBasicStandardColumns',
+    'StockDailyStandardColumns',
+    'StockXrxdStandardColumns'
 ]

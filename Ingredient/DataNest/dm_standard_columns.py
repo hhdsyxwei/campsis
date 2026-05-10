@@ -29,6 +29,11 @@ CHANGE_RATE = "change_rate"
 TURNOVER_RATE = "turnover_rate"
 PE = "pe"
 PB = "pb"
+PS = "ps"
+PCF = "pcf"
+ADJUST_FLAG = "adjust_flag"
+TRADE_STATUS = "trade_status"
+IS_ST = "is_st"
 
 # 分红送配数据列名
 XRXD_YEAR = "xrxd_year"
@@ -59,7 +64,8 @@ STATUS = "status"
 COMPLETED_AT = "completed_at"
 
 # 表级列名集合
-class KlineUnifiedColumns:
+class KlineUnifiedStandardColumns:
+    """K线统一格式标准列名 - 用于统一格式的 K线数据（可能与数据库列名不同）"""
     STD_STOCK_CODE = STD_STOCK_CODE
     TIME_FRAME = TIME_FRAME
     TIMESTAMP = TIMESTAMP
@@ -70,7 +76,8 @@ class KlineUnifiedColumns:
     VOLUME = VOLUME
     TURNOVER = TURNOVER
 
-class StockBasicColumns:
+class StockBasicStandardColumns:
+    """股票基础信息标准列名 - 用于 stock_basic 数据库表，与数据库字段完全一致"""
     STD_STOCK_CODE = STD_STOCK_CODE
     STOCK_NAME = STOCK_NAME
     PURE_SYMBOL = PURE_SYMBOL
@@ -80,22 +87,29 @@ class StockBasicColumns:
     DELIST_DATE = DELIST_DATE
     IS_ACTIVE = IS_ACTIVE
 
-class StockDailyColumns:
+class StockDailyStandardColumns:
+    """股票日线数据标准列名 - 用于 stock_daily 数据库表，与数据库字段完全一致，是系统内部标准"""
     STD_STOCK_CODE = STD_STOCK_CODE
     TRADE_DATE = TRADE_DATE
-    OPEN = OPEN_PRICE
-    HIGH = HIGH_PRICE
-    LOW = LOW_PRICE
-    CLOSE = CLOSE_PRICE
+    OPEN = "open"
+    HIGH = "high"
+    LOW = "low"
+    CLOSE = "close"
     PRE_CLOSE = PRE_CLOSE
     CHANGE_RATE = CHANGE_RATE
     VOLUME = VOLUME
-    AMOUNT = TURNOVER
+    AMOUNT = "amount"
     TURNOVER_RATE = TURNOVER_RATE
     PE = PE
     PB = PB
+    PS = PS
+    PCF = PCF
+    ADJUST_FLAG = ADJUST_FLAG
+    TRADE_STATUS = TRADE_STATUS
+    IS_ST = IS_ST
 
-class StockXrxdColumns:
+class StockXrxdStandardColumns:
+    """股票分红送配标准列名 - 用于 stock_xrxd 数据库表，与数据库字段完全一致"""
     STD_STOCK_CODE = STD_STOCK_CODE
     XRXD_YEAR = XRXD_YEAR
     XRXD_PRE_NOTICE_DATE = XRXD_PRE_NOTICE_DATE
