@@ -157,9 +157,9 @@ def download_stock_data(conn):
         return
     logger.info("Baostock 登录成功。")
 
-    start_year = 2025
+    start_year = 2022
     end_year = 2027
-    stock_codes = ["000300.SH", "000001.SZ", "000002.SZ", "000004.SZ", "000006.SZ"]
+    stock_codes = ["000300.SH", "000001.SZ", "000002.SZ", "000004.SZ", "000005.SZ","000006.SZ"]
     params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
     download_trade_date_map(conn, params)  # 下载交易日映射表，覆盖start_year-end_year年
@@ -167,7 +167,7 @@ def download_stock_data(conn):
     download_stock_basic(conn, params, [MarketType.INDEX,MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
     # 3. 第二步：下载所有活跃股票的日线数据
     # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-    # start_new_daily_download(conn, params)
+    start_new_daily_download(conn, params)
     # 4. 第三步：下载行业分类数据
     # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
     # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
