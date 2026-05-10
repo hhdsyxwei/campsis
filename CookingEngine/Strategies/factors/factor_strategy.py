@@ -44,8 +44,9 @@ class FactorStrategy(BaseStrategy):
         stock_code = self.datas[0]._name
 
         try:
-            # 获取最近60天的股票数据，用于计算因子
-            start_date=self.datas[0].datetime.date(-60).isoformat()
+            # 获取最近60天的股票数据，用于计算因子（防止数据不足）
+            lookback_days = min(60, len(self.datas[0]) - 1)
+            start_date=self.datas[0].datetime.date(-lookback_days).isoformat()
             end_date = current_date
             price_data = self.data_provider.get_price_data(
                 stock_code,

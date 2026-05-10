@@ -14,8 +14,58 @@ from Ingredient.downloader.core.abs_block_manager import BlockManager
 from Ingredient.downloader.core.abs_status_manager import TaskStatusManager
 from Ingredient.downloader.core.abs_pointer_manager import PointerManager
 from Ingredient.downloader.core.abs_progress_manager import ProgressManager
+from Ingredient.DataNest.dm_standard_columns import StockDailyStandardColumns
 
 logger = get_logger(__name__)
+
+
+class BaoStockApiColumns:
+    """baostock API 原始列名（下载器内部使用）"""
+    DATE = "date"
+    CODE = "code"
+    OPEN = "open"
+    HIGH = "high"
+    LOW = "low"
+    CLOSE = "close"
+    VOLUME = "volume"
+    AMOUNT = "amount"
+    ADJUSTFLAG = "adjustflag"
+    TURN = "turn"
+    TRADESTATUS = "tradestatus"
+    PCTCHG = "pctChg"
+    PE_TTM = "peTTM"
+    PB_MRQ = "pbMRQ"
+    PS_TTM = "psTTM"
+    PCF_NCF_TTM = "pcfNcfTtm"
+    IS_ST = "isST"
+    
+    # API 查询字段字符串
+    FIELDS = ",".join([
+        DATE, CODE, OPEN, HIGH, LOW, CLOSE, VOLUME, AMOUNT,
+        ADJUSTFLAG, TURN, TRADESTATUS, PCTCHG, PE_TTM, PB_MRQ,
+        PS_TTM, PCF_NCF_TTM, IS_ST
+    ])
+
+
+# API → 内部标准的映射（只在下载器内部使用）
+BAOSTOCK_TO_STANDARD = {
+    BaoStockApiColumns.DATE: StockDailyStandardColumns.TRADE_DATE,
+    BaoStockApiColumns.OPEN: StockDailyStandardColumns.OPEN,
+    BaoStockApiColumns.HIGH: StockDailyStandardColumns.HIGH,
+    BaoStockApiColumns.LOW: StockDailyStandardColumns.LOW,
+    BaoStockApiColumns.CLOSE: StockDailyStandardColumns.CLOSE,
+    BaoStockApiColumns.VOLUME: StockDailyStandardColumns.VOLUME,
+    BaoStockApiColumns.AMOUNT: StockDailyStandardColumns.AMOUNT,
+    BaoStockApiColumns.TURN: StockDailyStandardColumns.TURNOVER_RATE,
+    BaoStockApiColumns.PCTCHG: StockDailyStandardColumns.CHANGE_RATE,
+    BaoStockApiColumns.PE_TTM: StockDailyStandardColumns.PE,
+    BaoStockApiColumns.PB_MRQ: StockDailyStandardColumns.PB,
+    BaoStockApiColumns.PS_TTM: StockDailyStandardColumns.PS,
+    BaoStockApiColumns.PCF_NCF_TTM: StockDailyStandardColumns.PCF,
+    BaoStockApiColumns.ADJUSTFLAG: StockDailyStandardColumns.ADJUST_FLAG,
+    BaoStockApiColumns.TRADESTATUS: StockDailyStandardColumns.TRADE_STATUS,
+    BaoStockApiColumns.IS_ST: StockDailyStandardColumns.IS_ST,
+}
 
 
 class DailyDataDownloader(BlockDownloader):
@@ -153,10 +203,9 @@ class DailyDataDownloader(BlockDownloader):
 
         self.logger.debug(f"下载日线数据: {stock_code} ({bs_code}) {start_date} ~ {end_date}")
 
-        fields = "date,code,open,high,low,close,volume,amount,adjustflag,turn,tradestatus,pctChg,peTTM,pbMRQ,psTTM,pcfNcfTtm,isST"
         rs = query_history_k_data_plus(
             bs_code,
-            fields,
+            BaoStockApiColumns.FIELDS,
             start_date=start_date,
             end_date=end_date,
             frequency="d",
@@ -198,16 +247,56 @@ class DailyDataDownloader(BlockDownloader):
 
         df = raw_data.copy()
 
-        df['date'] = pd.to_datetime(df['date'])
-        numeric_columns = ['open', 'high', 'low', 'close', 'volume', 'amount', 'turn', 'pctChg', 'peTTM', 'pbMRQ', 'psTTM', 'pcfNcfTtm']
+        # 1. 使用下载器内部 API 列名进行处理
+        df[BaoStockApiColumns.DATE] = pd.to_datetime(df[BaoStockApiColumns.DATE])
+        numeric_columns = [
+            BaoStockApiColumns.OPEN, BaoStockApiColumns.HIGH, BaoStockApiColumns.LOW,
+            BaoStockApiColumns.CLOSE, BaoStockApiColumns.VOLUME, BaoStockApiColumns.AMOUNT,
+            BaoStockApiColumns.TURN, BaoStockApiColumns.PCTCHG,
+            BaoStockApiColumns.PE_TTM, BaoStockApiColumns.PB_MRQ,
+            BaoStockApiColumns.PS_TTM, BaoStockApiColumns.PCF_NCF_TTM
+        ]
         for col in numeric_columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        df['pre_close'] = df['close'].shift(1)
+        # 2. 关键步骤：转换为内部标准列名
+        df = df.rename(columns=BAOSTOCK_TO_STANDARD)
 
-        for col in numeric_columns + ['pre_close']:
+        # 3. 后续处理使用内部标准列名
+        df[StockDailyStandardColumns.PRE_CLOSE] = df[StockDailyStandardColumns.CLOSE].shift(1)
+
+        # 处理 NaN 值
+        for col in [
+            StockDailyStandardColumns.OPEN, StockDailyStandardColumns.HIGH, StockDailyStandardColumns.LOW,
+            StockDailyStandardColumns.CLOSE, StockDailyStandardColumns.VOLUME, StockDailyStandardColumns.AMOUNT,
+            StockDailyStandardColumns.TURNOVER_RATE, StockDailyStandardColumns.CHANGE_RATE,
+            StockDailyStandardColumns.PE, StockDailyStandardColumns.PB, StockDailyStandardColumns.PS, StockDailyStandardColumns.PCF,
+            StockDailyStandardColumns.PRE_CLOSE
+        ]:
             if col in df.columns:
                 df[col] = df[col].where(pd.notna(df[col]), None)
+
+        # 4. 只保留内部标准列
+        final_columns = [
+            StockDailyStandardColumns.TRADE_DATE,
+            StockDailyStandardColumns.OPEN,
+            StockDailyStandardColumns.HIGH,
+            StockDailyStandardColumns.LOW,
+            StockDailyStandardColumns.CLOSE,
+            StockDailyStandardColumns.VOLUME,
+            StockDailyStandardColumns.AMOUNT,
+            StockDailyStandardColumns.TURNOVER_RATE,
+            StockDailyStandardColumns.CHANGE_RATE,
+            StockDailyStandardColumns.PE,
+            StockDailyStandardColumns.PB,
+            StockDailyStandardColumns.PS,
+            StockDailyStandardColumns.PCF,
+            StockDailyStandardColumns.ADJUST_FLAG,
+            StockDailyStandardColumns.TRADE_STATUS,
+            StockDailyStandardColumns.IS_ST,
+            StockDailyStandardColumns.PRE_CLOSE
+        ]
+        df = df[final_columns]
 
         return df
 

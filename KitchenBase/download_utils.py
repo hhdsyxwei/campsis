@@ -5,6 +5,9 @@ import pymysql
 from pymysql.err import OperationalError
 from datetime import datetime, timedelta
 from KitchenBase.stock_enums import MarketType
+from KitchenBase.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 print("=== download_utils 正在加载 ===")  # 看是否执行到
@@ -33,7 +36,7 @@ def get_project_root() -> str:
 
 def convert_baostock_code(bs_code: str) -> str:
     """
-    将 Baostock 代码格式 (sh.600000) 转换为 数据库格式 (600000.SH)
+    将 Baostock 代码格式 (sh.600000) 转换为 数据库格式(标准股票代码格式) (600000.SH)
     Baostock 使用 'sh.'/'sz.' 前缀，数据库使用 'SH'/'SZ' 后缀。
     """
     if not bs_code:
@@ -44,6 +47,48 @@ def convert_baostock_code(bs_code: str) -> str:
     market, symbol = parts
     market_map = {'sh': 'SH', 'sz': 'SZ'}
     return f"{symbol}.{market_map.get(market.lower(), market.upper())}"
+
+def convert_to_baostock_code(std_stock_code: str) -> str:
+    """
+    将标准股票代码格式 (600000.SH) 转换为 Baostock 格式 (sh.600000)
+    标准格式使用 'SH'/'SZ' 后缀，Baostock 使用 'sh.'/'sz.' 前缀。
+    
+    Args:
+        std_stock_code: 标准股票代码，格式为 "6位代码.SH" 或 "6位代码.SZ"
+        
+    Returns:
+        Baostock 格式的股票代码，格式为 "sh.6位代码" 或 "sz.6位代码"
+    """
+    func_name = "convert_to_baostock_code"
+    logger.debug(f"[{func_name}] 开始转换标准股票代码，输入: {std_stock_code}")
+    
+    try:
+        if not std_stock_code:
+            logger.warning(f"[{func_name}] 输入为空，返回空字符串")
+            return ""
+        
+        parts = std_stock_code.split('.')
+        if len(parts) != 2:
+            logger.warning(f"[{func_name}] 输入格式不正确: {std_stock_code}，期望格式为 '代码.市场'，返回原输入")
+            return std_stock_code
+        
+        symbol, market = parts
+        market = market.upper()
+        
+        market_map = {'SH': 'sh', 'SZ': 'sz', 'BJ': 'bj'}
+        if market not in market_map:
+            logger.warning(f"[{func_name}] 不支持的市场类型: {market}，支持的类型: {list(market_map.keys())}，返回原输入")
+            return std_stock_code
+        
+        result = f"{market_map[market]}.{symbol}"
+        logger.debug(f"[{func_name}] 转换成功: {std_stock_code} -> {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"[{func_name}] 转换过程发生异常: {str(e)}", exc_info=True)
+        import traceback
+        logger.error(f"[{func_name}] 完整调用栈: {traceback.format_exc()}")
+        return std_stock_code
 
 def calculate_pre_close(close_price, change_rate) -> float:
     """

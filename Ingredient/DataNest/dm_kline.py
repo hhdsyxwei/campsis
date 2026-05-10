@@ -7,12 +7,12 @@ from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
 from KitchenBase.download_enums import DlBlockStatus, DlTaskType
 from .dm_generic_block_status import GenericBlockStatusDM
-from .dm_columns import (
+from .dm_standard_columns import (
     STD_STOCK_CODE, TIME_FRAME, TIMESTAMP,
     OPEN_PRICE, HIGH_PRICE, LOW_PRICE, CLOSE_PRICE, VOLUME, TURNOVER,
     DOWNLOADING_STOCK_CODE, DOWNLOADING_TIME_FRAME, DOWNLOADING_QUARTER, UPDATE_TIME,
     QUARTER, STATUS, COMPLETED_AT,
-    KlineUnifiedColumns as KUC
+    KlineUnifiedStandardColumns as KUC
 )
 from .dm_global_dl_ctrl import GlobalDlCtrlBlockManager
 

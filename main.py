@@ -9,6 +9,7 @@ PackageManager.install_missing_requirements()
 
 import os
 import sys
+import json
 
 # Add current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,7 +32,7 @@ from Ingredient.downloader import start_new_adj_factor_download
 from Ingredient.downloader import start_new_xrxd_download
 from Ingredient.downloader import start_new_kline_download
 from Ingredient.downloader import download_stock_basic
-
+from CookingEngine.next_day_bullish_strategy import main_filter
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -55,7 +56,8 @@ def main():
 
     try:
         download_stock_data(conn)
-        run_backtest(conn)
+        #run_backtest(conn)
+        main_filter(conn)
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息
@@ -96,10 +98,46 @@ def run_backtest(db_conn):
     
     # 3. Execute backtest
     results = runner.run_batch(configs)
-    
+
+    # 交易净收益列表
+    for result in results:
+        if 'error' in result:
+            logger.error(f"回测出错: {result['error']}")
+            continue
+        strategy = result['strategy']
+        
+        # 打印交易记录（成交记录）
+        if 'transactions' in result and result['transactions']:
+            print(f"\n=== {strategy} 买卖记录 ===")
+            txs = result['transactions']
+            
+            # 解析 Backtrader Transactions 格式
+            # 格式: OrderedDict({datetime: [[amount, price, commission, stock_code, total_amount]]})
+            for dt, tx_list in txs.items():
+                for tx_sub_list in tx_list:
+                    if len(tx_sub_list) >= 4:
+                        amount = tx_sub_list[0]
+                        price = tx_sub_list[1]
+                        comm = tx_sub_list[2]
+                        tx_type = "买入" if amount > 0 else "卖出"
+                        date_str = dt.date().isoformat() if hasattr(dt, 'date') else str(dt)
+                        print(f"  {date_str} | {tx_type:4} | 数量: {abs(amount):5} | 价格: {price:8.2f} | 佣金: {comm:6.2f}")
+        
+        # 打印交易盈亏
+        if 'trades' in result and result['trades']:
+            print(f"\n=== {strategy} 交易盈亏 ===")
+            for trade in result['trades']:
+                print(f"  日期: {trade['date']}, 净收益: {trade['net']:.2f}")
+
+            print(f"\n--- {strategy} 统计 ---")
+            print(f"  总交易次数: {len(result['trades'])}")
+            print(f"  盈利交易: {len([t for t in result['trades'] if t['net'] > 0])}")
+            print(f"  亏损交易: {len([t for t in result['trades'] if t['net'] < 0])}")
+
     # 4. Analyze results
     analyzer = PerformanceAnalyzer()
     analysis = analyzer.compare(results)
+    logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
 
 def download_stock_data(conn):
 
@@ -119,9 +157,9 @@ def download_stock_data(conn):
         return
     logger.info("Baostock 登录成功。")
 
-    start_year = 2025
+    start_year = 2022
     end_year = 2027
-    stock_codes = ["000300.SH", "000001.SZ", "000002.SZ", "000004.SZ", "000006.SZ"]
+    stock_codes = ["000300.SH", "000001.SZ", "000002.SZ", "000004.SZ", "000005.SZ","000006.SZ"]
     params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
     download_trade_date_map(conn, params)  # 下载交易日映射表，覆盖start_year-end_year年
@@ -143,7 +181,7 @@ def download_stock_data(conn):
     # start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
     # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
     # 8. 第七步：下载股票利润数据
-    # start_new_profit_download(conn, params)  # 从头开始下载2026-2027年的股票利润数据
+    start_new_profit_download(conn, params)  # 从头开始下载2026-2027年的股票利润数据
 
     # 9. 第八步：下载公司偿债能力数据
     # start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
@@ -153,7 +191,7 @@ def download_stock_data(conn):
     # start_new_cash_flow_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司现金流量数据
     # continue_download_company_cash_flow(conn, start_year, end_year)  # 继续下载2026-2027年的公司现金流量数据
     # 11. 第十步：为公司股票数据打分
-    score_single_stock(conn, stock_codes[0])
+    # score_single_stock(conn, stock_codes[0])
 
 # 程序入口点，当直接运行此脚本时，会执行 main() 函数
 if __name__ == '__main__':

@@ -2,6 +2,7 @@
 import pymysql
 import pandas as pd
 from KitchenBase.logger_config import get_logger
+from Ingredient.DataNest.dm_standard_columns import CompanyProfitStandardColumns
 
 logger = get_logger(__name__)
 
@@ -28,13 +29,14 @@ class CompanyProfitManager:
             return True
 
         logger.info(f"[{__name__}.{func_name}] {std_stock_code} 处理 {len(data)} 条利润数据")
+        logger.debug(f"[{__name__}.{func_name}] 数据列名: {list(data.columns)}")
 
         records = []
 
         for _, row in data.iterrows():
             try:
-                pub_date = row['pubDate']
-                stat_date = row['statDate']
+                pub_date = row[CompanyProfitStandardColumns.PUB_DATE]
+                stat_date = row[CompanyProfitStandardColumns.STAT_DATE]
                 
                 # 确保日期是字符串格式
                 if isinstance(pub_date, pd.Timestamp):
@@ -44,17 +46,26 @@ class CompanyProfitManager:
                 
                 records.append((
                     std_stock_code, pub_date, stat_date,
-                    float(row['roeAvg']) if pd.notna(row['roeAvg']) else None,
-                    float(row['npMargin']) if pd.notna(row['npMargin']) else None,
-                    float(row['gpMargin']) if pd.notna(row['gpMargin']) else None,
-                    float(row['netProfit']) if pd.notna(row['netProfit']) else None,
-                    float(row['epsTTM']) if pd.notna(row['epsTTM']) else None,
-                    float(row['MBRevenue']) if pd.notna(row['MBRevenue']) else None,
+                    float(row[CompanyProfitStandardColumns.ROE_AVG]) if pd.notna(row[CompanyProfitStandardColumns.ROE_AVG]) else None,
+                    float(row[CompanyProfitStandardColumns.NP_MARGIN]) if pd.notna(row[CompanyProfitStandardColumns.NP_MARGIN]) else None,
+                    float(row[CompanyProfitStandardColumns.GP_MARGIN]) if pd.notna(row[CompanyProfitStandardColumns.GP_MARGIN]) else None,
+                    float(row[CompanyProfitStandardColumns.NET_PROFIT]) if pd.notna(row[CompanyProfitStandardColumns.NET_PROFIT]) else None,
+                    float(row[CompanyProfitStandardColumns.EPS_TTM]) if pd.notna(row[CompanyProfitStandardColumns.EPS_TTM]) else None,
+                    float(row[CompanyProfitStandardColumns.MB_REVENUE]) if pd.notna(row[CompanyProfitStandardColumns.MB_REVENUE]) else None,
+                    int(float(row[CompanyProfitStandardColumns.TOTAL_SHARE])) if pd.notna(row[CompanyProfitStandardColumns.TOTAL_SHARE]) else None,
+                    int(float(row[CompanyProfitStandardColumns.LIQA_SHARE])) if pd.notna(row[CompanyProfitStandardColumns.LIQA_SHARE]) else None,
                 ))
             except (ValueError, KeyError) as e:
-                logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row.get('statDate', '未知日期')}: {str(e)}")
+                logger.warning(f"[{__name__}.{func_name}] 数据转换错误 {std_stock_code} {row.get(CompanyProfitStandardColumns.STAT_DATE, '未知日期')}: {str(e)}")
                 logger.warning(f"当前完整记录: {row}")
                 continue
+            except Exception as e:
+                logger.error(f"[{__name__}.{func_name}] 未预期的异常 {std_stock_code} {row.get(CompanyProfitStandardColumns.STAT_DATE, '未知日期')}: {str(e)}")
+                logger.error(f"当前完整记录: {row}")
+                import traceback
+                logger.error(f"[{__name__}.{func_name}] 抛出异常时的调用栈:")
+                logger.error(traceback.format_exc())
+            
 
         if not records:
             logger.info(f"[{__name__}.{func_name}] {std_stock_code} 无有效数据，无需保存")
@@ -63,12 +74,12 @@ class CompanyProfitManager:
         cursor = None
         sql = """
         INSERT INTO company_profit 
-        (std_stock_code, pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (std_stock_code, pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue, total_share, liqa_share)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             pub_date = VALUES(pub_date), roe_avg = VALUES(roe_avg), np_margin = VALUES(np_margin),
             gp_margin = VALUES(gp_margin), net_profit = VALUES(net_profit), eps_ttm = VALUES(eps_ttm),
-            mb_revenue = VALUES(mb_revenue)
+            mb_revenue = VALUES(mb_revenue), total_share = VALUES(total_share), liqa_share = VALUES(liqa_share)
         """
         try:
             cursor = self.conn.cursor()
@@ -128,7 +139,7 @@ class CompanyProfitManager:
             
             # 从company_profit表查询数据
             sql = """
-            SELECT pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue
+            SELECT pub_date, stat_date, roe_avg, np_margin, gp_margin, net_profit, eps_ttm, mb_revenue, total_share, liqa_share
             FROM company_profit
             WHERE std_stock_code = %s AND stat_date BETWEEN %s AND %s
             ORDER BY stat_date
@@ -139,11 +150,33 @@ class CompanyProfitManager:
             
             if not rows:
                 # 返回空的DataFrame
-                columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue']
+                columns = [
+                    CompanyProfitStandardColumns.PUB_DATE,
+                    CompanyProfitStandardColumns.STAT_DATE,
+                    CompanyProfitStandardColumns.ROE_AVG,
+                    CompanyProfitStandardColumns.NP_MARGIN,
+                    CompanyProfitStandardColumns.GP_MARGIN,
+                    CompanyProfitStandardColumns.NET_PROFIT,
+                    CompanyProfitStandardColumns.EPS_TTM,
+                    CompanyProfitStandardColumns.MB_REVENUE,
+                    CompanyProfitStandardColumns.TOTAL_SHARE,
+                    CompanyProfitStandardColumns.LIQA_SHARE
+                ]
                 return pd.DataFrame(columns=columns)
             
             # 转换为DataFrame
-            columns = ['pub_date', 'stat_date', 'roe_avg', 'np_margin', 'gp_margin', 'net_profit', 'eps_ttm', 'mb_revenue']
+            columns = [
+                CompanyProfitStandardColumns.PUB_DATE,
+                CompanyProfitStandardColumns.STAT_DATE,
+                CompanyProfitStandardColumns.ROE_AVG,
+                CompanyProfitStandardColumns.NP_MARGIN,
+                CompanyProfitStandardColumns.GP_MARGIN,
+                CompanyProfitStandardColumns.NET_PROFIT,
+                CompanyProfitStandardColumns.EPS_TTM,
+                CompanyProfitStandardColumns.MB_REVENUE,
+                CompanyProfitStandardColumns.TOTAL_SHARE,
+                CompanyProfitStandardColumns.LIQA_SHARE
+            ]
             df = pd.DataFrame(rows, columns=columns)
             
             logger.info(f"[{__name__}.{func_name}] 获取利润数据 {std_stock_code}: {len(df)} 条")

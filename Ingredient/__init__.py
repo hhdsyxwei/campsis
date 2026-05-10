@@ -11,10 +11,10 @@ from .DataNest import (
     dm_daily,
     BasicStockDataManager,
     XrxdManager,
-    KlineUnifiedColumns,
-    StockBasicColumns,
-    StockDailyColumns,
-    StockXrxdColumns,
+    KlineUnifiedStandardColumns,
+    StockBasicStandardColumns,
+    StockDailyStandardColumns,
+    StockXrxdStandardColumns,
     StockIndustryDataManager,
     get_nearest_trade_date_before
 )
@@ -34,10 +34,10 @@ __all__ = [
     'XrxdManager',
     'StockIndustryDataManager',
     'get_nearest_trade_date_before',
-    'KlineUnifiedColumns',
-    'StockBasicColumns',
-    'StockDailyColumns',
-    'StockXrxdColumns',
+    'KlineUnifiedStandardColumns',
+    'StockBasicStandardColumns',
+    'StockDailyStandardColumns',
+    'StockXrxdStandardColumns',
     # 下载器
     'KLineDownloader'
 ]

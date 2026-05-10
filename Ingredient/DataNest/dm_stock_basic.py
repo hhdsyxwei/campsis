@@ -107,11 +107,11 @@ class BasicStockDataManager:
             cursor.executemany(insert_sql, records)
             self.conn.commit()
 
-            logger.info(f"[{__name__}.{func_name}] ✅ 成功写入 {len(df)} 条")
+            logger.info(f"[{__name__}.{func_name}] ✅ 股票基本信息表(stock_basic) 成功写入 {len(df)} 条")
             return True
 
         except Exception as e:
-            logger.error(f"[{__name__}.{func_name}] 写入失败: {str(e)}")
+            logger.error(f"[{__name__}.{func_name}] 股票基本信息表(stock_basic) 写入失败: {str(e)}")
             self.conn.rollback()
             return False
 
