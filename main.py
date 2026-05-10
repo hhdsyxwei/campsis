@@ -167,7 +167,7 @@ def download_stock_data(conn):
     download_stock_basic(conn, params, [MarketType.INDEX,MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
     # 3. 第二步：下载所有活跃股票的日线数据
     # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
-    start_new_daily_download(conn, params)
+    # start_new_daily_download(conn, params)
     # 4. 第三步：下载行业分类数据
     # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
     # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
@@ -181,7 +181,7 @@ def download_stock_data(conn):
     # start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
     # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
     # 8. 第七步：下载股票利润数据
-    # start_new_profit_download(conn, params)  # 从头开始下载2026-2027年的股票利润数据
+    start_new_profit_download(conn, params)  # 从头开始下载2026-2027年的股票利润数据
 
     # 9. 第八步：下载公司偿债能力数据
     # start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据

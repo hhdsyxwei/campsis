@@ -6,16 +6,51 @@ import pandas as pd
 import time
 from typing import Tuple, Optional
 from KitchenBase import DownloadParameters
+from KitchenBase.logger_config import get_logger
+from KitchenBase.download_utils import convert_to_baostock_code,convert_baostock_code
 from Ingredient.downloader.progress_managers.generic_progress_manager import GenericProgressManager
 from .core.abstract_downloader import BlockDownloader
 from .block_managers.generic_block_manager import GenericBlockManager
 from .status_managers.generic_status_manager import GenericStatusManager
 from .pointer_managers.generic_pointer_manager import GenericPointerManager
 from Ingredient.DataNest import CompanyProfitManager, BasicStockDataManager
+from Ingredient.DataNest.dm_standard_columns import CompanyProfitStandardColumns
 from KitchenBase.download_enums import DlTaskType, DlBlockStatus, PointerField
 from KitchenBase.baostock_wrapper import query_profit_data
 from Ingredient.downloader.pointer_managers import QuarterStockPtrMgr
 from Ingredient.downloader.block_managers.quarter_stock_blk_mgr import QuarterStockBlkMgr
+
+# ===================== 全局日志记录器 =====================
+logger = get_logger(__name__)
+
+class BaoStockProfitApiColumns:
+    """baostock API 利润数据原始列名（下载器内部使用）"""
+    CODE = "code"
+    PUB_DATE = "pubDate"
+    STAT_DATE = "statDate"
+    ROE_AVG = "roeAvg"
+    NP_MARGIN = "npMargin"
+    GP_MARGIN = "gpMargin"
+    NET_PROFIT = "netProfit"
+    EPS_TTM = "epsTTM"
+    MB_REVENUE = "MBRevenue"
+    TOTAL_SHARE = "totalShare"
+    LIQA_SHARE = "liqaShare"
+
+# API → 内部标准的映射（只在下载器内部使用）
+BAOSTOCK_PROFIT_TO_STANDARD = {
+    BaoStockProfitApiColumns.CODE: CompanyProfitStandardColumns.STD_STOCK_CODE,
+    BaoStockProfitApiColumns.PUB_DATE: CompanyProfitStandardColumns.PUB_DATE,
+    BaoStockProfitApiColumns.STAT_DATE: CompanyProfitStandardColumns.STAT_DATE,
+    BaoStockProfitApiColumns.ROE_AVG: CompanyProfitStandardColumns.ROE_AVG,
+    BaoStockProfitApiColumns.NP_MARGIN: CompanyProfitStandardColumns.NP_MARGIN,
+    BaoStockProfitApiColumns.GP_MARGIN: CompanyProfitStandardColumns.GP_MARGIN,
+    BaoStockProfitApiColumns.NET_PROFIT: CompanyProfitStandardColumns.NET_PROFIT,
+    BaoStockProfitApiColumns.EPS_TTM: CompanyProfitStandardColumns.EPS_TTM,
+    BaoStockProfitApiColumns.MB_REVENUE: CompanyProfitStandardColumns.MB_REVENUE,
+    BaoStockProfitApiColumns.TOTAL_SHARE: CompanyProfitStandardColumns.TOTAL_SHARE,
+    BaoStockProfitApiColumns.LIQA_SHARE: CompanyProfitStandardColumns.LIQA_SHARE,
+}
 
 
 class StockProfitDownloader(BlockDownloader):
@@ -23,7 +58,7 @@ class StockProfitDownloader(BlockDownloader):
     股票利润数据下载器，基于 BlockDownloader 实现
     通过区块管理和断点续传机制，解决 API 限流问题
     """
-    
+
     def __init__(self, db_conn, params: DownloadParameters):
         """
         初始化股票利润数据下载器
@@ -35,6 +70,7 @@ class StockProfitDownloader(BlockDownloader):
         self.profit_manager = CompanyProfitManager(db_conn)
         self.stock_manager = BasicStockDataManager(db_conn)
         self.support_block_status = True
+        self.logger = logger
     
     def get_task_type(self) -> DlTaskType:
         """
@@ -104,26 +140,59 @@ class StockProfitDownloader(BlockDownloader):
             # 复制数据避免修改原数据
             df = raw_data.copy()
             
-            # 1. 格式转换
+            # 1. 格式转换 - 使用 API 列名
             # 转换日期格式
-            if 'pubDate' in df.columns:
-                df['pubDate'] = pd.to_datetime(df['pubDate'], errors='coerce')
-                df['pubDate'] = df['pubDate'].dt.strftime('%Y-%m-%d') if not df['pubDate'].isna().all() else df['pubDate']
-            if 'statDate' in df.columns:
-                df['statDate'] = pd.to_datetime(df['statDate'], errors='coerce')
-                df['statDate'] = df['statDate'].dt.strftime('%Y-%m-%d') if not df['statDate'].isna().all() else df['statDate']
+            if BaoStockProfitApiColumns.PUB_DATE in df.columns:
+                df[BaoStockProfitApiColumns.PUB_DATE] = pd.to_datetime(df[BaoStockProfitApiColumns.PUB_DATE], errors='coerce')
+                df[BaoStockProfitApiColumns.PUB_DATE] = df[BaoStockProfitApiColumns.PUB_DATE].dt.strftime('%Y-%m-%d') if not df[BaoStockProfitApiColumns.PUB_DATE].isna().all() else df[BaoStockProfitApiColumns.PUB_DATE]
+            if BaoStockProfitApiColumns.STAT_DATE in df.columns:
+                df[BaoStockProfitApiColumns.STAT_DATE] = pd.to_datetime(df[BaoStockProfitApiColumns.STAT_DATE], errors='coerce')
+                df[BaoStockProfitApiColumns.STAT_DATE] = df[BaoStockProfitApiColumns.STAT_DATE].dt.strftime('%Y-%m-%d') if not df[BaoStockProfitApiColumns.STAT_DATE].isna().all() else df[BaoStockProfitApiColumns.STAT_DATE]
             
             # 转换数值类型
-            numeric_fields = ['roeAvg', 'npMargin', 'gpMargin', 'netProfit', 'epsTTM', 'MBRevenue', 'totalShare', 'liqaShare']
+            numeric_fields = [
+                BaoStockProfitApiColumns.ROE_AVG,
+                BaoStockProfitApiColumns.NP_MARGIN,
+                BaoStockProfitApiColumns.GP_MARGIN,
+                BaoStockProfitApiColumns.NET_PROFIT,
+                BaoStockProfitApiColumns.EPS_TTM,
+                BaoStockProfitApiColumns.MB_REVENUE,
+                BaoStockProfitApiColumns.TOTAL_SHARE,
+                BaoStockProfitApiColumns.LIQA_SHARE
+            ]
             for field in numeric_fields:
                 if field in df.columns:
                     df[field] = pd.to_numeric(df[field], errors='coerce')
-            
-            # 2. 空值处理
-            df = df.dropna(subset=['code', 'statDate'])
-            
-            # 3. 去重
-            df = df.drop_duplicates(subset=['code', 'statDate'], keep='last')
+
+            # 2. 关键步骤：转换为内部标准列名
+            df = df.rename(columns=BAOSTOCK_PROFIT_TO_STANDARD)
+
+            # 2.1 转换股票代码格式（baostock -> 标准）
+            df[CompanyProfitStandardColumns.STD_STOCK_CODE] = df[CompanyProfitStandardColumns.STD_STOCK_CODE].apply(
+                lambda x: convert_baostock_code(x) if pd.notna(x) else x
+            )
+
+            # 3. 空值处理 - 使用标准列名
+            df = df.dropna(subset=[CompanyProfitStandardColumns.STD_STOCK_CODE, CompanyProfitStandardColumns.STAT_DATE])
+
+            # 4. 去重 - 使用标准列名
+            df = df.drop_duplicates(subset=[CompanyProfitStandardColumns.STD_STOCK_CODE, CompanyProfitStandardColumns.STAT_DATE], keep='last')
+
+            # 5. 只保留标准列（包含 std_stock_code 方便调试）
+            final_columns = [
+                CompanyProfitStandardColumns.STD_STOCK_CODE,
+                CompanyProfitStandardColumns.PUB_DATE,
+                CompanyProfitStandardColumns.STAT_DATE,
+                CompanyProfitStandardColumns.ROE_AVG,
+                CompanyProfitStandardColumns.NP_MARGIN,
+                CompanyProfitStandardColumns.GP_MARGIN,
+                CompanyProfitStandardColumns.NET_PROFIT,
+                CompanyProfitStandardColumns.EPS_TTM,
+                CompanyProfitStandardColumns.MB_REVENUE,
+                CompanyProfitStandardColumns.TOTAL_SHARE,
+                CompanyProfitStandardColumns.LIQA_SHARE
+            ]
+            df = df[final_columns]
             
             self.logger.info(f"数据清洗完成，有效数据 {len(df)} 条")
             return df
@@ -155,7 +224,12 @@ class StockProfitDownloader(BlockDownloader):
         if not stock_code or not quarter_str:
             self.logger.error("block_pointer 缺少必要字段")
             return pd.DataFrame()
-        
+
+        bs_stock_code = convert_to_baostock_code(stock_code)
+        if not bs_stock_code:
+            self.logger.error(f"转换股票代码失败：{stock_code}")
+            return pd.DataFrame()
+
         # 从 quarter 字段中提取年份和季度
         try:
             year_str, quarter_str = quarter_str.split('-Q')
@@ -168,11 +242,11 @@ class StockProfitDownloader(BlockDownloader):
         try:
             # 调用接口获取数据
             rs = query_profit_data(
-                code=stock_code,
+                code=bs_stock_code,
                 year=year,
                 quarter=quarter
             )
-            
+
             # 处理返回结果
             if rs.error_code == '0':
                 data_list = []
@@ -211,30 +285,55 @@ class StockProfitDownloader(BlockDownloader):
         Returns:
             bool: 是否保存成功
         """
+        func_name = "save_data"
+        self.logger.debug(f"[{__name__}.{func_name}] 方法开始执行 | data行数: {len(data) if data is not None else 0}")
+        
         # 从 kwargs 中获取 block_pointer
         block_pointer = kwargs.get('block_pointer')
         if not block_pointer:
-            self.logger.error("缺少 block_pointer 参数")
+            self.logger.error(f"[{__name__}.{func_name}] 缺少 block_pointer 参数")
             return False
         
         # 解包 block_pointer
         stock_code = block_pointer.get_value(PointerField.STOCK_CODE)
+        quarter_str = block_pointer.get_value(PointerField.QUARTER)
+        
+        self.logger.debug(f"[{__name__}.{func_name}] block_pointer: stock_code={stock_code}, quarter={quarter_str}")
         
         if not stock_code:
-            self.logger.error("block_pointer 缺少 stock_code 字段")
+            self.logger.error(f"[{__name__}.{func_name}] block_pointer 缺少 stock_code 字段")
             return False
+        
+        # 数据验证
+        if data is None or data.empty:
+            self.logger.warning(f"[{__name__}.{func_name}] 数据为空，无可保存的内容 | stock_code={stock_code}")
+            return True
+        
+        self.logger.debug(f"[{__name__}.{func_name}] 待保存数据: {stock_code}, 行数: {len(data)}, 列: {list(data.columns)}")
+        self.logger.debug(f"[{__name__}.{func_name}] 数据前3行:\n{data.head(3)}")
         
         # 保存数据
         try:
+            self.logger.debug(f"[{__name__}.{func_name}] 开始保存数据 | stock_code={stock_code}")
+            self.logger.debug(f"[{__name__}.{func_name}] self.profit_manager={self.profit_manager}")
+            self.logger.debug(f"[{__name__}.{func_name}] data类型: {type(data)}, data行数: {len(data)}")
+            
             save_result = self.profit_manager.save_profit_data(stock_code, data)
+            
+            self.logger.debug(f"[{__name__}.{func_name}] save_result={save_result}")
+            
             if save_result:
-                self.logger.info(f"保存成功：{stock_code}")
+                self.logger.info(f"[{__name__}.{func_name}] 保存成功 | stock_code={stock_code}, 数据行数={len(data)}")
                 return True
             else:
-                self.logger.error(f"保存失败：{stock_code}")
+                self.logger.error(f"[{__name__}.{func_name}] 保存失败，返回 False | stock_code={stock_code}")
+                import traceback
+                self.logger.error(f"[{__name__}.{func_name}] 异常堆栈: {traceback.format_exc()}")
                 return False
         except Exception as e:
-            self.logger.error(f"保存数据异常：{stock_code} - {str(e)}", exc_info=True)
+            self.logger.error(f"[{__name__}.{func_name}] 保存数据异常 | stock_code={stock_code}, 错误: {str(e)}")
+            import traceback
+            self.logger.error(f"[{__name__}.{func_name}] 异常堆栈: {traceback.format_exc()}")
             return False
 
 def start_new_profit_download(conn, params: DownloadParameters, **kwargs) -> bool:

@@ -127,3 +127,29 @@ class StockXrxdStandardColumns:
     XRXD_RESERVE_TO_STOCK_PS = XRXD_RESERVE_TO_STOCK_PS
     CREATE_TIME = CREATE_TIME
     UPDATE_TIME = UPDATE_TIME
+
+# 公司利润数据列名
+PUB_DATE = "pub_date"
+STAT_DATE = "stat_date"
+ROE_AVG = "roe_avg"
+NP_MARGIN = "np_margin"
+GP_MARGIN = "gp_margin"
+NET_PROFIT = "net_profit"
+EPS_TTM = "eps_ttm"
+MB_REVENUE = "mb_revenue"
+TOTAL_SHARE = "total_share"
+LIQA_SHARE = "liqa_share"
+
+class CompanyProfitStandardColumns:
+    """公司利润数据标准列名 - 用于 company_profit 数据库表，与数据库字段完全一致，是系统内部标准"""
+    STD_STOCK_CODE = STD_STOCK_CODE
+    PUB_DATE = PUB_DATE
+    STAT_DATE = STAT_DATE
+    ROE_AVG = ROE_AVG
+    NP_MARGIN = NP_MARGIN
+    GP_MARGIN = GP_MARGIN
+    NET_PROFIT = NET_PROFIT
+    EPS_TTM = EPS_TTM
+    MB_REVENUE = MB_REVENUE
+    TOTAL_SHARE = TOTAL_SHARE
+    LIQA_SHARE = LIQA_SHARE

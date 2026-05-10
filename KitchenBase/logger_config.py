@@ -39,9 +39,11 @@ class CampsisLogger:
         "Ingredient.DataNest.dm_trade_date": logging.INFO,
         "Ingredient.DataNest.dm_stock_basic": logging.INFO,
         "Ingredient.DataNest.dm_daily": logging.INFO,
+        "Ingredient.DataNest.dm_company_profit": logging.DEBUG,
 
         # downloader 日志级别控制
         "Ingredient.downloader.strategies.block_download_strategy": logging.DEBUG,
+        "Ingredient.downloader.company_profit_downloader": logging.DEBUG,
 
         # 测试包单独控制
         "tests": logging.ERROR,
