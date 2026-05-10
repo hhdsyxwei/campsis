@@ -40,6 +40,9 @@ class CampsisLogger:
         "Ingredient.DataNest.dm_stock_basic": logging.INFO,
         "Ingredient.DataNest.dm_daily": logging.INFO,
 
+        # downloader 日志级别控制
+        "Ingredient.downloader.strategies.block_download_strategy": logging.DEBUG,
+
         # 测试包单独控制
         "tests": logging.ERROR,
         # 第三方包控制（如屏蔽 pandas 日志）

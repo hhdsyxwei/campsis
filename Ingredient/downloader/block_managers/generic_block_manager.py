@@ -72,7 +72,8 @@ class GenericBlockManager(BlockManager):
             return self.status_dm.get_block_count(
                 task_type=self.task_type,
                 pointer_fields=pointer_fields,
-                download_params=params
+                download_params=params,
+                status_list=[DlBlockStatus.COMPLETED]
             )
         except Exception as e:
             self.logger.error(f"获取已完成区块数失败: {str(e)}")
@@ -95,7 +96,8 @@ class GenericBlockManager(BlockManager):
             return self.status_dm.get_block_count(
                 task_type=self.task_type,
                 pointer_fields=pointer_fields,
-                download_params=params
+                download_params=params,
+                status_list=[DlBlockStatus.SKIPPED]
             )
         except Exception as e:
             self.logger.error(f"获取已跳过区块数失败: {str(e)}")

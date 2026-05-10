@@ -191,7 +191,7 @@ def download_stock_data(conn):
     # start_new_cash_flow_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司现金流量数据
     # continue_download_company_cash_flow(conn, start_year, end_year)  # 继续下载2026-2027年的公司现金流量数据
     # 11. 第十步：为公司股票数据打分
-    score_single_stock(conn, stock_codes[0])
+    # score_single_stock(conn, stock_codes[0])
 
 # 程序入口点，当直接运行此脚本时，会执行 main() 函数
 if __name__ == '__main__':

@@ -170,15 +170,17 @@ class GenericBlockStatusDM:
     def get_block_count(self,
                         task_type: DlTaskType,
                         pointer_fields: Tuple[PointerField, ...],
-                        download_params: DownloadParameters) -> int:
+                        download_params: DownloadParameters,
+                        status_list: Optional[List[DlBlockStatus]] = None) -> int:
         """
         获取指定状态的股票时间周期区块数量
 
         过滤条件（根据 pointer_fields 动态启用）：
         1. task_type 类型匹配
-        2. STOCK_CODE 存在时：进行股票过滤
-        3. TIME_FRAME 存在时：使用 download_params.kline_period_list 进行过滤
-        4. YEAR/QUARTER 存在时：使用 download_params.year_range 进行年份过滤
+        2. status_list 状态匹配（可选，默认所有状态）
+        3. STOCK_CODE 存在时：进行股票过滤
+        4. TIME_FRAME 存在时：使用 download_params.kline_period_list 进行过滤
+        5. YEAR/QUARTER 存在时：使用 download_params.year_range 进行年份过滤
 
         字段映射（通过 pointer_fields 参数指定）：
         - pointer_fields[0] 对应 block_key_1
@@ -189,15 +191,17 @@ class GenericBlockStatusDM:
         - PointerField.YEAR 优先于 PointerField.QUARTER
         - 如果 pointer_fields 不包含 STOCK_CODE，则不进行股票过滤
         - 如果 pointer_fields 不包含 TIME_FRAME，则不进行时间周期过滤
+        - 如果 status_list 为空或 None，则匹配所有状态
 
         :param task_type: 任务类型（DlTaskType枚举）
         :param pointer_fields: 指针字段元组，描述 block_key_1/2/3 的含义
         :param download_params: 下载参数容器
+        :param status_list: 状态列表，用于过滤指定状态的区块，默认为 None（匹配所有状态）
         :return: 区块数量
         """
         func_name = "get_block_count"
 
-        self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, pointer_fields={pointer_fields}")
+        self.logger.debug(f"[{__name__}.{func_name}] 获取区块数量: {task_type.value}, pointer_fields={pointer_fields}, status_list={status_list}")
 
         year_range = download_params.year_range
         start_year, end_year = year_range
@@ -221,6 +225,12 @@ class GenericBlockStatusDM:
 
         where_conditions = ["gbs.task_type = %s"]
         params = [task_type.value]
+
+        if status_list:
+            status_values = [s.value for s in status_list]
+            status_placeholders = ','.join(['%s'] * len(status_values))
+            where_conditions.append(f"gbs.status IN ({status_placeholders})")
+            params.extend(status_values)
 
         if stock_block_key:
             if download_params.has_custom_stock_list() and download_params.stock_codes:
