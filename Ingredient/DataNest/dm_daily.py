@@ -138,7 +138,7 @@ class DailyDataManager:
             if cursor:
                 cursor.close()
 
-    def get_price_data(self, std_stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+    def get_price_data(self, std_stock_code: str, start_date: str, end_date: str, price_dtype: str = 'decimal') -> pd.DataFrame:
         """
         获取股票价格数据
         
@@ -146,6 +146,7 @@ class DailyDataManager:
             std_stock_code: 股票代码
             start_date: 开始日期
             end_date: 结束日期
+            price_dtype: 价格数据类型模式，可选 'decimal'（高精度）或 'float'（浮点型，适用于技术指标计算）
             
         Returns:
             pd.DataFrame: 包含日期、开盘价、最高价、最低价、收盘价、成交量等数据的DataFrame
@@ -212,28 +213,35 @@ class DailyDataManager:
             if not df.empty:
                 logger.debug(f"[{__name__}.{func_name}] 数据日期范围: {df['date'].min()} ~ {df['date'].max()}")
             
-            # 转换为PyArrow类型
             from pandas import ArrowDtype
             
-            try:
-                df = df.astype({
-                    'date': ArrowDtype(pa.date32()),
-                    'open': ArrowDtype(pa.decimal128(10, 3)),
-                    'high': ArrowDtype(pa.decimal128(10, 3)),
-                    'low': ArrowDtype(pa.decimal128(10, 3)),
-                    'close': ArrowDtype(pa.decimal128(10, 3)),
-                    'volume': ArrowDtype(pa.int64()),
-                    'amount': ArrowDtype(pa.decimal128(15, 2))
-                })
-                logger.debug(f"[{__name__}.{func_name}] PyArrow类型转换成功")
-            except Exception as e:
-                logger.error(f"[{__name__}.{func_name}] PyArrow类型转换失败: {str(e)}")
-                # 回退到普通类型
+            if price_dtype == 'decimal':
+                try:
+                    df = df.astype({
+                        'date': ArrowDtype(pa.date32()),
+                        'open': ArrowDtype(pa.decimal128(10, 3)),
+                        'high': ArrowDtype(pa.decimal128(10, 3)),
+                        'low': ArrowDtype(pa.decimal128(10, 3)),
+                        'close': ArrowDtype(pa.decimal128(10, 3)),
+                        'volume': ArrowDtype(pa.int64()),
+                        'amount': ArrowDtype(pa.decimal128(15, 2))
+                    })
+                    logger.debug(f"[{__name__}.{func_name}] PyArrow decimal类型转换成功")
+                except Exception as e:
+                    logger.error(f"[{__name__}.{func_name}] PyArrow decimal类型转换失败: {str(e)}")
+                    df['date'] = pd.to_datetime(df['date'])
+                    numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'amount']
+                    for col in numeric_cols:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                    logger.info(f"[{__name__}.{func_name}] 已回退到普通类型转换")
+            elif price_dtype == 'float':
                 df['date'] = pd.to_datetime(df['date'])
-                numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'amount']
-                for col in numeric_cols:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                logger.info(f"[{__name__}.{func_name}] 已回退到普通类型转换")
+                df[['open', 'high', 'low', 'close']] = df[['open', 'high', 'low', 'close']].astype(float)
+                df['volume'] = df['volume'].astype('Int64')
+                df['amount'] = df['amount'].astype(float)
+                logger.debug(f"[{__name__}.{func_name}] float类型转换成功")
+            else:
+                raise ValueError(f"不支持的 price_dtype: {price_dtype}，可选值: 'decimal', 'float'")
             
             logger.debug(f"[{__name__}.{func_name}] 获取价格数据完成 {std_stock_code}: {len(df)} 条")
             logger.debug(f"数据类型: {df.dtypes}")

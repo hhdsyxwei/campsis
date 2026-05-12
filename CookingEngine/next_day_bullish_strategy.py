@@ -62,7 +62,7 @@ def get_stock_daily_data(db_conn, stock_code):
         logger.debug(f"正在获取股票 {stock_code} 的日线数据...")
         daily_manager = DailyDataManager(db_conn)
         # 从数据库获取日线数据
-        df = daily_manager.get_price_data(stock_code, START_DATE, END_DATE)
+        df = daily_manager.get_price_data(stock_code, START_DATE, END_DATE, price_dtype='float')
         
         if df.empty:
             logger.debug(f"股票 {stock_code} 无数据")
@@ -428,8 +428,8 @@ def main_filter(db_conn, strategy_list=['box_breakout', 'bottom_reverse', 'trend
     
     # 5. 保存结果到Excel文件
     try:
-        result_df.to_excel('/mnt/技术面筛选股票池.xlsx', index=False)
-        logger.info(f"结果已保存到：/mnt/技术面筛选股票池.xlsx")
+        result_df.to_excel('./overnight_trading_stock_pool.xlsx', index=False)
+        logger.info(f"结果已保存到：./overnight_trading_stock_pool.xlsx")
     except Exception as e:
         logger.error(f"保存Excel文件失败：{str(e)}", exc_info=True)
     
