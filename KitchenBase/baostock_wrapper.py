@@ -439,10 +439,9 @@ class BaostockWrapper:
                 指定日期可以获取历史某一时间点的成分股构成
         
         返回字段：
+        - updateDate: 更新日期
         - code: 股票代码，格式为sh.xxxxxx或sz.xxxxxx
         - code_name: 股票名称
-        - date: 数据日期
-        - is_hs300: 是否为沪深300成分股（1=是）
         
         返回值：原生ResultData对象
         异常：网络连接异常时抛出ConnectionError异常
@@ -824,10 +823,9 @@ def query_hs300_stocks(
             指定日期可以获取历史某一时间点的成分股构成
     
     返回字段：
+    - updateDate: 更新日期
     - code: 股票代码，格式为sh.xxxxxx或sz.xxxxxx
     - code_name: 股票名称
-    - date: 数据日期
-    - is_hs300: 是否为沪深300成分股（1=是）
     
     返回值：原生ResultData对象
     异常：网络连接异常时抛出ConnectionError异常

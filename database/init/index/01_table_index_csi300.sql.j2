@@ -1,0 +1,11 @@
+/* ====================== 8. 沪深300成分股表 ====================== */
+CREATE TABLE IF NOT EXISTS `{{ table_name | default('index_csi300_component') }}` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `{{ col_std_stock_code | default('std_stock_code') }}` varchar(20) NOT NULL COMMENT '股票代码',
+  `{{ col_stock_name | default('stock_name') }}` varchar(100) DEFAULT NULL COMMENT '股票名称',
+  `{{ col_update_date | default('update_date') }}` date DEFAULT NULL COMMENT '数据更新日期',
+  `{{ col_create_time | default('create_time') }}` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `{{ col_update_time | default('update_time') }}` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_stock_code` (`{{ col_std_stock_code | default('std_stock_code') }}`)
+) ENGINE={{ engine | default('InnoDB') }} DEFAULT CHARSET={{ charset | default('utf8mb4') }} COLLATE={{ collate | default('utf8mb4_unicode_ci') }} COMMENT='沪深300成分股表';
