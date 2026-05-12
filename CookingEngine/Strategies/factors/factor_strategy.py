@@ -10,7 +10,7 @@ from KitchenBase.logger_config import get_logger
 from backtrader.indicators import SMA, RSI
 
 logger = get_logger(__name__)
-logger.error(dir(bt.indicators))
+#logger.error(dir(bt.indicators))
 
 @register_strategy("factor_strategy")
 class FactorStrategy(BaseStrategy):

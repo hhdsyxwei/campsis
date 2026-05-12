@@ -53,6 +53,7 @@ def create_all_tables_if_not_exist(conn) -> bool:
         "stock_adjustment_factor": f"{database_dir}/init/stock/05_table_stock_adjustment_factor.sql.j2",
         "stock_industry": f"{database_dir}/init/stock/06_table_stock_industry.sql.j2",
         "stock_industry_history": f"{database_dir}/init/stock/07_table_stock_industry_history.sql.j2",
+        "index_csi300_component": f"{database_dir}/init/index/01_table_index_csi300.sql.j2",
         "company_profit": f"{database_dir}/init/finance/01_table_company_profit.sql.j2",
         "company_balance": f"{database_dir}/init/finance/02_table_company_balance.sql.j2",
         "company_cash_flow": f"{database_dir}/init/finance/03_table_company_cash_flow.sql.j2",

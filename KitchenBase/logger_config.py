@@ -33,6 +33,7 @@ class CampsisLogger:
         #暂时关闭Picker模块志输出
         "CookingEngine.Picker": logging.DEBUG,
         "Ingredient.downloader.TradeDateMapDownloader": logging.DEBUG,
+        "Ingredient.downloader.index_csi300_downloader": logging.DEBUG,
 
         # DataNest 日志级别控制
         #"Ingredient.DataNest.dm_daily": logging.DEBUG,

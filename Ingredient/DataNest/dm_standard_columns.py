@@ -153,3 +153,17 @@ class CompanyProfitStandardColumns:
     MB_REVENUE = MB_REVENUE
     TOTAL_SHARE = TOTAL_SHARE
     LIQA_SHARE = LIQA_SHARE
+
+
+# 沪深300成分股数据列名
+CSI300_UPDATE_DATE = "update_date"
+
+
+class IndexCsi300StandardColumns:
+    """沪深300成分股数据标准列名 - 用于 index_csi300_component 数据库表，与数据库字段完全一致，是系统内部标准"""
+    ID = "id"
+    STD_STOCK_CODE = STD_STOCK_CODE
+    STOCK_NAME = STOCK_NAME
+    CSI300_UPDATE_DATE = CSI300_UPDATE_DATE
+    CREATE_TIME = "create_time"
+    UPDATE_TIME = "update_time"

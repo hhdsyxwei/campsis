@@ -423,6 +423,48 @@ class BaostockWrapper:
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
         return result
 
+    def query_hs300_stocks(
+        self,
+        date: str = ""
+    ) -> Any:
+        """
+        简单封装baostock.query_hs300_stocks接口
+        获取沪深300指数成分股数据
+        
+        沪深300指数是由沪深两市规模最大、流动性最好的300只股票组成
+        反映A股市场整体表现的核心指数
+        
+        参数说明：
+        - date: 查询日期，格式：YYYY-MM-DD，为空时默认最新日期
+                指定日期可以获取历史某一时间点的成分股构成
+        
+        返回字段：
+        - updateDate: 更新日期
+        - code: 股票代码，格式为sh.xxxxxx或sz.xxxxxx
+        - code_name: 股票名称
+        
+        返回值：原生ResultData对象
+        异常：网络连接异常时抛出ConnectionError异常
+        
+        注意：BaoStock的沪深300成分股数据可能不是实时更新的，
+        如需最新成分股建议从交易所或中证指数公司官网获取
+        """
+        current_func = self.query_hs300_stocks.__name__
+        logger.debug(
+            f"[{current_func}] 查询沪深300成分股 "
+            f"| 查询日期: {date or '最新日期'}"
+        )
+        
+        result = bs.query_hs300_stocks(
+            date=date
+        )
+        
+        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
+            raise ConnectionRefusedError(f"查询沪深300成分股失败: {result.error_msg}")
+
+        logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
+        return result
+
     def query_cash_flow_data(
         self,
         code: str,
@@ -762,6 +804,42 @@ def query_stock_industry(
     """
     return default_wrapper.query_stock_industry(
         code=code,
+        date=date
+    )
+
+
+def query_hs300_stocks(
+    date: str = ""
+) -> Any:
+    """
+    简单封装baostock.query_hs300_stocks接口
+    获取沪深300指数成分股数据
+    
+    沪深300指数是由沪深两市规模最大、流动性最好的300只股票组成
+    反映A股市场整体表现的核心指数
+    
+    参数说明：
+    - date: 查询日期，格式：YYYY-MM-DD，为空时默认最新日期
+            指定日期可以获取历史某一时间点的成分股构成
+    
+    返回字段：
+    - updateDate: 更新日期
+    - code: 股票代码，格式为sh.xxxxxx或sz.xxxxxx
+    - code_name: 股票名称
+    
+    返回值：原生ResultData对象
+    异常：网络连接异常时抛出ConnectionError异常
+    
+    使用示例：
+    >>> import KitchenBase.baostock_wrapper as bs
+    >>> result = bs.query_hs300_stocks()
+    >>> result_data = result.get_data()
+    >>> print(result_data)
+    
+    注意：BaoStock的沪深300成分股数据可能不是实时更新的，
+    如需最新成分股建议从交易所或中证指数公司官网获取
+    """
+    return default_wrapper.query_hs300_stocks(
         date=date
     )
 
