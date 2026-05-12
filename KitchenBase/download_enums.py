@@ -13,6 +13,7 @@ class DlTaskType(Enum):
     COMPANY_PROFIT = "company_profit"  # 公司利润数据
     COMPANY_BALANCE = "company_balance"  # 公司偿债能力数据
     COMPANY_CASH_FLOW = "company_cash_flow"  # 公司现金流量数据
+    INDEX_CSI300 = "index_csi300"  # 沪深300成分股数据
 
 class DlTaskStatus(Enum):
     """

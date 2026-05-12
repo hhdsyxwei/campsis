@@ -15,6 +15,7 @@ from .company_profit_downloader import StockProfitDownloader, start_new_profit_d
 from .company_cash_flow_downloader import StockCashFlowDownloader, start_new_cash_flow_download, continue_cash_flow_download
 from .kline_unified_downloader import start_new_kline_download
 from .stock_basic_downloader import download_stock_basic
+from .index_csi300_downloader import download_csi300_components
 
 __all__ = [
     "SimpleDownloader",

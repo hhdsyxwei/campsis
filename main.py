@@ -31,6 +31,7 @@ from Ingredient.downloader import start_new_cash_flow_download
 from Ingredient.downloader import start_new_adj_factor_download
 from Ingredient.downloader import start_new_xrxd_download
 from Ingredient.downloader import start_new_kline_download
+from Ingredient.downloader import download_csi300_components
 from Ingredient.downloader import download_stock_basic
 from CookingEngine.next_day_bullish_strategy import main_filter
 
@@ -351,6 +352,7 @@ def main():
 
 
     try:
+        download_basic_data(conn)
         download_stock_data(conn)
         #run_backtest(conn)
         main_filter(conn)
@@ -434,6 +436,10 @@ def run_backtest(db_conn):
     analyzer = PerformanceAnalyzer()
     analysis = analyzer.compare(results)
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+
+def download_basic_data(conn):
+    """下载基础数据"""
+    download_csi300_components(conn)  # 下载沪深300_components(conn, params)
 
 def download_stock_data(conn):
 
