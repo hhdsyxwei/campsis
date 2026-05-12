@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 # ===================== 全局可调整参数（核心！可根据你的需求修改）=====================
 # 数据周期参数
 END_DATE = datetime.today().strftime('%Y%m%d')  # 数据结束日期（默认今日）
-START_DATE = (datetime.today() - timedelta(days=120)).strftime('%Y%m%d')  # 数据开始日期（默认前120天，覆盖所有策略的计算周期）
+START_DATE = (datetime.today() - timedelta(days=200)).strftime('%Y%m%d')  # 数据开始日期（默认前200天，确保有足够数据计算MA60等指标）
 
 # 风险过滤参数
 MIN_MARKET_CAP = 50  # 最小流通市值（单位：亿），排除流动性差的小盘股
