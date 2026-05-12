@@ -98,8 +98,6 @@ def main():
     stock_codes = get_csi300_stock_codes(conn)  # 从数据库获取沪深300成分股股票代码
     params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
-    
-
     try:
         download_basic_data(conn, params)
         download_stock_data(conn,params)
