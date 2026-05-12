@@ -156,17 +156,17 @@ class DailyDataManager:
             cursor = self.conn.cursor()
             
             # ========== 调试信息 ==========
-            logger.info(f"[{__name__}.{func_name}] 开始查询 - 股票代码: {std_stock_code}")
-            logger.info(f"[{__name__}.{func_name}] 查询日期范围: {start_date} ~ {end_date}")
-            logger.info(f"[{__name__}.{func_name}] 股票代码类型: {type(std_stock_code)}")
-            logger.info(f"[{__name__}.{func_name}] 开始日期类型: {type(start_date)}")
-            logger.info(f"[{__name__}.{func_name}] 结束日期类型: {type(end_date)}")
+            logger.debug(f"[{__name__}.{func_name}] 开始查询 - 股票代码: {std_stock_code}")
+            logger.debug(f"[{__name__}.{func_name}] 查询日期范围: {start_date} ~ {end_date}")
+            logger.debug(f"[{__name__}.{func_name}] 股票代码类型: {type(std_stock_code)}")
+            logger.debug(f"[{__name__}.{func_name}] 开始日期类型: {type(start_date)}")
+            logger.debug(f"[{__name__}.{func_name}] 结束日期类型: {type(end_date)}")
             
             # 先检查数据库连接
             try:
                 cursor.execute("SELECT DATABASE()")
                 db_name = cursor.fetchone()[0]
-                logger.info(f"[{__name__}.{func_name}] 当前数据库: {db_name}")
+                logger.debug(f"[{__name__}.{func_name}] 当前数据库: {db_name}")
             except Exception as e:
                 logger.warning(f"[{__name__}.{func_name}] 获取数据库名称失败: {str(e)}")
             # ==============================
@@ -179,13 +179,13 @@ class DailyDataManager:
             ORDER BY trade_date
             """
             
-            logger.info(f"[{__name__}.{func_name}] 执行SQL查询")
-            logger.info(f"[{__name__}.{func_name}] 查询参数: ({std_stock_code}, {start_date}, {end_date})")
+            logger.debug(f"[{__name__}.{func_name}] 执行SQL查询")
+            logger.debug(f"[{__name__}.{func_name}] 查询参数: ({std_stock_code}, {start_date}, {end_date})")
             
             cursor.execute(sql, (std_stock_code, start_date, end_date))
             rows = cursor.fetchall()
             
-            logger.info(f"[{__name__}.{func_name}] 查询结果行数: {len(rows) if rows else 0}")
+            logger.debug(f"[{__name__}.{func_name}] 查询结果行数: {len(rows) if rows else 0}")
             
             if not rows:
                 # 调试：检查是否存在该股票的任何数据
@@ -207,10 +207,10 @@ class DailyDataManager:
             columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'pe', 'pb', 'ps', 'pcf', 'adjust_flag', 'trade_status', 'is_st']
             df = pd.DataFrame(rows, columns=columns)
             
-            logger.info(f"[{__name__}.{func_name}] 转换后DataFrame行数: {len(df)}")
-            logger.info(f"[{__name__}.{func_name}] DataFrame列: {df.columns.tolist()}")
+            logger.debug(f"[{__name__}.{func_name}] 转换后DataFrame行数: {len(df)}")
+            logger.debug(f"[{__name__}.{func_name}] DataFrame列: {df.columns.tolist()}")
             if not df.empty:
-                logger.info(f"[{__name__}.{func_name}] 数据日期范围: {df['date'].min()} ~ {df['date'].max()}")
+                logger.debug(f"[{__name__}.{func_name}] 数据日期范围: {df['date'].min()} ~ {df['date'].max()}")
             
             # 转换为PyArrow类型
             from pandas import ArrowDtype
@@ -225,7 +225,7 @@ class DailyDataManager:
                     'volume': ArrowDtype(pa.int64()),
                     'amount': ArrowDtype(pa.decimal128(15, 2))
                 })
-                logger.info(f"[{__name__}.{func_name}] PyArrow类型转换成功")
+                logger.debug(f"[{__name__}.{func_name}] PyArrow类型转换成功")
             except Exception as e:
                 logger.error(f"[{__name__}.{func_name}] PyArrow类型转换失败: {str(e)}")
                 # 回退到普通类型
@@ -235,7 +235,7 @@ class DailyDataManager:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
                 logger.info(f"[{__name__}.{func_name}] 已回退到普通类型转换")
             
-            logger.info(f"[{__name__}.{func_name}] 获取价格数据完成 {std_stock_code}: {len(df)} 条")
+            logger.debug(f"[{__name__}.{func_name}] 获取价格数据完成 {std_stock_code}: {len(df)} 条")
             logger.debug(f"数据类型: {df.dtypes}")
             return df
             

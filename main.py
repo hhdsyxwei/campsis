@@ -99,7 +99,7 @@ def main():
     params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
     try:
-        download_basic_data(conn, params)
+        #download_basic_data(conn, params)
         download_stock_data(conn,params)
         #run_backtest(conn)
         main_filter(conn)
