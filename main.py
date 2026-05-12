@@ -73,15 +73,36 @@ def get_csi300_stock_codes(db_conn) -> list:
 
 def main():
     # Count project code lines
-    count_project_code()
+    # count_project_code()
 
-    # 建立与本地数据库的连接
+    # 1. 建立与本地数据库的连接
     conn = create_database_and_tables()
 
+    # 2. 登录 Baostock 服务 
+    lg = bs.login()
+    if BaostockErrorCode.IP_BLACKLIST == lg.error_code:
+        logger.error("IP已经加入黑名单, 需要去QQ群里求助")
+        return
+
+    if BaostockErrorCode.CONNECTION_REFUSED == lg.error_code:
+        logger.error("连接被拒绝, 请检查网络设置")
+        return
+
+    if BaostockErrorCode.SUCCESS != lg.error_code:
+        logger.error(f"Baostock 登录失败: {lg.error_msg}")
+        return
+    logger.info("Baostock 登录成功。")
+
+    start_year = 2025
+    end_year = 2027
+    stock_codes = get_csi300_stock_codes(conn)  # 从数据库获取沪深300成分股股票代码
+    params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
+
+    
 
     try:
-        download_basic_data(conn)
-        download_stock_data(conn)
+        download_basic_data(conn, params)
+        download_stock_data(conn,params)
         #run_backtest(conn)
         main_filter(conn)
 
@@ -165,62 +186,52 @@ def run_backtest(db_conn):
     analysis = analyzer.compare(results)
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
 
-def download_basic_data(conn):
+def download_basic_data(conn, params):
     """下载基础数据"""
+
+    # 1.第一步：下载沪深300成分股数据
     download_csi300_components(conn)  # 下载沪深300_components(conn, params)
 
-def download_stock_data(conn):
+    # 2. 第二步：下载交易日映射表
+    download_trade_date_map(conn, params)  # 下载交易日映射表，覆盖start_year-end_year年
+
+    # 3. 第三步：下载股票基础信息
+    download_stock_basic(conn, params, [MarketType.INDEX,MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
+
+def download_stock_data(conn,params):
 
     """主函数，协调整个数据下载流程。"""
-    # 1. 登录 Baostock 服务
-    lg = bs.login()
-    if BaostockErrorCode.IP_BLACKLIST == lg.error_code:
-        logger.error("IP已经加入黑名单, 需要去QQ群里求助")
-        return
-
-    if BaostockErrorCode.CONNECTION_REFUSED == lg.error_code:
-        logger.error("连接被拒绝, 请检查网络设置")
-        return
-
-    if BaostockErrorCode.SUCCESS != lg.error_code:
-        logger.error(f"Baostock 登录失败: {lg.error_msg}")
-        return
-    logger.info("Baostock 登录成功。")
-
-    start_year = 2022
-    end_year = 2027
-    stock_codes = get_csi300_stock_codes(conn)  # 从数据库获取沪深300成分股股票代码
-    params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
-
-    download_trade_date_map(conn, params)  # 下载交易日映射表，覆盖start_year-end_year年
-    # 2. 第一步：同步并更新股票的基础信息表 (stock_basic)
-    download_stock_basic(conn, params, [MarketType.INDEX,MarketType.SZ_MAIN_BOARD])  # 下载股票详细信息（行业、上市日期等）
-    # 3. 第二步：下载所有活跃股票的日线数据
-    # start_date 参数是可选的。如果不提供，download_all_stocks_daily_data 会尝试从 stock_basic 表中获取上市日期。
+    # 1. 第一步：下载股票的日线数据，股票范围由params['stock_code']指定
     start_new_daily_download(conn, params)
-    # 4. 第三步：下载行业分类数据
+
+    # 2. 第二步：下载行业分类数据
     # start_new_industry_download(conn, 2020, 2025)  # 从头开始下载2020-2025年的行业分类数据
     # continue_download_industry(conn, 2020, 2025)  # 继续下载2020-2025年的行业分类数据
-    # 5. 第四步：下载5分钟K线数据（示例）
+
+    # 3. 第三步：下载5分钟K线数据（示例）
     # start_new_kline_download(conn, start_year, end_year)  # 下载5分钟K线数据，示例股票代码
     # continue_download_kline(conn, start_year, end_year, KLinePeriod.MIN_5)  # 继续下载2026-2027年的5分钟K线数据
-    # 6. 第五步：下载分红送配数据
+
+    # 4. 第四步：下载分红送配数据
     # start_new_xrxd_download(conn, start_year, end_year)  # 下载2026-2027年的分 红送配数据  
     # continue_download_xrxd(conn, start_year, end_year)  # 下载2026-2027年的分红送配数据
-    # 7. 第六步：下载复权因子数据
+
+    # 5. 第五步：下载复权因子数据
     # start_new_adj_factor_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的复权因子数据
     # continue_download_adj_factor(conn, start_year, end_year)  # 继续下载2026-2027年的复权因子数据
-    # 8. 第七步：下载股票利润数据
+
+    # 6. 第六步：下载股票利润数据
     start_new_profit_download(conn, params)  # 从头开始下载2026-2027年的股票利润数据
 
-    # 9. 第八步：下载公司偿债能力数据
+    # 7. 第七步：下载公司偿债能力数据
     # start_new_balance_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司偿债能力数据
     # continue_download_company_balance(conn, start_year, end_year)  # 继续下载2026-2027年的公司偿债能力数据
     
-    # 10. 第九步：下载公司现金流量数据
+    # 8. 第八步：下载公司现金流量数据
     # start_new_cash_flow_download(conn, start_year, end_year)  # 从头开始下载2026-2027年的公司现金流量数据
     # continue_download_company_cash_flow(conn, start_year, end_year)  # 继续下载2026-2027年的公司现金流量数据
-    # 11. 第十步：为公司股票数据打分
+
+    # 9. 第九步：为公司股票数据打分
     # score_single_stock(conn, stock_codes[0])
 
 # 程序入口点，当直接运行此脚本时，会执行 main() 函数

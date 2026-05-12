@@ -193,7 +193,7 @@ def download_csi300_components(db_conn, date: str = "", **kwargs) -> bool:
     success = downloader.download(dummy_params, date=date)
     
     if success:
-        logger.info("沪深300成分股下载任务完成")
+        logger.warning("🎉🎉🎉 沪深300成分股下载任务完成")
     else:
         logger.error("沪深300成分股下载任务失败")
 
