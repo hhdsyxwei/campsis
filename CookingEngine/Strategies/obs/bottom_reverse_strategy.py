@@ -16,7 +16,7 @@ class BottomReverseStrategy(BaseStrategy):
     3. 出现放量上涨（涨幅≥3%，量能≥2倍5日均量）
     4. RSI从超卖区回升（前5日≤20，当前≥50）
     5. MACD和KDJ同时金叉
-    
+
     退出机制：
     - 持有期退出：持有5天后自动卖出
     - 止损退出：亏损≥5%时卖出
@@ -24,7 +24,7 @@ class BottomReverseStrategy(BaseStrategy):
     
     注册名称："bottom_reverse"
     """
-    
+
     params = (
         # 底部反转条件参数
         ("reverse_fall_days", 60),         # 累计跌幅计算周期（交易日）

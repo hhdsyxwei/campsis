@@ -56,8 +56,10 @@ class MultiIndicatorResonanceStrategy(BaseStrategy):
         macd_signal = (self.macd_dif[-1] < self.macd_dea[-1]) and (self.macd_dif[0] > self.macd_dea[0]) and \
                       (self.macd_hist[0] > self.macd_hist[-1])
         
-        rsi_signal = (self.rsi[0] >= self.params.resonance_rsi_lower) # pyright: ignore
-            and (self.rsi[0] <= self.params.resonance_rsi_upper)  # pyright: ignore
+        resonance_rsi_upper = self.params.resonance_rsi_upper # pyright: ignore
+        resonance_rsi_lower = self.params.resonance_rsi_lower # pyright: ignore
+        rsi_signal = (self.rsi[0] >= resonance_rsi_lower)\
+            and (self.rsi[0] <= resonance_rsi_upper)  # pyright: ignore
         
         kdj_signal = (self.kdj_k[-1] < self.kdj_d[-1]) and (self.kdj_k[0] > self.kdj_d[0]) and (self.kdj_j[0] >= 20)
         

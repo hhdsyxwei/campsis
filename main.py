@@ -34,6 +34,12 @@ from Ingredient.downloader import start_new_kline_download
 from Ingredient.downloader import download_csi300_components
 from Ingredient.downloader import download_stock_basic
 from CookingEngine.next_day_bullish_strategy import main_filter
+from CookingEngine.Strategies.obs import (
+    BoxBreakoutStrategy,
+    BottomReverseStrategy,
+    TrendPullbackStrategy,
+    MultiIndicatorResonanceStrategy
+)
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -102,6 +108,7 @@ def main():
         #download_basic_data(conn, params)
         download_stock_data(conn,params)
         #run_backtest(conn)
+        run_bullish_strategies_backtest(conn)
         main_filter(conn)
 
     except Exception as e:
@@ -183,6 +190,147 @@ def run_backtest(db_conn):
     analyzer = PerformanceAnalyzer()
     analysis = analyzer.compare(results)
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+
+
+def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date="2020-01-01", end_date="2024-12-31", initial_cash=1000000):
+    """
+    运行4个次日看涨策略的回测
+
+    Args:
+        db_conn: 数据库连接对象
+        stock_code: 回测股票代码，默认 "000001.SZ"
+        start_date: 回测开始日期，默认 "2020-01-01"
+        end_date: 回测结束日期，默认 "2024-12-31"
+        initial_cash: 初始资金，默认 100万
+    """
+    logger.info("=" * 60)
+    logger.info("开始运行4个次日看涨策略回测")
+    logger.info(f"回测股票: {stock_code}")
+    logger.info(f"回测区间: {start_date} 至 {end_date}")
+    logger.info(f"初始资金: {initial_cash}")
+    logger.info("=" * 60)
+    
+    runner = ParallelBacktestRunner(db_conn)
+    
+    configs = [
+        {
+            "strategy": {
+                "name": "box_breakout",
+                "params": {
+                    "box_range_days": 20,
+                    "box_fluctuation_rate": 0.15,
+                    "box_break_threshold": 1.03,
+                    "box_volume_multiple": 2.0,
+                    "holding_days": 5,
+                    "stop_loss_ratio": 0.05,
+                    "take_profit_ratio": 0.10,
+                }
+            },
+            "data": {
+                "stock_code": stock_code,
+                "start_date": start_date,
+                "end_date": end_date
+            },
+            "initial_cash": initial_cash
+        },
+        {
+            "strategy": {
+                "name": "bottom_reverse",
+                "params": {
+                    "reverse_fall_days": 60,
+                    "reverse_max_fall_rate": 0.5,
+                    "reverse_build_days": 20,
+                    "reverse_rise_threshold": 0.03,
+                    "reverse_volume_multiple": 2.0,
+                    "reverse_rsi_oversold": 20,
+                    "holding_days": 5,
+                    "stop_loss_ratio": 0.05,
+                    "take_profit_ratio": 0.10,
+                }
+            },
+            "data": {
+                "stock_code": stock_code,
+                "start_date": start_date,
+                "end_date": end_date
+            },
+            "initial_cash": initial_cash
+        },
+        {
+            "strategy": {
+                "name": "trend_pullback",
+                "params": {
+                    "trend_pullback_volume_ratio": 0.8,
+                    "trend_rebound_volume_multiple": 1.5,
+                    "holding_days": 5,
+                    "stop_loss_ratio": 0.05,
+                    "take_profit_ratio": 0.10,
+                }
+            },
+            "data": {
+                "stock_code": stock_code,
+                "start_date": start_date,
+                "end_date": end_date
+            },
+            "initial_cash": initial_cash
+        },
+        {
+            "strategy": {
+                "name": "multi_indicator_resonance",
+                "params": {
+                    "resonance_rsi_lower": 50,
+                    "resonance_rsi_upper": 70,
+                    "min_signal_count": 4,
+                    "holding_days": 5,
+                    "stop_loss_ratio": 0.05,
+                    "take_profit_ratio": 0.10,
+                }
+            },
+            "data": {
+                "stock_code": stock_code,
+                "start_date": start_date,
+                "end_date": end_date
+            },
+            "initial_cash": initial_cash
+        }
+    ]
+    
+    results = runner.run_batch(configs)
+    
+    print("\n" + "=" * 60)
+    print("4个次日看涨策略回测结果对比")
+    print("=" * 60)
+    
+    for result in results:
+        if 'error' in result:
+            logger.error(f"回测出错: {result['error']}")
+            continue
+        strategy = result['strategy']
+        
+        print(f"\n--- {strategy} ---")
+        
+        if 'trades' in result and result['trades']:
+            total_trades = len(result['trades'])
+            winning_trades = len([t for t in result['trades'] if t['net'] > 0])
+            losing_trades = len([t for t in result['trades'] if t['net'] <= 0])
+            win_rate = winning_trades / total_trades * 100 if total_trades > 0 else 0
+            
+            total_profit = sum(t['net'] for t in result['trades'])
+            
+            print(f"  总交易次数: {total_trades}")
+            print(f"  盈利交易: {winning_trades}")
+            print(f"  亏损交易: {losing_trades}")
+            print(f"  胜率: {win_rate:.2f}%")
+            print(f"  总收益: {total_profit:.2f} 元")
+        else:
+            print(f"  无交易记录")
+    
+    analyzer = PerformanceAnalyzer()
+    analysis = analyzer.compare(results)
+    logger.info("回测分析结果:")
+    logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+    
+    return results
+
 
 def download_basic_data(conn, params):
     """下载基础数据"""

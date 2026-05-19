@@ -428,8 +428,8 @@ def main_filter(db_conn, strategy_list=['box_breakout', 'bottom_reverse', 'trend
     
     # 5. 保存结果到Excel文件
     try:
-        result_df.to_excel('./overnight_trading_stock_pool.xlsx', index=False)
-        logger.info(f"结果已保存到：./overnight_trading_stock_pool.xlsx")
+        result_df.to_excel('./backtest_results/overnight_trading_stock_pool.xlsx', index=False)
+        logger.info(f"结果已保存到：./backtest_results/overnight_trading_stock_pool.xlsx")
     except Exception as e:
         logger.error(f"保存Excel文件失败：{str(e)}", exc_info=True)
     
