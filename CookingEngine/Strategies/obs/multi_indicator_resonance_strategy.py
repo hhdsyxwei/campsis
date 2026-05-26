@@ -25,15 +25,15 @@ class MultiIndicatorResonanceStrategy(BaseStrategy):
         self.ma5 = bt.indicators.SMA(self.data, period=5)  # pyright: ignore[reportCallIssue]
         self.ma10 = bt.indicators.SMA(self.data, period=10)  # pyright: ignore[reportCallIssue]
         self.rsi = bt.indicators.RSI(self.data, period=14)  # pyright: ignore[reportCallIssue]
-        self.macd_dif, self.macd_dea, self.macd_hist = bt.indicators.MACD(
-            self.data, fastperiod=12, slowperiod=26, signalperiod=9  # pyright: ignore[reportCallIssue]
+        self.macd = bt.indicators.MACDHisto(
+            self.data, period_me1=12, period_me2=26, period_signal=9  # pyright: ignore[reportCallIssue]
         )
-        self.kdj_k, self.kdj_d = bt.indicators.Stochastic(
-            self.data, fastk_period=9, slowk_period=3, slowd_period=3  # pyright: ignore[reportCallIssue]
+        self.stoch = bt.indicators.Stochastic(
+            self.data, period=9, period_dfast=3, period_dslow=3  # pyright: ignore[reportCallIssue]
         )
-        self.kdj_j = 3 * self.kdj_k - 2 * self.kdj_d
-        self.boll_upper, self.boll_mid, self.boll_lower = bt.indicators.BBands(  # pyright: ignore
-            self.data, period=20, devfactor=2.0
+
+        self.bbands = bt.indicators.BBands( # pyright: ignore
+            self.data, period=20, devfactor=2.0  
         )
         
         logger.info(f"MultiIndicatorResonanceStrategy initialized with params: {self.params}")
@@ -53,17 +53,21 @@ class MultiIndicatorResonanceStrategy(BaseStrategy):
         
         ma_signal = (latest >= self.ma5[0]) and (latest >= self.ma10[0]) and (self.ma5[0] > self.ma5[-1])
         
-        macd_signal = (self.macd_dif[-1] < self.macd_dea[-1]) and (self.macd_dif[0] > self.macd_dea[0]) and \
-                      (self.macd_hist[0] > self.macd_hist[-1])
+        macd_signal = (self.macd.l.macd[-1] < self.macd.l.signal[-1]) and (self.macd.l.macd[0] > self.macd.l.signal[0]) and \
+                      (self.macd.l.histo[0] > self.macd.l.histo[-1])  # pyright: ignore
         
         resonance_rsi_upper = self.params.resonance_rsi_upper # pyright: ignore
         resonance_rsi_lower = self.params.resonance_rsi_lower # pyright: ignore
         rsi_signal = (self.rsi[0] >= resonance_rsi_lower)\
             and (self.rsi[0] <= resonance_rsi_upper)  # pyright: ignore
         
-        kdj_signal = (self.kdj_k[-1] < self.kdj_d[-1]) and (self.kdj_k[0] > self.kdj_d[0]) and (self.kdj_j[0] >= 20)
+        kdj_k = self.stoch.l.percK
+        kdj_d = self.stoch.l.percD
+        kdj_j = 3 * kdj_k[0] - 2 * kdj_d[0]  # pyright: ignore
+        kdj_signal = (kdj_k[-1] < kdj_d[-1]) and (kdj_k[0] > kdj_d[0]) and (kdj_j >= 20)
         
-        boll_signal = (latest >= self.boll_mid[0]) and (latest > prev_1_close)
+        boll_mid = self.bbands.l.mid
+        boll_signal = (latest >= boll_mid[0]) and (latest > prev_1_close)
         
         signal_count = sum([ma_signal, macd_signal, rsi_signal, kdj_signal, boll_signal])
         

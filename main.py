@@ -109,7 +109,7 @@ def main():
         download_stock_data(conn,params)
         #run_backtest(conn)
         run_bullish_strategies_backtest(conn)
-        main_filter(conn)
+        #main_filter(conn)
 
     except Exception as e:
         # 捕获主流程中的任何异常，并记录详细错误信息
@@ -192,7 +192,7 @@ def run_backtest(db_conn):
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
 
 
-def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date="2020-01-01", end_date="2024-12-31", initial_cash=1000000):
+def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date="2020-01-01", end_date="2026-5-21", initial_cash=1000000):
     """
     运行4个次日看涨策略的回测
 
@@ -200,7 +200,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
         db_conn: 数据库连接对象
         stock_code: 回测股票代码，默认 "000001.SZ"
         start_date: 回测开始日期，默认 "2020-01-01"
-        end_date: 回测结束日期，默认 "2024-12-31"
+        end_date: 回测结束日期，默认 "2026-5-21"
         initial_cash: 初始资金，默认 100万
     """
     logger.info("=" * 60)

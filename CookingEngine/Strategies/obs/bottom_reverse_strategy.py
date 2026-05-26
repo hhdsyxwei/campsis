@@ -59,13 +59,12 @@ class BottomReverseStrategy(BaseStrategy):
         
         # 技术指标初始化（Backtrader会自动维护每日更新）
         self.rsi = bt.indicators.RSI(self.data, period=14)  # pyright: ignore[reportCallIssue]  # 相对强弱指标
-        self.macd_dif, self.macd_dea, self.macd_hist = bt.indicators.MACD(
-            self.data, fastperiod=12, slowperiod=26, signalperiod=9          # MACD指标（DIF、DEA、柱状图） # pyright: ignore[reportCallIssue]
-        )  
-        self.kdj_k, self.kdj_d = bt.indicators.Stochastic(
-            self.data, fastk_period=9, slowk_period=3, slowd_period=3       # KDJ指标（K线、D线） # pyright: ignore[reportCallIssue]
+        self.macd = bt.indicators.MACD(
+            self.data, period_me1=12, period_me2=26, period_signal=9  # MACD指标 # pyright: ignore[reportCallIssue]
         )
-        self.kdj_j = 3 * self.kdj_k - 2 * self.kdj_d                         # J线 = 3K - 2D
+        self.stoch = bt.indicators.Stochastic(
+            self.data, period=9, period_dfast=3, period_dslow=3  # KDJ指标 # pyright: ignore[reportCallIssue]
+        )
         self.volume_ma5 = bt.indicators.SMA(self.data.volume, period=5)  # pyright: ignore[reportCallIssue]  # 5日成交量均线
         
         # 记录初始化日志
@@ -90,7 +89,9 @@ class BottomReverseStrategy(BaseStrategy):
         stock_code = self.data._name
 
         # 2. 检查数据量是否足够（需要跌幅周期+筑底周期的数据）
-        required_days = self.params.reverse_fall_days + self.params.reverse_build_days # pyright: ignore
+        reverse_build_days = self.params.reverse_build_days # pyright: ignore
+        reverse_fall_days = self.params.reverse_fall_days # pyright: ignore
+        required_days = reverse_fall_days + reverse_build_days
         if len(self.data) < required_days:
             return
 
@@ -99,20 +100,19 @@ class BottomReverseStrategy(BaseStrategy):
         prev_close = self.data.close[-1]
 
         # 3. 条件1：检查累计跌幅是否达标（深度超跌）
-        # 取前60日（跌幅周期）+ 前20日（筑底周期）的数据
-        prev_high_data = self.data.get(size=self.params.reverse_fall_days + self.params.reverse_build_days) # pyright: ignore
         # 取跌幅周期内的最高价
-        prev_high = max(d.high for d in prev_high_data[:self.params.reverse_fall_days]) # pyright: ignore
+        total_period = reverse_fall_days + reverse_build_days
+        prev_high = max(self.data.high[-i] for i in range(1, reverse_fall_days + 1))
         # 计算累计跌幅
         current_fall_rate = (prev_high - latest) / prev_high
         # 跌幅未达参数所规定的最大累计跌幅(缺省设置50%)，不满足条件
-        if current_fall_rate < self.params.reverse_max_fall_rate: # pyright: ignore
+        if current_fall_rate < self.params.reverse_max_fall_rate:  # pyright: ignore
             return
 
         # 4. 条件2：检查筑底阶段波动（横盘筑底）
-        build_data = self.data.get(size=self.params.reverse_build_days) # pyright: ignore
-        build_high = max(d.high for d in build_data)
-        build_low = min(d.low for d in build_data)
+        # 获取筑底周期的最高和最低价
+        build_high = max(self.data.high[-i] for i in range(1, reverse_build_days + 1))
+        build_low = min(self.data.low[-i] for i in range(1, reverse_build_days + 1))
         build_fluctuation = (build_high / build_low) - 1
         # 筑底周期内波动超过20%，不满足条件
         if build_fluctuation > 0.2:
@@ -135,9 +135,9 @@ class BottomReverseStrategy(BaseStrategy):
         
         # 8. 条件6：检查MACD和KDJ金叉（指标确认2）
         # MACD金叉：DIF从下向上穿越DEA
-        macd_gold_cross = (self.macd_dif[-1] < self.macd_dea[-1]) and (self.macd_dif[0] > self.macd_dea[0])
+        macd_gold_cross = (self.macd.l.macd[-1] < self.macd.l.signal[-1]) and (self.macd.l.macd[0] > self.macd.l.signal[0])  # pyright: ignore
         # KDJ金叉：K线从下向上穿越D线
-        kdj_gold_cross = (self.kdj_k[-1] < self.kdj_d[-1]) and (self.kdj_k[0] > self.kdj_d[0])
+        kdj_gold_cross = (self.stoch.l.percK[-1] < self.stoch.l.percD[-1]) and (self.stoch.l.percK[0] > self.stoch.l.percD[0])  # pyright: ignore
         # 两个指标必须同时金叉
         if not (macd_gold_cross and kdj_gold_cross):
             return

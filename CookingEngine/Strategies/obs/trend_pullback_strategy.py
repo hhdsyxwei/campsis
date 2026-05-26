@@ -26,8 +26,8 @@ class TrendPullbackStrategy(BaseStrategy):
         self.ma20 = bt.indicators.SMA(self.data, period=20)  # pyright: ignore
         self.ma60 = bt.indicators.SMA(self.data, period=60)  # pyright: ignore
         self.rsi = bt.indicators.RSI(self.data, period=14)  # pyright: ignore
-        self.macd_dif, self.macd_dea, self.macd_hist = bt.indicators.MACD(
-            self.data, fastperiod=12, slowperiod=26, signalperiod=9  # pyright: ignore
+        self.macd = bt.indicators.MACD(
+            self.data, period_me1=12, period_me2=26, period_signal=9  # pyright: ignore[reportCallIssue]
         )
         self.volume_ma5 = bt.indicators.SMA(self.data.volume, period=5)  # pyright: ignore[reportCallIssue]
         
@@ -67,7 +67,7 @@ class TrendPullbackStrategy(BaseStrategy):
         if not (callback_volume and rebound_volume):
             return
         
-        if self.macd_dif[0] < self.macd_dea[0] or self.rsi[0] < 50:
+        if self.macd.lines[0][0] < self.macd.lines[1][0] or self.rsi[0] < 50:
             return
         
         if self.getposition(self.data).size == 0:

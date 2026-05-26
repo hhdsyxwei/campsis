@@ -48,13 +48,6 @@ class BacktraderDataAdapter:
         self.cache = DataCache()
 
     def get_stock_data(self, stock_code, start_date, end_date):
-        cache_key = f"{stock_code}_{start_date}_{end_date}"
-
-        cached_data = self.cache.get(cache_key)
-        if cached_data:
-            logger.debug(f"Using cached data for {stock_code}")
-            return cached_data
-
         logger.info(f"Getting price data for {stock_code} from {start_date} to {end_date}")
         df = self.daily_manager.get_price_data(stock_code, start_date, end_date)
 
@@ -74,7 +67,6 @@ class BacktraderDataAdapter:
         df = df[required_columns]
 
         data = StockData(dataname=df)
-        self.cache.set(cache_key, data)
 
         logger.info(f"Created data feed for {stock_code} with {len(df)} bars")
         return data

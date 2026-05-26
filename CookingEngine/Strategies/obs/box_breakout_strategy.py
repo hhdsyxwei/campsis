@@ -35,21 +35,17 @@ class BoxBreakoutStrategy(BaseStrategy):
         
         current_date = self.data.datetime.date(0)
         stock_code = self.data._name
+        box_range_days = self.params.box_range_days # pyright: ignore
         
-        if len(self.data) < self.params.box_range_days + 5:  # pyright: ignore
+        if len(self.data) < box_range_days + 5:
             return
         
         latest = self.data.close[0]
-        box_data = self.data.get(size=self.params.box_range_days)  # pyright: ignore
-        
-        if len(box_data) < self.params.box_range_days:  # pyright: ignore
-            return
-        
-        box_high = max(d.high for d in box_data)
-        box_low = min(d.low for d in box_data)
-        
+        box_high = max(self.data.high.get(size=box_range_days))
+        box_low = min(self.data.low.get(size=box_range_days))
+    
         box_fluctuation = (box_high / box_low) - 1
-        
+
         if box_fluctuation > self.params.box_fluctuation_rate:  # pyright: ignore
             return
         
