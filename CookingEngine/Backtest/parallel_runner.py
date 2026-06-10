@@ -9,7 +9,6 @@ from CookingEngine.Strategies.strategy_factory import StrategyFactory
 from KitchenBase.logger_config import get_logger
 from CookingEngine.Strategies.factors import FactorStrategy
 from CookingEngine.Strategies import strategy_registry
-print("Registered strategies:", strategy_registry.list_strategies())
 
 logger = get_logger(__name__)
 

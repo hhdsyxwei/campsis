@@ -4,6 +4,8 @@
 
 import pandas as pd
 import time
+import os
+from datetime import date
 from typing import Tuple, Optional
 from KitchenBase import DownloadParameters
 from KitchenBase.logger_config import get_logger
@@ -22,6 +24,14 @@ from Ingredient.downloader.block_managers.quarter_stock_blk_mgr import QuarterSt
 
 # ===================== 全局日志记录器 =====================
 logger = get_logger(__name__)
+
+
+QUARTER_ENDS = {
+    1: (3, 31),
+    2: (6, 30),
+    3: (9, 30),
+    4: (12, 31),
+}
 
 class BaoStockProfitApiColumns:
     """baostock API 利润数据原始列名（下载器内部使用）"""
@@ -199,6 +209,10 @@ class StockProfitDownloader(BlockDownloader):
         except Exception as e:
             self.logger.error(f"清洗利润数据异常：{e}", exc_info=True)
             return pd.DataFrame()
+
+    def _is_future_quarter(self, year: int, quarter: int) -> bool:
+        month, day = QUARTER_ENDS[quarter]
+        return date(year, month, day) > date.today()
     
     def download_raw_data(self, params: DownloadParameters, **kwargs) -> pd.DataFrame:
         """
@@ -239,12 +253,24 @@ class StockProfitDownloader(BlockDownloader):
             self.logger.error(f"quarter 字段格式错误：{quarter_str}，应为 'YYYY-QN' 格式")
             return pd.DataFrame()
         
+        if quarter not in QUARTER_ENDS:
+            raise ValueError(f"季度值非法：{quarter}")
+
+        if self._is_future_quarter(year, quarter):
+            self.logger.info(f"跳过未来季度：{stock_code} {year}年Q{quarter}")
+            return pd.DataFrame()
+
+        api_timeout = int(os.getenv("CAMPSIS_BAOSTOCK_FINANCE_TIMEOUT", "60"))
+        api_max_retry = int(os.getenv("CAMPSIS_BAOSTOCK_FINANCE_RETRY", "3"))
+        request_interval = float(os.getenv("CAMPSIS_BAOSTOCK_FINANCE_SLEEP", "0.35"))
+
         try:
-            # 调用接口获取数据
             rs = query_profit_data(
                 code=bs_stock_code,
                 year=year,
-                quarter=quarter
+                quarter=quarter,
+                timeout=api_timeout,
+                max_retry=api_max_retry,
             )
 
             # 处理返回结果
@@ -262,16 +288,15 @@ class StockProfitDownloader(BlockDownloader):
                     self.logger.warning(f"无利润数据：{stock_code} {year}年Q{quarter}")
                     return pd.DataFrame()
             else:
-                # API 调用失败
-                self.logger.error(f"API 调用失败：{stock_code} {year}年Q{quarter} - {rs.error_msg}")
-                return pd.DataFrame()
+                raise RuntimeError(
+                    f"API 调用失败：{stock_code} {year}年Q{quarter} - "
+                    f"{rs.error_code}=={rs.error_msg}"
+                )
         except Exception as e:
-            # 异常处理
             self.logger.error(f"下载异常：{stock_code} {year}年Q{quarter} - {str(e)}", exc_info=True)
-            return pd.DataFrame()
+            raise
         finally:
-            # 避免 API 限流
-            time.sleep(0.1)
+            time.sleep(request_interval)
     
     def save_data(self, data: pd.DataFrame, params: DownloadParameters, **kwargs) -> bool:
         """

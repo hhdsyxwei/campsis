@@ -145,6 +145,33 @@ class GenericBlockStatusDM:
             if cursor:
                 cursor.close()
 
+    def clear_task_statuses(self, task_type: DlTaskType) -> int:
+        """
+        清理指定任务的所有区块状态。
+
+        :param task_type: 任务类型
+        :return: 删除的行数
+        """
+        func_name = "clear_task_statuses"
+        cursor = None
+        try:
+            cursor = self.db_conn.cursor()
+            cursor.execute(
+                "DELETE FROM generic_block_status WHERE task_type = %s",
+                (task_type.value,)
+            )
+            deleted_count = cursor.rowcount
+            self.db_conn.commit()
+            self.logger.info(f"[{__name__}.{func_name}] 已清理 {task_type.value} 区块状态 {deleted_count} 条")
+            return deleted_count
+        except Exception as e:
+            self.logger.error(f"[{__name__}.{func_name}] 清理失败: {str(e)}")
+            self.db_conn.rollback()
+            return 0
+        finally:
+            if cursor:
+                cursor.close()
+
     def _map_pointer_fields_to_block_keys(self, pointer_fields: Tuple[PointerField, ...]) -> Dict[PointerField, Optional[str]]:
         """
         将 pointer_fields 映射到实际数据库字段名称

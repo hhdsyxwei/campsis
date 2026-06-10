@@ -1,4 +1,3 @@
-# download_utils.py
 import os
 
 import pymysql
@@ -15,13 +14,16 @@ print("=== download_utils 正在加载 ===")  # 看是否执行到
 # ================= 配置区域 =================
 # 数据库连接配置，需要根据您的实际环境进行修改
 DB_CONFIG = {
-    'host': 'localhost',         # 数据库主机地址
-    'port': 3306,                # 数据库端口号
-    'user': 'root',              # 数据库用户名
-    'password': 'ta225924',      # 数据库密码
-    'database': 'ashare',        # 要连接的数据库名
-    'charset': 'utf8mb4'         # 连接字符集，支持中文
+    'host': os.getenv('CAMPSIS_DB_HOST', 'localhost'),             # 数据库主机地址
+    'port': int(os.getenv('CAMPSIS_DB_PORT', '3306')),             # 数据库端口号
+    'user': os.getenv('CAMPSIS_DB_USER', 'root'),                  # 数据库用户名
+    'password': os.getenv('CAMPSIS_DB_PASSWORD', '123456'),      # 数据库密码
+    'database': os.getenv('CAMPSIS_DB_NAME', 'ashare'),            # 要连接的数据库名
+    'charset': os.getenv('CAMPSIS_DB_CHARSET', 'utf8mb4')          # 连接字符集，支持中文
 }
+
+if os.getenv('CAMPSIS_DB_UNIX_SOCKET'):
+    DB_CONFIG['unix_socket'] = os.getenv('CAMPSIS_DB_UNIX_SOCKET')
 
 # ================= 工具函数 =================
 

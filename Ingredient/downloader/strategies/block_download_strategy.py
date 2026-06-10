@@ -51,6 +51,9 @@ class BlockDownloadStrategy(DownloadStrategy):
             # 清空之前的下载进度
             self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.NOT_STARTED)
             self.downloader.pointer_manager.clear_dl_pointer()
+            if hasattr(self.downloader.block_manager, "clear_block_statuses"):
+                cleared_count = self.downloader.block_manager.clear_block_statuses()
+                self.logger.info(f"[{self.downloader.get_task_type().value}] 已清理旧区块状态 {cleared_count} 条")
             self.logger.info(f"[{self.downloader.get_task_type().value}] 已清空之前的下载进度")
         
         # 检查下载状态
@@ -104,7 +107,11 @@ class BlockDownloadStrategy(DownloadStrategy):
                 
                 # 下载区块
                 self.logger.debug(f"[BlockDownloadStrategy.execute] 开始下载区块: {next_block}")
-                self.downloader.download_block(next_block, params)
+                block_result = self.downloader.download_block(next_block, params)
+                if not block_result:
+                    self.downloader.status_manager.set_task_status(task_type, DlTaskStatus.ERROR)
+                    self.logger.error(f"{task_identifier} 区块下载失败，任务已标记为 ERROR | 当前区块: {next_block}")
+                    return False
                 self.logger.debug(f"[BlockDownloadStrategy.execute] 区块下载完成: {next_block}")
 
                 # 记录进度
