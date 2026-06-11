@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import KitchenBase.baostock_wrapper as bs
 from KitchenBase.baostock_wrapper import BaostockErrorCode
-from Ingredient.DataNest import create_database_and_tables
+from Ingredient.DataNest import BacktestResultManager, create_database_and_tables
 from Ingredient.downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from CookingEngine.Picker.stock_scorer import score_single_stock
@@ -48,6 +48,33 @@ os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 # os.environ["CAMPSIS_ENV"] = "prod" # 生产环境
 
 logger = get_logger(__name__)
+
+
+def persist_backtest_results(db_conn, stock_code, start_date, end_date, initial_cash,
+                             results, analysis, run_name=None,
+                             commission_rate=0.0003, risk_free_rate=0.03):
+    manager = BacktestResultManager(db_conn)
+    run_id = manager.create_run(
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        initial_cash=initial_cash,
+        run_name=run_name,
+        commission_rate=commission_rate,
+        risk_free_rate=risk_free_rate
+    )
+
+    has_error = any(result.get("error") for result in results)
+    if manager.save_results(run_id, stock_code, results, analysis):
+        if has_error:
+            manager.mark_run_failed(run_id, "部分策略回测失败")
+        else:
+            manager.mark_run_success(run_id)
+    else:
+        manager.mark_run_failed(run_id, "回测结果保存失败")
+
+    logger.info(f"回测结果已保存到数据库: run_id={run_id}")
+    return run_id
 
 
 def get_csi300_stock_codes(db_conn) -> list:
@@ -199,6 +226,16 @@ def run_backtest(db_conn, stock_code="000001.SZ", start_date="2020-01-01", end_d
     analyzer = PerformanceAnalyzer()
     analysis = analyzer.compare(results)
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+    persist_backtest_results(
+        db_conn,
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        initial_cash=initial_cash,
+        results=results,
+        analysis=analysis,
+        run_name=f"factor_{stock_code}_{start_date}_{end_date}"
+    )
 
 
 def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date="2020-01-01", end_date="2026-5-21", initial_cash=1000000):
@@ -337,6 +374,16 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
     analysis = analyzer.compare(results)
     logger.info("回测分析结果:")
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+    persist_backtest_results(
+        db_conn,
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        initial_cash=initial_cash,
+        results=results,
+        analysis=analysis,
+        run_name=f"bullish_{stock_code}_{start_date}_{end_date}"
+    )
     
     return results
 

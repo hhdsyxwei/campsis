@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS backtest_closed_trade (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    run_id VARCHAR(64) NOT NULL,
+    strategy_name VARCHAR(100) NOT NULL,
+    stock_code VARCHAR(20) NOT NULL,
+    close_date DATE NOT NULL,
+    gross_pnl DECIMAL(20, 6) NULL,
+    net_pnl DECIMAL(20, 6) NOT NULL,
+    size INT NULL,
+    raw_json JSON NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_backtest_closed_trade_run_date (run_id, close_date),
+    KEY idx_backtest_closed_trade_stock_date (stock_code, close_date),
+    CONSTRAINT fk_backtest_closed_trade_run
+        FOREIGN KEY (run_id) REFERENCES backtest_run(run_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS backtest_strategy_result (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    run_id VARCHAR(64) NOT NULL,
+    strategy_name VARCHAR(100) NOT NULL,
+    strategy_params_json JSON NULL,
+    final_value DECIMAL(20, 4) NULL,
+    total_return DECIMAL(20, 10) NULL,
+    annual_return DECIMAL(20, 10) NULL,
+    sharpe_ratio DECIMAL(20, 10) NULL,
+    max_drawdown DECIMAL(20, 10) NULL,
+    calmar_ratio DECIMAL(20, 10) NULL,
+    win_rate DECIMAL(20, 10) NULL,
+    profit_factor DECIMAL(20, 10) NULL,
+    trade_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_backtest_strategy_result (run_id, strategy_name),
+    KEY idx_backtest_strategy_result_strategy (strategy_name),
+    CONSTRAINT fk_backtest_strategy_result_run
+        FOREIGN KEY (run_id) REFERENCES backtest_run(run_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

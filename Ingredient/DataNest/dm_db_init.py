@@ -67,6 +67,13 @@ def create_all_tables_if_not_exist(conn) -> bool:
         # K线相关表
         "kline_unified": f"{database_dir}/init/kline/01_table_kline_unified.sql.j2",
         "kline_block_status": f"{database_dir}/init/kline/02_table_kline_block_status.sql.j2",
+
+        # 回测结果相关表
+        "backtest_run": f"{database_dir}/init/backtest/01_table_backtest_run.sql.j2",
+        "backtest_strategy_result": f"{database_dir}/init/backtest/02_table_backtest_strategy_result.sql.j2",
+        "backtest_order_transaction": f"{database_dir}/init/backtest/03_table_backtest_order_transaction.sql.j2",
+        "backtest_closed_trade": f"{database_dir}/init/backtest/04_table_backtest_closed_trade.sql.j2",
+        "backtest_equity_curve": f"{database_dir}/init/backtest/05_table_backtest_equity_curve.sql.j2",
     }
 
     cursor = None

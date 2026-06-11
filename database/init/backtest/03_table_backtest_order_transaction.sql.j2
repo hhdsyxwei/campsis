@@ -1,0 +1,19 @@
+CREATE TABLE IF NOT EXISTS backtest_order_transaction (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    run_id VARCHAR(64) NOT NULL,
+    strategy_name VARCHAR(100) NOT NULL,
+    stock_code VARCHAR(20) NOT NULL,
+    trade_date DATE NOT NULL,
+    side VARCHAR(10) NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(20, 6) NOT NULL,
+    commission DECIMAL(20, 6) NOT NULL DEFAULT 0,
+    amount DECIMAL(20, 6) NOT NULL,
+    raw_json JSON NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_backtest_order_transaction_run_date (run_id, trade_date),
+    KEY idx_backtest_order_transaction_stock_date (stock_code, trade_date),
+    CONSTRAINT fk_backtest_order_transaction_run
+        FOREIGN KEY (run_id) REFERENCES backtest_run(run_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
