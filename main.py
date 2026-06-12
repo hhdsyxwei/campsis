@@ -108,6 +108,8 @@ def main():
         #download_basic_data(conn, params)
         download_stock_data(conn,params)
         #run_backtest(conn)
+
+        # 3. 运行看涨策略回测
         run_bullish_strategies_backtest(conn)
         #main_filter(conn)
 
@@ -224,6 +226,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
+                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
                 }
             },
             "data": {
@@ -246,6 +249,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
+                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
                 }
             },
             "data": {
@@ -264,6 +268,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
+                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
                 }
             },
             "data": {
@@ -283,6 +288,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
+                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
                 }
             },
             "data": {
