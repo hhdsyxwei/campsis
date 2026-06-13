@@ -79,6 +79,21 @@ class GenericBlockManager(BlockManager):
             self.logger.error(f"获取已完成区块数失败: {str(e)}")
             return 0
 
+    def clear_block_statuses(self) -> int:
+        """
+        清理当前任务类型的区块状态。
+
+        Returns:
+            int: 删除的状态记录数
+        """
+        if not self.status_dm or not self.task_type:
+            return 0
+        try:
+            return self.status_dm.clear_task_statuses(self.task_type)
+        except Exception as e:
+            self.logger.error(f"清理区块状态失败: {str(e)}")
+            return 0
+
     def get_skipped_block_count(self, params: DownloadParameters) -> int:
         """
         获取已跳过区块数

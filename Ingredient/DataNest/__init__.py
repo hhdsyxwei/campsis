@@ -16,6 +16,7 @@ from .dm_generic_block_status import GenericBlockStatusDM
 from .dm_company_profit import CompanyProfitManager
 from .dm_company_balance import CompanyBalanceManager
 from .dm_company_cash_flow import CompanyCashFlowManager
+from .dm_backtest import BacktestResultManager
 from .dm_utils import get_nearest_trade_date_before
 from .dm_standard_columns import (
     KlineUnifiedStandardColumns,
@@ -42,6 +43,7 @@ __all__ = [
     'CompanyProfitManager',
     'CompanyBalanceManager',
     'CompanyCashFlowManager',
+    'BacktestResultManager',
     'get_nearest_trade_date_before',
     'KlineUnifiedStandardColumns',
     'StockBasicStandardColumns',

@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS backtest_equity_curve (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    run_id VARCHAR(64) NOT NULL,
+    strategy_name VARCHAR(100) NOT NULL,
+    trade_date DATE NOT NULL,
+    portfolio_value DECIMAL(20, 6) NOT NULL,
+    cash DECIMAL(20, 6) NULL,
+    position_value DECIMAL(20, 6) NULL,
+    daily_return DECIMAL(20, 10) NULL,
+    drawdown DECIMAL(20, 10) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_backtest_equity_curve (run_id, strategy_name, trade_date),
+    CONSTRAINT fk_backtest_equity_curve_run
+        FOREIGN KEY (run_id) REFERENCES backtest_run(run_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

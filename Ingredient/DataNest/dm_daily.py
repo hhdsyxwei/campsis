@@ -212,28 +212,33 @@ class DailyDataManager:
             logger.debug(f"[{__name__}.{func_name}] DataFrame列: {df.columns.tolist()}")
             if not df.empty:
                 logger.debug(f"[{__name__}.{func_name}] 数据日期范围: {df['date'].min()} ~ {df['date'].max()}")
-            
-            from pandas import ArrowDtype
-            
+
+            def fallback_to_numeric_types():
+                df['date'] = pd.to_datetime(df['date'])
+                numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'amount']
+                for col in numeric_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
             if price_dtype == 'decimal':
-                try:
-                    df = df.astype({
-                        'date': ArrowDtype(pa.date32()),
-                        'open': ArrowDtype(pa.decimal128(10, 3)),
-                        'high': ArrowDtype(pa.decimal128(10, 3)),
-                        'low': ArrowDtype(pa.decimal128(10, 3)),
-                        'close': ArrowDtype(pa.decimal128(10, 3)),
-                        'volume': ArrowDtype(pa.int64()),
-                        'amount': ArrowDtype(pa.decimal128(15, 2))
-                    })
-                    logger.debug(f"[{__name__}.{func_name}] PyArrow decimal类型转换成功")
-                except Exception as e:
-                    logger.error(f"[{__name__}.{func_name}] PyArrow decimal类型转换失败: {str(e)}")
-                    df['date'] = pd.to_datetime(df['date'])
-                    numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'amount']
-                    for col in numeric_cols:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                    logger.info(f"[{__name__}.{func_name}] 已回退到普通类型转换")
+                if hasattr(pd, 'ArrowDtype'):
+                    try:
+                        arrow_dtype = pd.ArrowDtype
+                        df = df.astype({
+                            'date': arrow_dtype(pa.date32()),
+                            'open': arrow_dtype(pa.decimal128(10, 3)),
+                            'high': arrow_dtype(pa.decimal128(10, 3)),
+                            'low': arrow_dtype(pa.decimal128(10, 3)),
+                            'close': arrow_dtype(pa.decimal128(10, 3)),
+                            'volume': arrow_dtype(pa.int64()),
+                            'amount': arrow_dtype(pa.decimal128(15, 2))
+                        })
+                        logger.debug(f"[{__name__}.{func_name}] PyArrow decimal类型转换成功")
+                    except Exception as e:
+                        logger.warning(f"[{__name__}.{func_name}] PyArrow decimal类型转换失败，回退到普通类型: {str(e)}")
+                        fallback_to_numeric_types()
+                else:
+                    fallback_to_numeric_types()
+                    logger.debug(f"[{__name__}.{func_name}] 当前 pandas 不支持 ArrowDtype，已使用普通类型转换")
             elif price_dtype == 'float':
                 df['date'] = pd.to_datetime(df['date'])
                 df[['open', 'high', 'low', 'close']] = df[['open', 'high', 'low', 'close']].astype(float)
@@ -253,4 +258,3 @@ class DailyDataManager:
         finally:
             if cursor:
                 cursor.close()
-

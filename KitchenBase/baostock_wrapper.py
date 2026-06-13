@@ -1,8 +1,11 @@
-# baostock_wrapper.py
+import os
 import socket
+import time
 from functools import wraps
 from typing import Any
 import baostock as bs
+import baostock.common.contants as bs_constants
+import baostock.common.context as bs_context
 from KitchenBase.logger_config import get_logger
 from KitchenBase.stock_enums import KLinePeriod
 
@@ -13,7 +16,15 @@ class BaostockErrorCode:
     """Baostock 错误码常量"""
     SUCCESS = "0"                     #baostock成功码
     CONNECTION_REFUSED = "10002007"   #baostock错误消息：网络接收错误。远程主机强迫关闭了一个现有的连接。接收数据异常，请稍后再试。
+    CONNECT_FAIL = "10002002"
+    CONNECT_TIMEOUT = "10002003"
     IP_BLACKLIST = "10001011"        #baostock错误消息：IP被黑名单限制。
+
+TRANSIENT_ERROR_CODES = {
+    BaostockErrorCode.CONNECTION_REFUSED,
+    BaostockErrorCode.CONNECT_FAIL,
+    BaostockErrorCode.CONNECT_TIMEOUT,
+}
 
 class BaostockWrapper:
 
@@ -49,6 +60,64 @@ class BaostockWrapper:
         self.default_timeout = default_timeout
         self.default_max_retry = default_max_retry
         self._logged_in = False
+
+    def _configure_baostock_endpoint(self) -> tuple:
+        host = os.getenv("CAMPSIS_BAOSTOCK_HOST", bs_constants.BAOSTOCK_SERVER_IP)
+        port = int(os.getenv("CAMPSIS_BAOSTOCK_PORT", str(bs_constants.BAOSTOCK_SERVER_PORT)))
+        bs_constants.BAOSTOCK_SERVER_IP = host
+        bs_constants.BAOSTOCK_SERVER_PORT = port
+        return host, port
+
+    def _configure_baostock_proxy(self) -> None:
+        proxy_host = os.getenv("CAMPSIS_BAOSTOCK_PROXY_HOST")
+        proxy_port = os.getenv("CAMPSIS_BAOSTOCK_PROXY_PORT")
+        if not proxy_host or not proxy_port:
+            return
+
+        try:
+            import socks
+        except ImportError as e:
+            raise RuntimeError("已设置 Baostock 代理环境变量，但未安装 PySocks") from e
+
+        proxy_type_name = os.getenv("CAMPSIS_BAOSTOCK_PROXY_TYPE", "socks5").lower()
+        proxy_type_map = {
+            "socks5": socks.SOCKS5,
+            "socks4": socks.SOCKS4,
+            "http": socks.HTTP,
+        }
+        if proxy_type_name not in proxy_type_map:
+            raise ValueError("CAMPSIS_BAOSTOCK_PROXY_TYPE 仅支持 socks5、socks4、http")
+
+        socks.set_default_proxy(proxy_type_map[proxy_type_name], proxy_host, int(proxy_port))
+
+        timeout = self.default_timeout
+
+        def create_proxied_socket(*args, **kwargs):
+            proxied_socket = socks.socksocket(*args, **kwargs)
+            proxied_socket.settimeout(timeout)
+            return proxied_socket
+
+        socket.socket = create_proxied_socket
+        logger.info(f"Baostock TCP连接将通过代理 {proxy_type_name}://{proxy_host}:{proxy_port}")
+
+    def _check_baostock_connectivity(self, host: str, port: int, timeout: int) -> None:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return
+        except socket.timeout as e:
+            raise TimeoutError(f"Baostock TCP连接超时: {host}:{port}") from e
+        except OSError as e:
+            raise ConnectionError(f"Baostock TCP连接失败: {host}:{port} - {e}") from e
+
+    @staticmethod
+    def _clear_default_socket() -> None:
+        default_socket = getattr(bs_context, "default_socket", None)
+        if default_socket is not None:
+            try:
+                default_socket.close()
+            except Exception:
+                pass
+        setattr(bs_context, "default_socket", None)
 
     def _execute_with_retry_and_reauth(
         self,
@@ -96,6 +165,7 @@ class BaostockWrapper:
                 # 步骤3：异常时重新登录（复用已有登录，仅重登保证连接有效性）
                 logger.info(f"[{current_func}] 尝试重新登录baostock以恢复连接")
                 try:
+                    self._clear_default_socket()
                     # 先登出（避免重复登录报错）再登录，复用已有登录态
                     bs.logout()
                     login_result = bs.login()
@@ -113,6 +183,8 @@ class BaostockWrapper:
                 if retry_count >= max_retry:
                     logger.error(f"[{current_func}] 已达到最大重试次数({max_retry})，最终执行失败")
                     raise e
+
+                time.sleep(min(2 ** retry_count, 8))
 
         # 理论上不会走到这里，防止循环异常
         raise RuntimeError(f"[{current_func}] 执行流程异常，未触发重试逻辑")
@@ -311,7 +383,9 @@ class BaostockWrapper:
         self,
         code: str,
         year: int,
-        quarter: int
+        quarter: int,
+        timeout: int = None,
+        max_retry: int = None
     ) -> Any:
         """
         简单封装baostock.query_profit_data接口
@@ -344,13 +418,21 @@ class BaostockWrapper:
             f"| 季度: {quarter}"
         )
         
-        result = bs.query_profit_data(
-            code=code,
-            year=year,
-            quarter=quarter
+        def _native_baostock_call():
+            result = bs.query_profit_data(
+                code=code,
+                year=year,
+                quarter=quarter
+            )
+            if result.error_code in TRANSIENT_ERROR_CODES:
+                raise ConnectionError(f"查询季频盈利能力失败: {result.error_code}=={result.error_msg}")
+            return result
+
+        result = self._execute_with_retry_and_reauth(
+            func=_native_baostock_call,
+            timeout=timeout,
+            max_retry=max_retry,
         )
-        if result.error_code == BaostockErrorCode.CONNECTION_REFUSED:
-            raise ConnectionRefusedError(f"查询季频盈利能力失败: {result.error_code}=={result.error_msg}")
         logger.debug(f"[{current_func}] 查询完成，error_code: {result.error_code}")
         return result
 
@@ -558,16 +640,23 @@ class BaostockWrapper:
         异常：网络连接异常时抛出ConnectionError异常
         """
         current_func = self.login.__name__
-        logger.debug(f"[{current_func}] 登录Baostock系统")
+        host, port = self._configure_baostock_endpoint()
+        self._configure_baostock_proxy()
+        logger.debug(f"[{current_func}] 登录Baostock系统 | endpoint: {host}:{port}")
         
         try:
+            self._check_baostock_connectivity(host, port, timeout=min(self.default_timeout, 10))
+            socket.setdefaulttimeout(self.default_timeout)
             result = bs.login()
             logger.debug(f"[{current_func}] 登录完成，error_code: {result.error_code}")
-            self._logged_in = True
+            self._logged_in = result.error_code == BaostockErrorCode.SUCCESS
             return result
         except Exception as e:
+            self._clear_default_socket()
             logger.error(f"[{current_func}] 登录失败 - {type(e).__name__}: {str(e)}")
             raise ConnectionError(f"登录Baostock系统失败: {str(e)}") from e
+        finally:
+            socket.setdefaulttimeout(None)
 
     def logout(self) -> Any:
         """
@@ -728,7 +817,9 @@ def query_dividend_data(
 def query_profit_data(
     code: str,
     year: int,
-    quarter: int
+    quarter: int,
+    timeout: int = None,
+    max_retry: int = None
 ) -> Any:
     """
     简单封装baostock.query_profit_data接口
@@ -758,7 +849,9 @@ def query_profit_data(
     return default_wrapper.query_profit_data(
         code=code,
         year=year,
-        quarter=quarter
+        quarter=quarter,
+        timeout=timeout,
+        max_retry=max_retry,
     )
 
 

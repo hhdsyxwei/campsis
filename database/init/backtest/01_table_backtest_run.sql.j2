@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS backtest_run (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    run_id VARCHAR(64) NOT NULL,
+    run_name VARCHAR(255) NULL,
+    stock_code VARCHAR(20) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    initial_cash DECIMAL(20, 4) NOT NULL,
+    commission_rate DECIMAL(10, 8) NOT NULL DEFAULT 0.00030000,
+    risk_free_rate DECIMAL(10, 8) NOT NULL DEFAULT 0.03000000,
+    status VARCHAR(20) NOT NULL,
+    error_message TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMP NULL,
+    UNIQUE KEY uk_backtest_run_id (run_id),
+    KEY idx_backtest_run_stock_date (stock_code, start_date, end_date),
+    KEY idx_backtest_run_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

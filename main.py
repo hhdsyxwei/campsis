@@ -10,13 +10,14 @@ PackageManager.install_missing_requirements()
 import os
 import sys
 import json
+import argparse
 
 # Add current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import KitchenBase.baostock_wrapper as bs
 from KitchenBase.baostock_wrapper import BaostockErrorCode
-from Ingredient.DataNest import create_database_and_tables
+from Ingredient.DataNest import BacktestResultManager, create_database_and_tables
 from Ingredient.downloader import download_trade_date_map
 from KitchenBase.stock_enums import KLinePeriod, MarketType
 from CookingEngine.Picker.stock_scorer import score_single_stock
@@ -33,6 +34,7 @@ from Ingredient.downloader import start_new_xrxd_download
 from Ingredient.downloader import start_new_kline_download
 from Ingredient.downloader import download_csi300_components
 from Ingredient.downloader import download_stock_basic
+from Ingredient.downloader import start_new_industry_download
 from CookingEngine.next_day_bullish_strategy import main_filter
 from CookingEngine.Strategies.obs import (
     BoxBreakoutStrategy,
@@ -48,11 +50,31 @@ os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
 logger = get_logger(__name__)
 
 
-logger.debug("这是调试信息（灰色）")
-logger.info("这是普通信息（蓝色）")
-logger.warning("这是警告（黄色）")
-logger.error("这是错误（红色）")
-logger.info("初始化成功！【会加粗】")
+def persist_backtest_results(db_conn, stock_code, start_date, end_date, initial_cash,
+                             results, analysis, run_name=None,
+                             commission_rate=0.0003, risk_free_rate=0.03):
+    manager = BacktestResultManager(db_conn)
+    run_id = manager.create_run(
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        initial_cash=initial_cash,
+        run_name=run_name,
+        commission_rate=commission_rate,
+        risk_free_rate=risk_free_rate
+    )
+
+    has_error = any(result.get("error") for result in results)
+    if manager.save_results(run_id, stock_code, results, analysis):
+        if has_error:
+            manager.mark_run_failed(run_id, "部分策略回测失败")
+        else:
+            manager.mark_run_success(run_id)
+    else:
+        manager.mark_run_failed(run_id, "回测结果保存失败")
+
+    logger.info(f"回测结果已保存到数据库: run_id={run_id}")
+    return run_id
 
 
 def get_csi300_stock_codes(db_conn) -> list:
@@ -77,6 +99,31 @@ def get_csi300_stock_codes(db_conn) -> list:
     return codes
 
 
+def login_baostock() -> bool:
+    """登录 Baostock 并统一处理常见错误。"""
+    try:
+        lg = bs.login()
+    except ConnectionError as e:
+        logger.error(str(e))
+        logger.error("Baostock 使用 www.baostock.com:10030 TCP端口；若80/443可通但10030超时，多半是网络出口或防火墙拦截该端口。")
+        return False
+
+    if BaostockErrorCode.IP_BLACKLIST == lg.error_code:
+        logger.error("IP已经加入黑名单, 需要去QQ群里求助")
+        return False
+
+    if lg.error_code in {BaostockErrorCode.CONNECTION_REFUSED, BaostockErrorCode.CONNECT_FAIL, BaostockErrorCode.CONNECT_TIMEOUT}:
+        logger.error("连接被拒绝, 请检查网络设置")
+        return False
+
+    if BaostockErrorCode.SUCCESS != lg.error_code:
+        logger.error(f"Baostock 登录失败: {lg.error_msg}")
+        return False
+
+    logger.info("Baostock 登录成功。")
+    return True
+
+
 def main():
     # Count project code lines
     # count_project_code()
@@ -84,20 +131,9 @@ def main():
     # 1. 建立与本地数据库的连接
     conn = create_database_and_tables()
 
-    # 2. 登录 Baostock 服务 
-    lg = bs.login()
-    if BaostockErrorCode.IP_BLACKLIST == lg.error_code:
-        logger.error("IP已经加入黑名单, 需要去QQ群里求助")
+    # 2. 登录 Baostock 服务
+    if not login_baostock():
         return
-
-    if BaostockErrorCode.CONNECTION_REFUSED == lg.error_code:
-        logger.error("连接被拒绝, 请检查网络设置")
-        return
-
-    if BaostockErrorCode.SUCCESS != lg.error_code:
-        logger.error(f"Baostock 登录失败: {lg.error_msg}")
-        return
-    logger.info("Baostock 登录成功。")
 
     start_year = 2025
     end_year = 2027
@@ -120,7 +156,7 @@ def main():
         bs.logout()
         logger.info("已断开数据库连接并退出 Baostock。")
 
-def run_backtest(db_conn):
+def run_backtest(db_conn, stock_code="000001.SZ", start_date="2020-01-01", end_date="2025-12-31", initial_cash=1000000):
 
     # 1. Create backtest runner
     runner = ParallelBacktestRunner(db_conn)
@@ -140,11 +176,11 @@ def run_backtest(db_conn):
                 }
             },
             "data": {
-                "stock_code": "000001.SZ",
-                "start_date": "2020-01-01",
-                "end_date": "2025-12-31"
+                "stock_code": stock_code,
+                "start_date": start_date,
+                "end_date": end_date
             },
-            "initial_cash": 1000000
+            "initial_cash": initial_cash
         }
     ]
     
@@ -190,6 +226,16 @@ def run_backtest(db_conn):
     analyzer = PerformanceAnalyzer()
     analysis = analyzer.compare(results)
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+    persist_backtest_results(
+        db_conn,
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        initial_cash=initial_cash,
+        results=results,
+        analysis=analysis,
+        run_name=f"factor_{stock_code}_{start_date}_{end_date}"
+    )
 
 
 def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date="2020-01-01", end_date="2026-5-21", initial_cash=1000000):
@@ -328,6 +374,16 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
     analysis = analyzer.compare(results)
     logger.info("回测分析结果:")
     logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+    persist_backtest_results(
+        db_conn,
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        initial_cash=initial_cash,
+        results=results,
+        analysis=analysis,
+        run_name=f"bullish_{stock_code}_{start_date}_{end_date}"
+    )
     
     return results
 
@@ -380,6 +436,203 @@ def download_stock_data(conn,params):
     # 9. 第九步：为公司股票数据打分
     # score_single_stock(conn, stock_codes[0])
 
-# 程序入口点，当直接运行此脚本时，会执行 main() 函数
+
+def parse_stock_codes(stock_codes_arg):
+    if not stock_codes_arg:
+        return None
+    return [code.strip() for code in stock_codes_arg.split(",") if code.strip()]
+
+
+def parse_kline_periods(period_args):
+    if not period_args:
+        return None
+
+    periods = []
+    supported = {period.value: period for period in KLinePeriod}
+    for value in period_args:
+        if value not in supported:
+            raise ValueError(f"不支持的K线周期: {value}，支持值: {', '.join(sorted(supported))}")
+        periods.append(supported[value])
+    return periods
+
+
+def build_download_params(args, conn=None):
+    stock_codes = parse_stock_codes(getattr(args, "stock_codes", None))
+
+    if stock_codes is None and getattr(args, "stock_source", None) == "csi300" and conn is not None:
+        stock_codes = get_csi300_stock_codes(conn)
+        if not stock_codes:
+            logger.warning("沪深300股票池为空，将使用 stock_fixed_seq 表作为下载股票池")
+            stock_codes = None
+
+    return DownloadParameters(
+        start_year=args.start_year,
+        end_year=args.end_year,
+        stock_codes=stock_codes,
+        kline_period_list=parse_kline_periods(getattr(args, "kline_period", None))
+    )
+
+
+def run_download_tasks(conn, params, tasks):
+    if "all" in tasks:
+        tasks = ["daily", "profit", "balance", "cash-flow", "adj-factor", "xrxd", "kline", "industry"]
+
+    task_handlers = {
+        "daily": start_new_daily_download,
+        "profit": start_new_profit_download,
+        "balance": start_new_balance_download,
+        "cash-flow": start_new_cash_flow_download,
+        "adj-factor": start_new_adj_factor_download,
+        "xrxd": start_new_xrxd_download,
+        "kline": start_new_kline_download,
+        "industry": start_new_industry_download,
+    }
+
+    for task in tasks:
+        logger.info(f"开始执行下载任务: {task}")
+        task_handlers[task](conn, params)
+        logger.info(f"下载任务完成: {task}")
+
+
+def add_common_download_args(parser):
+    parser.add_argument("--start-year", type=int, default=2025, help="开始年份，包含该年")
+    parser.add_argument("--end-year", type=int, default=2027, help="结束年份，不包含该年")
+    parser.add_argument(
+        "--stock-codes",
+        default=None,
+        help="逗号分隔的股票代码列表，例如 000001.SZ,600000.SH；为空时按 --stock-source 获取"
+    )
+    parser.add_argument(
+        "--stock-source",
+        choices=["csi300", "fixed-seq"],
+        default="csi300",
+        help="未显式指定 --stock-codes 时的股票池来源"
+    )
+    parser.add_argument(
+        "--kline-period",
+        action="append",
+        choices=[period.value for period in KLinePeriod],
+        help="K线周期，可重复传入，例如 --kline-period 5m --kline-period 1d"
+    )
+
+
+def create_arg_parser():
+    parser = argparse.ArgumentParser(description="Campsis A股量化数据与回测命令行入口")
+    subparsers = parser.add_subparsers(dest="command")
+
+    subparsers.add_parser("init-db", help="只初始化 MySQL 数据库和表结构")
+
+    basic_parser = subparsers.add_parser("download-basic", help="下载沪深300、交易日历和股票基础信息")
+    add_common_download_args(basic_parser)
+
+    data_parser = subparsers.add_parser("download-data", help="按任务下载行情/财务/行业等数据")
+    add_common_download_args(data_parser)
+    data_parser.add_argument(
+        "--task",
+        action="append",
+        choices=["daily", "profit", "balance", "cash-flow", "adj-factor", "xrxd", "kline", "industry", "all"],
+        default=None,
+        help="下载任务，可重复传入；默认执行 daily 和 profit"
+    )
+
+    backtest_parser = subparsers.add_parser("backtest", help="运行回测")
+    backtest_parser.add_argument("--kind", choices=["factor", "bullish"], default="bullish")
+    backtest_parser.add_argument("--stock-code", default="000001.SZ")
+    backtest_parser.add_argument("--start-date", default="2020-01-01")
+    backtest_parser.add_argument("--end-date", default="2026-05-21")
+    backtest_parser.add_argument("--initial-cash", type=float, default=1000000)
+
+    filter_parser = subparsers.add_parser("filter", help="运行次日看涨策略筛选")
+    filter_parser.add_argument(
+        "--strategy",
+        action="append",
+        choices=["box_breakout", "bottom_reverse", "trend_pullback", "multi_indicator_resonance"],
+        default=None,
+        help="筛选策略，可重复传入；默认运行全部"
+    )
+
+    subparsers.add_parser("full", help="运行原 main() 全流程")
+    return parser
+
+
+def cli_main(argv=None):
+    parser = create_arg_parser()
+    args = parser.parse_args(argv)
+
+    if args.command is None:
+        parser.print_help()
+        return 0
+
+    if args.command == "full":
+        main()
+        return 0
+
+    conn = None
+    baostock_logged_in = False
+    try:
+        conn = create_database_and_tables()
+
+        if args.command == "init-db":
+            logger.info("数据库和表结构初始化完成")
+            return 0
+
+        if args.command in {"download-basic", "download-data"}:
+            if not login_baostock():
+                return 1
+            baostock_logged_in = True
+
+        if args.command == "download-basic":
+            params = build_download_params(args, conn)
+            download_basic_data(conn, params)
+            return 0
+
+        if args.command == "download-data":
+            params = build_download_params(args, conn)
+            run_download_tasks(conn, params, args.task or ["daily", "profit"])
+            return 0
+
+        if args.command == "backtest":
+            if args.kind == "factor":
+                run_backtest(
+                    conn,
+                    stock_code=args.stock_code,
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                    initial_cash=args.initial_cash
+                )
+            else:
+                run_bullish_strategies_backtest(
+                    conn,
+                    stock_code=args.stock_code,
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                    initial_cash=args.initial_cash
+                )
+            return 0
+
+        if args.command == "filter":
+            main_filter(conn, strategy_list=args.strategy or [
+                "box_breakout",
+                "bottom_reverse",
+                "trend_pullback",
+                "multi_indicator_resonance"
+            ])
+            return 0
+
+        parser.error(f"未知命令: {args.command}")
+        return 2
+
+    except Exception as e:
+        logger.error(f"命令执行失败: {e}", exc_info=True)
+        return 1
+    finally:
+        if conn:
+            conn.close()
+        if baostock_logged_in:
+            bs.logout()
+            logger.info("已退出 Baostock。")
+
+
+# 程序入口点
 if __name__ == '__main__':
-    main()
+    sys.exit(cli_main())
