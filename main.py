@@ -272,7 +272,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
-                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
+                    "risk_per_trade": 0.95,  # 预留 5% 手续费缓冲
                 }
             },
             "data": {
@@ -295,7 +295,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
-                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
+                    "risk_per_trade": 0.95,  # 预留 5% 手续费缓冲
                 }
             },
             "data": {
@@ -314,7 +314,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
-                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
+                    "risk_per_trade": 0.95,  # 预留 5% 手续费缓冲
                 }
             },
             "data": {
@@ -334,7 +334,7 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
                     "holding_days": 5,
                     "stop_loss_ratio": 0.05,
                     "take_profit_ratio": 0.10,
-                    "risk_per_trade": 1.0,  # 全仓模式（单股票回测）
+                    "risk_per_trade": 0.95,  # 预留 5% 手续费缓冲
                 }
             },
             "data": {
