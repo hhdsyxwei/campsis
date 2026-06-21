@@ -1,9 +1,9 @@
-# Trailing-Bearish-Grid 策略设计文档
+# 空头追踪网格策略设计文档
 
 ## 一、策略概述和适用场景
 
 ### 1.1 策略名称
-**Trailing-Bearish-Grid**（动态基准空头网格策略）
+**空头追踪网格策略**（Trailing-Bearish-Grid）
 
 ### 1.2 核心机制
 在下降通道中，建立动态移动的基准价（P_base），当价格反弹超过基准价一定幅度时卖出，当价格回落低于卖出价一定幅度时买入回补，通过"卖出-买入"闭环锁定波动收益。
@@ -199,6 +199,10 @@ if all_grids_filled:
 | `round_count` | int | 0 | 完成的网格轮数 |
 | `total_profit` | float | 0 | 累计收益（已实现） |
 | `last_price` | float | 0 | 上一次价格（用于计算基准价下移） |
+| `initial_total_asset` | float | 计算 | 策略启动时的初始总资产 |
+| `cash_profit` | float | 0 | **现金收益**（已实现收益，累计卖出收入 - 累计买入支出） |
+| `total_asset_profit` | float | 0 | **总资产收益**（当前总资产 - 初始总资产，含浮动盈亏） |
+| `start_date` | datetime | 当前日期 | 策略启动日期，用于年化收益率计算 |
 
 ### 4.2 网格记录结构
 
@@ -228,6 +232,31 @@ next_sell_price = calculate_next_sell_price(sold_grids, p_base)
 
 # 下一格买入价（对应最低未回补的网格）
 next_buy_price = calculate_next_buy_price(sold_grids)
+
+# ===== 收益追踪派生变量 =====
+# 当前总资产 = 现金 + 持仓市值
+current_total_asset = broker.get_cash() + current_position * current_price
+
+# 总资产收益（绝对额）
+total_asset_profit = current_total_asset - initial_total_asset
+
+# 现金收益（绝对额，已实现）
+cash_profit = total_profit
+
+# 持有天数
+holding_days = (current_date - start_date).days
+
+# 现金收益率
+cash_return_rate = cash_profit / initial_total_asset if initial_total_asset > 0 else 0
+
+# 总资产收益率
+total_asset_return_rate = total_asset_profit / initial_total_asset if initial_total_asset > 0 else 0
+
+# 现金年化收益率
+cash_annualized_return = cash_return_rate * (365 / holding_days) if holding_days > 0 else 0
+
+# 总资产年化收益率
+total_asset_annualized_return = total_asset_return_rate * (365 / holding_days) if holding_days > 0 else 0
 ```
 
 ---
@@ -306,14 +335,14 @@ Day 11: 盘中低点 9.75 元
 
 ### 5.3 交易记录明细表
 
-| 日期 | 操作 | 价格 | 股数 | 现金变化 | 持仓 | 累计收益 |
-|------|------|------|------|----------|------|----------|
-| Day 1 | - | 10.00 | 5,000 | 50,000 | 5,000 | 0 |
-| Day 5 | **卖出** | 10.35 | 500 | +5,175 | 4,500 | 0 |
-| Day 6 | **卖出** | 10.68 | 500 | +5,340 | 4,000 | 0 |
-| Day 8 | **买入** | 10.10 | 500 | -5,050 | 4,500 | 290 |
-| Day 10 | **买入** | 9.80 | 500 | -4,900 | 5,000 | 565 |
-| ... | ... | ... | ... | ... | ... | ... |
+| 日期 | 操作 | 价格 | 股数 | 现金变化 | 持仓 | 累计收益 | 累计现金收益 | 总资产 | 总资产收益 |
+|------|------|------|------|----------|------|----------|--------------|--------|------------|
+| Day 1 | - | 10.00 | 5,000 | 50,000 | 5,000 | 0 | 0 | 100,000 | 0 |
+| Day 5 | **卖出** | 10.35 | 500 | +5,175 | 4,500 | 0 | 0 | 99,675 | -325 |
+| Day 6 | **卖出** | 10.68 | 500 | +5,340 | 4,000 | 0 | 0 | 99,095 | -905 |
+| Day 8 | **买入** | 10.10 | 500 | -5,050 | 4,500 | 290 | 290 | 99,950 | -50 |
+| Day 10 | **买入** | 9.80 | 500 | -4,900 | 5,000 | 565 | 565 | 100,565 | 565 |
+| ... | ... | ... | ... | ... | ... | ... | ... | ... | ... |
 
 ---
 
@@ -324,13 +353,14 @@ Day 11: 盘中低点 9.75 元
 ```python
 class TrailingBearishGrid(BaseStrategy):
     """
-    Trailing-Bearish-Grid: 动态基准空头网格策略
+    空头追踪网格策略（Trailing-Bearish-Grid）
     
     核心机制：
     1. 基准价动态下移，跟随下降通道
     2. 连续网格卖出，基于上一次卖出价计算
     3. 底仓保护，剩余持仓不低于初始 50%
     4. 闭环回补，锁定每轮收益
+    5. 双维度收益追踪：同时追踪现金收益（已实现）和总资产收益（含浮动）
     """
     
     # 参数定义
@@ -363,6 +393,12 @@ def __init__(self, data_provider, factor_calculator, **kwargs):
     self.sold_grids = []
     self.round_count = 0
     self.total_profit = 0
+    
+    # ===== 双收益追踪变量初始化 =====
+    self.initial_total_asset = initial_value  # 记录初始总资产
+    self.cash_profit = 0                      # 现金收益（已实现）
+    self.total_asset_profit = 0               # 总资产收益
+    self.start_date = self.data.datetime.date(0)  # 策略启动日期
 ```
 
 #### 6.2.2 基准价更新方法
@@ -457,6 +493,11 @@ def close_grid_round(self, grid):
     profit = (grid['sell_price'] - grid['buy_price_actual']) * grid['sell_shares']
     self.total_profit += profit
     
+    # ===== 更新双收益追踪变量 =====
+    self.cash_profit = self.total_profit  # 现金收益即已实现收益
+    current_total_asset = self.broker.get_cash() + self.current_position * self.data.close[0]
+    self.total_asset_profit = current_total_asset - self.initial_total_asset
+    
     # 检查是否所有网格都已回补
     if all(g['filled'] for g in self.sold_grids):
         self.round_count += 1
@@ -494,14 +535,31 @@ def next(self):
 
 ```python
 def log_grid_status(self):
-    """记录网格状态"""
+    """记录网格状态（含双维度收益追踪）"""
+    # 计算当前总资产
+    current_total_asset = self.broker.get_cash() + self.current_position * self.data.close[0]
+    self.total_asset_profit = current_total_asset - self.initial_total_asset
+    self.cash_profit = self.total_profit
+    
+    # 计算持有天数及年化收益率
+    holding_days = (self.data.datetime.date(0) - self.start_date).days
+    cash_return_rate = self.cash_profit / self.initial_total_asset if self.initial_total_asset > 0 else 0
+    total_asset_return_rate = self.total_asset_profit / self.initial_total_asset if self.initial_total_asset > 0 else 0
+    cash_annualized = cash_return_rate * (365 / holding_days) if holding_days > 0 else 0
+    total_asset_annualized = total_asset_return_rate * (365 / holding_days) if holding_days > 0 else 0
+    
     logger.info(f"""
     [GRID STATUS]
     P_base: {self.p_base:.2f}
     Position: {self.current_position} shares
     Sold Grids: {len(self.sold_grids)}
-    Total Profit: {self.total_profit:.2f}
     Round Count: {self.round_count}
+    ----- 收益追踪 -----
+    初始总资产: {self.initial_total_asset:.2f}
+    当前总资产: {current_total_asset:.2f}
+    现金收益:   {self.cash_profit:.2f} (收益率: {cash_return_rate:.2%}, 年化: {cash_annualized:.2%})
+    总资产收益: {self.total_asset_profit:.2f} (收益率: {total_asset_return_rate:.2%}, 年化: {total_asset_annualized:.2%})
+    持有天数:   {holding_days}
     """)
 ```
 
@@ -579,6 +637,6 @@ max_grid_count = 7        # 最多 7 格
 
 ---
 
-**文档版本**：v1.0  
+**文档版本**：v1.1  
 **创建日期**：2026-06-21  
 **适用框架**：backtrader
