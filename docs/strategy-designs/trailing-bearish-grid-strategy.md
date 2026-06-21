@@ -42,6 +42,7 @@ In a downtrend channel, a dynamically moving base price (P_base) is established.
 | Per-Grid Sell Ratio | `grid_sell_ratio` | float | 0.1 (10%) | Q% of base position sold each time |
 | Base Price Shift Threshold | `base_shift_threshold` | float | 0.02 (2%) | Threshold for 2% base price downward shift |
 | Position Protection Line | `min_position_ratio` | float | 0.5 | Remaining position not less than 50% of initial |
+| **Mandatory Buyback Days** | `mandatory_buyback_days` | int | **20** | **Maximum consecutive trading days after a sell before forced market buy-back; if not triggered within N days, execute a market buy-back regardless of price to avoid "incomplete buy-back trap"** |
 
 ### 2.2 Extended Parameters
 
@@ -158,6 +159,75 @@ for sell_record in sold_grids_sorted_by_price_desc:
 2. Fixed Quantity: Exactly equal to the corresponding sell quantity
 3. Cash Check: Ensure sufficient cash for buying
 4. Closed Loop Completion: Each sell-buy round forms a closed loop
+5. **Mandatory Timeout**: Any grid not bought back within `mandatory_buyback_days` (default 20) of trading days **must be force-completed by a market buy-back regardless of current price** (see section 3.3.4).
+
+#### 3.3.4 Forced Market Buy-back (Timeout Rescue)
+
+**Trigger Condition**
+For each `sold_grid_record` where `filled == False`:
+```python
+holding_days = (current_trade_date - sell_record.sell_date).days
+if holding_days >= mandatory_buyback_days:
+    # === Forced Market Buy-back Triggered ===
+    execute_force_buyback(sell_record, reason='timeout')
+```
+
+**Execution Logic**
+```python
+def execute_force_buyback(grid, reason='timeout'):
+    current_price = market_price_best_ask  # Use best ask / market price
+    buy_shares = grid['sell_shares']
+    
+    # Always attempt execution regardless of price
+    execute_buy_market_order(buy_shares)
+    
+    # Record force buyback
+    grid['filled'] = True
+    grid['force_completed'] = True
+    grid['force_reason'] = reason
+    grid['buy_price_actual'] = current_price
+    grid['force_loss'] = current_price - grid['buy_price']
+    
+    # Update global tracking
+    force_completed_count += 1
+    force_loss_total += grid['force_loss']
+    total_profit += (grid['sell_price'] - current_price) * buy_shares
+    
+    # === Critical Warnings ===
+    logger.critical(
+        f"[FORCED BUYBACK] Grid round={grid['round_id']} level={grid['grid_level']} "
+        f"has timed out after {mandatory_buyback_days} days. "
+        f"Intended buy price={grid['buy_price']:.2f}, "
+        f"Actual buy price={current_price:.2f}, "
+        f"Extra loss={grid['force_loss']:.2f}. "
+        f"Reason: {reason}. "
+        f"Please review market conditions and consider adjusting strategy parameters."
+    )
+    
+    # Backtest warning (issued once per backtest run)
+    if not force_buyback_warned:
+        logger.warning(
+            "[BACKTEST WARNING] Forced buyback events detected. "
+            "This indicates the strategy may face 'incomplete buy-back trap' risk in real trading. "
+            "Check whether the following conditions exist: "
+            "(1) Prolonged market rally without pullbacks (bull market); "
+            "(2) Tight grid spacing causing frequent forced buybacks; "
+            "(3) Insufficient cash buffer for forced buys. "
+            "Consider: increasing grid_down_ratio, reducing grid_sell_ratio, "
+            "or adjusting mandatory_buyback_days. "
+            "Total force-completed grids: {}, Total forced loss: {:.2f}".format(
+                force_completed_count, force_loss_total
+            )
+        )
+        force_buyback_warned = True
+```
+
+**Key Rules for Forced Buy-back**
+1. **No price limit**: Forced buy-back executes at market price (or best ask) regardless of how high the price has risen
+2. **No size limit**: Force-buy the exact sell_shares that were sold
+3. **No cash check**: Execute regardless of cash balance; if cash is insufficient, the strategy must enter emergency mode (see section 7.5)
+4. **Immediate lock**: Once force-completed, the grid is marked as filled and cannot be reversed
+5. **Logging mandatory**: Every force buy-back event must be logged at `CRITICAL` level with full details
 
 ---
 
@@ -182,6 +252,7 @@ if all_grids_filled:
 #### 3.4.2 State Reset
 - Clear all sold grid records
 - Reset grid counter
+- **Reset force tracking flags for the new round** (force_buyback_warned can be reset per round if desired)
 - Wait for the next sell signal
 
 ---
@@ -203,6 +274,9 @@ if all_grids_filled:
 | `cash_profit` | float | 0 | **Cash profit** (realized profit, cumulative sell revenue - cumulative buy expenditure) |
 | `total_asset_profit` | float | 0 | **Total asset profit** (current total asset - initial total asset, including floating P&L) |
 | `start_date` | datetime | Current date | Strategy start date, used for annualized return calculation |
+| `force_completed_count` | int | 0 | Number of grids force-completed (for monitoring abnormal markets) |
+| `force_loss_total` | float | 0 | Cumulative extra loss caused by forced buy-back across all grids |
+| `force_buyback_warned` | bool | False | Whether a backtest warning has already been issued for forced buyback events |
 
 ### 4.2 Grid Record Structure
 
@@ -214,7 +288,12 @@ sold_grid_record = {
     'sell_shares': int,        # Sell quantity
     'buy_price': float,        # Corresponding buy price
     'filled': bool,            # Whether bought back
-    'buy_price_actual': float  # Actual buy price (filled after buy-back)
+    'buy_price_actual': float, # Actual buy price (filled after buy-back)
+    # ===== Forced Buyback Tracking =====
+    'sell_date': datetime,     # Trading date on which this sell was executed (for timeout counting)
+    'force_completed': bool,   # Whether this grid was force-completed (timed out, executed at market)
+    'force_reason': str,       # Reason for force completion: 'timeout' | 'stop_loss' | 'liquidity' | None
+    'force_loss': float        # Extra loss (or reduced profit) caused by forced buy-back = actual_buy_price - intended_buy_price
 }
 ```
 
@@ -361,6 +440,9 @@ class TrailingBearishGrid(BaseStrategy):
     3. Position protection, remaining position not less than initial 50%
     4. Closed loop buy-back, locking in each round's profit
     5. Dual-dimension profit tracking: tracks both cash profit (realized) and total asset profit (including floating)
+    6. Forced market buy-back: if a grid cannot be bought back within N trading days (default 20),
+       a market buy-back is force-executed regardless of price to avoid the "incomplete buy-back trap".
+       WARNING: This mechanism introduces bull-market risk. See Section 7.5 for risk disclosure.
     """
     
     # Parameter definitions
@@ -372,6 +454,7 @@ class TrailingBearishGrid(BaseStrategy):
         ('base_shift_threshold', 0.02),     # Base price shift threshold
         ('min_position_ratio', 0.5),        # Position protection line
         ('max_grid_count', 5),              # Maximum grid count
+        ('mandatory_buyback_days', 20),     # Days before force market buy-back
     )
 ```
 
@@ -399,6 +482,12 @@ def __init__(self, data_provider, factor_calculator, **kwargs):
     self.cash_profit = 0                      # Cash profit (realized)
     self.total_asset_profit = 0               # Total asset profit
     self.start_date = self.data.datetime.date(0)  # Strategy start date
+    
+    # ===== Force Buyback Tracking Initialization =====
+    self.force_completed_count = 0            # Number of force-completed grids
+    self.force_loss_total = 0                # Cumulative extra loss from forced buybacks
+    self.force_buyback_warned = False         # Backtest warning flag (one-shot per run)
+    self.allow_new_sells = True               # Master switch for new sells (HALTED in Emergency)
 ```
 
 #### 6.2.2 Base Price Update Method
@@ -481,29 +570,110 @@ def check_buy_signals(self):
     return False, None
 ```
 
-#### 6.2.5 Closed Loop Completion Method
+#### 6.2.5 Forced Buy-back Check Method
 ```python
-def close_grid_round(self, grid):
-    """Complete a round of grid trading"""
-    # Mark as bought back
-    grid['filled'] = True
-    grid['buy_price_actual'] = self.data.close[0]
+def check_force_buyback_signals(self):
+    """Check whether any grid has timed out and requires forced market buy-back"""
+    current_date = self.data.datetime.date(0)
+    force_candidates = []
     
-    # Calculate profit
-    profit = (grid['sell_price'] - grid['buy_price_actual']) * grid['sell_shares']
+    for grid in self.sold_grids:
+        if grid['filled']:
+            continue
+        holding_days = (current_date - grid['sell_date']).days
+        if holding_days >= self.params.mandatory_buyback_days:
+            force_candidates.append((grid, holding_days))
+    
+    # Sort by oldest sell first (most urgent)
+    force_candidates.sort(key=lambda x: x[0]['sell_date'])
+    return force_candidates
+```
+
+#### 6.2.6 Execute Forced Market Buy-back
+```python
+def execute_force_buyback(self, grid, holding_days):
+    """Execute forced market buy-back to avoid incomplete buy-back trap"""
+    current_price = self.data.close[0]  # Use close price as market price
+    buy_shares = grid['sell_shares']
+    
+    # Force buy at market price regardless of cash sufficiency
+    required_cash = buy_shares * current_price
+    available_cash = self.broker.get_cash()
+    
+    if available_cash < required_cash:
+        # Insufficient cash for forced buy-back -> Enter Emergency Mode
+        logger.critical(
+            f"[FORCED BUYBACK EMERGENCY] Insufficient cash for forced buy-back. "
+            f"Required: {required_cash:.2f}, Available: {available_cash:.2f}. "
+            f"Grid round={grid['round_id']} level={grid['grid_level']}. "
+            f"Entering Emergency Mode."
+        )
+        self.enter_emergency_mode(f"insufficient_cash_for_force_buyback")
+        return False
+    
+    # Execute the market buy
+    self.execute_buy_order(buy_shares, current_price)
+    
+    # Update grid record
+    grid['filled'] = True
+    grid['force_completed'] = True
+    grid['force_reason'] = 'timeout'
+    grid['buy_price_actual'] = current_price
+    grid['force_loss'] = (current_price - grid['buy_price']) * buy_shares
+    
+    # Update global tracking
+    self.force_completed_count += 1
+    self.force_loss_total += grid['force_loss']
+    
+    # Update profit
+    profit = (grid['sell_price'] - current_price) * buy_shares
     self.total_profit += profit
     
-    # ===== Update Dual Profit Tracking Variables =====
-    self.cash_profit = self.total_profit  # Cash profit is realized profit
-    current_total_asset = self.broker.get_cash() + self.current_position * self.data.close[0]
-    self.total_asset_profit = current_total_asset - self.initial_total_asset
+    # === Critical Logging ===
+    logger.critical(
+        f"[FORCED BUYBACK] Grid round={grid['round_id']} level={grid['grid_level']} "
+        f"has timed out after {holding_days} days (threshold={self.params.mandatory_buyback_days}). "
+        f"Sell price={grid['sell_price']:.2f}, Intended buy price={grid['buy_price']:.2f}, "
+        f"Actual buy price={current_price:.2f}, Shares={buy_shares}, "
+        f"Forced loss={grid['force_loss']:.2f}, Grid profit={profit:.2f}. "
+        f"Total force-completed grids: {self.force_completed_count}, "
+        f"Total forced loss: {self.force_loss_total:.2f}. "
+        f"Please review market conditions and strategy parameters immediately."
+    )
     
-    # Check whether all grids have been bought back
-    if all(g['filled'] for g in self.sold_grids):
-        self.round_count += 1
-        logger.info(f"[ROUND] Round {self.round_count} completed, this round's profit {profit:.2f} USD")
-        # Reset grid
-        self.sold_grids = []
+    # Backtest warning (issued once)
+    if not self.force_buyback_warned:
+        logger.warning(
+            "[BACKTEST WARNING] Forced buyback events detected during backtest. "
+            f"Number of force-completed grids: {self.force_completed_count}, "
+            f"Total forced loss: {self.force_loss_total:.2f}. "
+            "This indicates the strategy faces 'incomplete buy-back trap' risk. "
+            "Check: (1) Market may be in bull phase without pullbacks; "
+            "(2) Grid spacing may be too tight; (3) Consider increasing grid_down_ratio or mandatory_buyback_days. "
+            "Affected grids must be reviewed for strategy optimization."
+        )
+        self.force_buyback_warned = True
+    
+    return True
+```
+
+#### 6.2.7 Emergency Mode Entry
+```python
+def enter_emergency_mode(self, reason):
+    """Enter emergency mode and halt strategy"""
+    logger.critical(
+        f"[EMERGENCY MODE] Strategy halted. Reason: {reason}. "
+        f"Force-completed grids: {self.force_completed_count}, "
+        f"Total forced loss: {self.force_loss_total:.2f}. "
+        f"Total profit: {self.total_profit:.2f}."
+    )
+    # Halt new sells
+    self.allow_new_sells = False
+    # Force close all unfilled grids at market
+    # (implementation depends on broker API; mark all as force_completed)
+    self._force_close_remaining_grids()
+    # Send external notification
+    self.notify_emergency()
 ```
 
 ### 6.3 Main Loop Implementation
@@ -511,6 +681,14 @@ def close_grid_round(self, grid):
 ```python
 def next(self):
     """Main trading loop"""
+    # 0. Force buyback check (HIGHEST PRIORITY - must run first to avoid trap)
+    force_candidates = self.check_force_buyback_signals()
+    if force_candidates:
+        for grid, holding_days in force_candidates:
+            self.execute_force_buyback(grid, holding_days)
+            self.close_grid_round(grid)
+        return
+    
     # 1. Base price update (after daily close)
     self.update_base_price()
     
@@ -535,7 +713,7 @@ def next(self):
 
 ```python
 def log_grid_status(self):
-    """Record grid status (including dual-dimension profit tracking)"""
+    """Record grid status (including dual-dimension profit tracking and force-buyback monitoring)"""
     # Calculate current total asset
     current_total_asset = self.broker.get_cash() + self.current_position * self.data.close[0]
     self.total_asset_profit = current_total_asset - self.initial_total_asset
@@ -547,6 +725,14 @@ def log_grid_status(self):
     total_asset_return_rate = self.total_asset_profit / self.initial_total_asset if self.initial_total_asset > 0 else 0
     cash_annualized = cash_return_rate * (365 / holding_days) if holding_days > 0 else 0
     total_asset_annualized = total_asset_return_rate * (365 / holding_days) if holding_days > 0 else 0
+    
+    # Calculate force-buyback stress indicators
+    force_loss_ratio = self.force_loss_total / self.initial_total_asset if self.initial_total_asset > 0 else 0
+    force_stress_level = (
+        "CRITICAL" if force_loss_ratio > 0.1 or self.force_completed_count >= self.params.max_grid_count
+        else "HIGH" if self.force_completed_count > 0
+        else "NORMAL"
+    )
     
     logger.info(f"""
     [GRID STATUS]
@@ -560,7 +746,21 @@ def log_grid_status(self):
     Cash Profit:      {self.cash_profit:.2f} (Return: {cash_return_rate:.2%}, Annualized: {cash_annualized:.2%})
     Total Asset Profit: {self.total_asset_profit:.2f} (Return: {total_asset_return_rate:.2%}, Annualized: {total_asset_annualized:.2%})
     Holding Days:     {holding_days}
+    ----- Forced Buyback Monitoring -----
+    Force-Completed Grids: {self.force_completed_count}
+    Total Forced Loss:     {self.force_loss_total:.2f} ({force_loss_ratio:.2%} of initial capital)
+    Stress Level:          {force_stress_level}
     """)
+    
+    # Backtest stress warning
+    if force_stress_level in ('CRITICAL', 'HIGH') and not self.force_buyback_warned:
+        logger.warning(
+            f"[BACKTEST STRESS WARNING] Forced buyback stress level: {force_stress_level}. "
+            f"Force-completed grids: {self.force_completed_count}, "
+            f"Total forced loss: {self.force_loss_total:.2f} ({force_loss_ratio:.2%} of initial capital). "
+            "Please review strategy parameters before deploying to live trading."
+        )
+        self.force_buyback_warned = True
 ```
 
 ---
@@ -586,6 +786,65 @@ def log_grid_status(self):
 - Set maximum grid count (e.g., 5 grids)
 - Prevent over-exposure in one-sided markets
 - Control maximum loss exposure
+
+### 7.5 Forced Buy-back Risk & Emergency Mode
+
+#### 7.5.1 Risk Disclosure (Critical)
+> ⚠️ **WARNING**: The mandatory forced buy-back mechanism is a **double-edged sword**. It solves the "incomplete buy-back trap" but introduces new risks that must be fully understood before deploying this strategy in live trading:
+
+1. **Bull Market Risk (The Primary Risk)**: In a sustained bull market, prices may never fall back to the `buy_price` levels. The strategy will **execute market buy-backs at prices significantly higher than the sell prices**, resulting in **realized losses on every forced buy-back**. The longer the bull market persists, the larger the cumulative loss.
+
+2. **Forced Buy-back Can Wipe Out All Previous Gains**: If a bull market lasts longer than `mandatory_buyback_days` (default 20 trading days) and multiple grids are triggered, forced buy-backs can consume all cash reserves and turn a previously profitable strategy into a losing one.
+
+3. **Liquidity Risk**: Forced buy-back executes at market price. In thin/illiquid markets, the market buy order itself may drive the price even higher, causing slippage beyond expectation.
+
+4. **Cash Reserve Risk**: When multiple grids trigger forced buy-back simultaneously, the total required capital may exceed available cash. In this case:
+   - The strategy enters **Emergency Mode**: the system must alert the user immediately and pause new sells
+   - The user must manually decide whether to inject capital or accept a partial position close
+   - Without intervention, the account may face margin calls or forced liquidation by the broker
+
+5. **Backtest Bias**: Historical backtests may **underestimate** forced buy-back losses because:
+   - Backtest data typically uses one closing price per day, hiding intraday volatility
+   - Slippage and market impact are often not modeled
+   - Bull markets in the past may not reflect future conditions
+
+#### 7.5.2 Warning Indicators
+The following conditions in backtest or live trading indicate the strategy is facing abnormal stress and user attention is required:
+
+| Warning Indicator | Severity | Action Required |
+|-------------------|----------|-----------------|
+| `force_completed_count > 0` | ⚠️ Medium | Review market conditions; this should not happen in normal downtrends |
+| `force_completed_count >= max_grid_count/2` | 🔴 High | Stop new sells immediately; the market is in a bull phase |
+| `force_loss_total > total_profit` | 🔴 Critical | All previous gains have been erased by forced buy-backs; **STOP the strategy immediately** |
+| `force_loss_total > initial_total_asset * 0.1` | 💀 Emergency | Losses exceed 10% of initial capital; enter Emergency Mode |
+| Cash insufficient for forced buy-back | 💀 Emergency | Immediate manual intervention required |
+
+#### 7.5.3 Emergency Mode Protocol
+When emergency conditions are detected:
+```python
+def enter_emergency_mode(reason):
+    # 1. Log critical alert
+    logger.critical(f"[EMERGENCY MODE] Reason: {reason}. Strategy halted.")
+    
+    # 2. Send external notification (email, SMS, webhook)
+    notify_user(reason, force_loss_total, force_completed_count)
+    
+    # 3. Pause all new sell signals
+    self.allow_new_sells = False
+    
+    # 4. Log all open positions and force events
+    log_emergency_snapshot()
+    
+    # 5. Wait for user confirmation before resuming
+    # DO NOT auto-resume
+```
+
+#### 7.5.4 Recommended Mitigations
+1. **Parameter Tuning**: Increase `mandatory_buyback_days` to 30-60 days for bearish markets; or reduce to 10 days if you believe a bull market may be starting
+2. **Cash Buffer**: Keep at least 20% of total assets as an emergency cash buffer beyond the initial 50%
+3. **Market Regime Detection**: Consider adding a bull-market filter (e.g., 200-day MA) that disables sells when the market is confirmed bullish
+4. **Position Sizing**: Reduce `grid_sell_ratio` during market uncertainty
+5. **Regular Backtesting**: Run backtests specifically on bull-market periods to stress-test forced buy-back behavior
 
 ---
 
@@ -628,12 +887,16 @@ max_grid_count = 7        # Maximum 7 grids
 - One-sided decline may lead to stop loss
 - Limited returns in sideways markets
 - May miss out on strong rebounds
+- **Bull market risk**: Forced buy-back at elevated prices can turn the strategy into a losing position. See Section 7.5 for full risk disclosure.
+- **Liquidity risk**: Thin markets during forced buy-back may cause significant slippage
 
 ### 9.3 Usage Recommendations
 - Test on simulated trading first
 - Choose stocks with high volatility
 - Periodically review strategy performance
 - Adjust parameters based on market conditions
+- **Always run backtests on bull-market periods** to stress-test the forced buy-back mechanism
+- Start with conservative `mandatory_buyback_days` (20 days) and adjust based on actual market behavior
 
 ---
 
