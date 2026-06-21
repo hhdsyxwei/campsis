@@ -36,7 +36,7 @@ from Ingredient.downloader import download_csi300_components
 from Ingredient.downloader import download_stock_basic
 from Ingredient.downloader import start_new_industry_download
 from CookingEngine.next_day_bullish_strategy import main_filter
-from CookingEngine.Strategies.obs import (
+from CookingEngine.Strategies.Obs import (
     BoxBreakoutStrategy,
     BottomReverseStrategy,
     TrendPullbackStrategy,

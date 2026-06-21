@@ -6,7 +6,7 @@ from Ingredient.DataNest import create_database_and_tables
 from CookingEngine.Strategies import strategy_registry, StrategyFactory
 from CookingEngine.Backtest import BacktraderDataAdapter
 from CookingEngine.Analysis import PerformanceAnalyzer
-from CookingEngine.Strategies.factors import FactorStrategy
+from CookingEngine.Strategies.Factors import FactorStrategy
 
 
 class TestBacktraderIntegration:

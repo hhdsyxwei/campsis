@@ -1,17 +1,15 @@
 import backtrader as bt
-from CookingEngine.Strategies.base import BaseStrategy
+from CookingEngine.Strategies.Base import BaseStrategy
 from CookingEngine.Strategies import register_strategy
 from KitchenBase.logger_config import get_logger
 
 logger = get_logger(__name__)
 
-@register_strategy("box_breakout")
-class BoxBreakoutStrategy(BaseStrategy):
+@register_strategy("trend_pullback")
+class TrendPullbackStrategy(BaseStrategy):
     params = (
-        ("box_range_days", 20),
-        ("box_fluctuation_rate", 0.15),
-        ("box_break_threshold", 1.03),
-        ("box_volume_multiple", 2.0),
+        ("trend_pullback_volume_ratio", 0.8),
+        ("trend_rebound_volume_multiple", 1.5),
         ("holding_days", 5),
         ("stop_loss_ratio", 0.05),
         ("take_profit_ratio", 0.10),
@@ -23,11 +21,17 @@ class BoxBreakoutStrategy(BaseStrategy):
         self.entry_price = 0
         self.buy_date = None
         
-        self.ma5 = bt.indicators.SMA(self.data, period=5)  # pyright: ignore[reportCallIssue]
-        self.ma10 = bt.indicators.SMA(self.data, period=10)  # pyright: ignore[reportCallIssue]
+        self.ma5 = bt.indicators.SMA(self.data, period=5)  # pyright: ignore
+        self.ma10 = bt.indicators.SMA(self.data, period=10)  # pyright: ignore
+        self.ma20 = bt.indicators.SMA(self.data, period=20)  # pyright: ignore
+        self.ma60 = bt.indicators.SMA(self.data, period=60)  # pyright: ignore
+        self.rsi = bt.indicators.RSI(self.data, period=14)  # pyright: ignore
+        self.macd = bt.indicators.MACD(
+            self.data, period_me1=12, period_me2=26, period_signal=9  # pyright: ignore[reportCallIssue]
+        )
         self.volume_ma5 = bt.indicators.SMA(self.data.volume, period=5)  # pyright: ignore[reportCallIssue]
         
-        logger.info(f"BoxBreakoutStrategy initialized with params: {self.params}")
+        logger.info(f"TrendPullbackStrategy initialized with params: {self.params}")
 
     def next(self):
         if self.order:
@@ -35,27 +39,35 @@ class BoxBreakoutStrategy(BaseStrategy):
         
         current_date = self.data.datetime.date(0)
         stock_code = self.data._name
-        box_range_days = self.params.box_range_days # pyright: ignore
         
-        if len(self.data) < box_range_days + 5:
+        if len(self.data) < 60:
             return
         
         latest = self.data.close[0]
-        box_high = max(self.data.high.get(size=box_range_days))
-        box_low = min(self.data.low.get(size=box_range_days))
-    
-        box_fluctuation = (box_high / box_low) - 1
+        prev_1_close = self.data.close[-1]
+        prev_2_close = self.data.close[-2]
+        
+        if not (self.ma5[0] > self.ma10[0] > self.ma20[0] > self.ma60[0]):
+            return
+        
+        pullback_ma5 = (self.data.low[-2] <= self.ma5[-2]) and (self.data.low[-1] <= self.ma5[-1]) and (latest >= self.ma5[0])
+        pullback_ma10 = (self.data.low[-2] <= self.ma10[-2]) and (self.data.low[-1] <= self.ma10[-1]) and (latest >= self.ma10[0])
+        pullback_ma20 = (self.data.low[-2] <= self.ma20[-2]) and (self.data.low[-1] <= self.ma20[-1]) and (latest >= self.ma20[0])
 
-        if box_fluctuation > self.params.box_fluctuation_rate:  # pyright: ignore
+        if not (pullback_ma5 or pullback_ma10 or pullback_ma20):
             return
         
-        if latest < box_high * self.params.box_break_threshold:  # pyright: ignore
+        trend_pullback_volume_ratio = self.params.trend_pullback_volume_ratio  # pyright: ignore
+        trend_rebound_volume_multiple = self.params.trend_rebound_volume_multiple  # pyright: ignore
+
+        callback_volume = (self.data.volume[-2] <= self.volume_ma5[-2] * trend_pullback_volume_ratio) and \
+                         (self.data.volume[-1] <= self.volume_ma5[-1] * trend_pullback_volume_ratio)
+        rebound_volume = self.data.volume[0] >= self.volume_ma5[0] * trend_rebound_volume_multiple
+        
+        if not (callback_volume and rebound_volume):
             return
         
-        if self.data.volume[0] < self.volume_ma5[0] * self.params.box_volume_multiple:  # pyright: ignore
-            return
-        
-        if latest < self.ma5[0] or latest < self.ma10[0]:
+        if self.macd.lines[0][0] < self.macd.lines[1][0] or self.rsi[0] < 50:
             return
         
         if self.getposition(self.data).size == 0:
@@ -63,7 +75,7 @@ class BoxBreakoutStrategy(BaseStrategy):
             self.order = self.buy(size=size)
             self.entry_price = latest
             self.buy_date = current_date
-            self.log(f"BUY SIGNAL: Box Breakout - {stock_code} at {latest:.2f}")
+            self.log(f"BUY SIGNAL: Trend Pullback - {stock_code} at {latest:.2f}")
         
         else:
             self._check_exit_conditions(current_date, latest)

@@ -4,7 +4,7 @@ import traceback
 
 import backtrader as bt
 
-from CookingEngine.Strategies.base import BaseStrategy
+from CookingEngine.Strategies.Base import BaseStrategy
 from CookingEngine.Strategies import register_strategy
 from KitchenBase.logger_config import get_logger
 
