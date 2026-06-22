@@ -16,6 +16,9 @@ class TrailingBearishGridStrategy(BaseStrategy):
     """
     Trailing Bearish Grid Strategy (空头追踪网格策略)
 
+    Usage:
+        python main.py backtest --kind bearish_grid --stock-code 300760.SZ --start-date 2025-01-01 --end-date 2026-05-21
+
     Core Mechanism:
     1. Base price dynamically shifts down, following the downtrend channel.
     2. Continuous grid selling, calculated based on the previous sell price.
