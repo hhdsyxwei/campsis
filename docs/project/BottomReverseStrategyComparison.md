@@ -132,7 +132,7 @@ Execute order → Update position → Record trade
 ## File References
 
 - `next_day_bullish_strategy.py`: [check_bottom_reverse function](file:///c:/Users/Vulcan/Documents/c/trae-camp3/CookingEngine/next_day_bullish_strategy.py#L178-L228)
-- `bottom_reverse_strategy.py`: [BottomReverseStrategy class](file:///c:/Users/Vulcan/Documents/c/trae-camp3/CookingEngine/Strategies/obs/bottom_reverse_strategy.py)
+- `bottom_reverse_strategy.py`: [BottomReverseStrategy class](file:///c:/Users/Vulcan/Documents/c/trae-camp3/CookingEngine/Strategies/Obs/bottom_reverse_strategy.py)
 
 ---
 

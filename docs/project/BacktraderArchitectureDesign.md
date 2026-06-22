@@ -134,7 +134,7 @@ def register_strategy(name):
 ### 3.3 Strategy Base Class
 
 ```python
-# CookingEngine/Strategies/base/base_strategy.py
+# CookingEngine/Strategies/Base/base_strategy.py
 
 class BaseStrategy(bt.Strategy):
     """Base class for all strategies"""

@@ -36,12 +36,13 @@ from Ingredient.downloader import download_csi300_components
 from Ingredient.downloader import download_stock_basic
 from Ingredient.downloader import start_new_industry_download
 from CookingEngine.next_day_bullish_strategy import main_filter
-from CookingEngine.Strategies.obs import (
+from CookingEngine.Strategies.Obs import (
     BoxBreakoutStrategy,
     BottomReverseStrategy,
     TrendPullbackStrategy,
     MultiIndicatorResonanceStrategy
 )
+from CookingEngine.Strategies.TrailingBearishGrid import TrailingBearishGridStrategy
 
 
 os.environ["CAMPSIS_ENV"] = "dev"   # 开发环境
@@ -137,7 +138,8 @@ def main():
 
     start_year = 2025
     end_year = 2027
-    stock_codes = get_csi300_stock_codes(conn)  # 从数据库获取沪深300成分股股票代码
+    #stock_codes = get_csi300_stock_codes(conn)  # 从数据库获取沪深300成分股股票代码
+    stock_codes = ["300760.SZ"]
     params = DownloadParameters(start_year=start_year, end_year=end_year, stock_codes=stock_codes)
 
     try:
@@ -145,8 +147,8 @@ def main():
         download_stock_data(conn,params)
         #run_backtest(conn)
 
-        # 3. 运行看涨策略回测
-        run_bullish_strategies_backtest(conn)
+        # 3. 运行空头追踪网格策略回测
+        run_trailing_bearish_grid_backtest(conn)
         #main_filter(conn)
 
     except Exception as e:
@@ -394,6 +396,112 @@ def run_bullish_strategies_backtest(db_conn, stock_code="000001.SZ", start_date=
     return results
 
 
+def run_trailing_bearish_grid_backtest(
+        db_conn, stock_code="300760.SZ",
+        start_date="2025-01-01", end_date="2026-05-21",
+        initial_cash=1000000):
+    """
+    Run the Trailing Bearish Grid strategy backtest (空头追踪网格策略).
+
+    Outputs include dual-dimension profit tracking results
+    (cash profit and total asset profit with annualized returns) and
+    force-buyback stress indicators for strategy optimization.
+    """
+    logger.info("=" * 60)
+    logger.info("开始运行空头追踪网格策略 (Trailing Bearish Grid) 回测")
+    logger.info(f"回测股票: {stock_code}")
+    logger.info(f"回测区间: {start_date} 至 {end_date}")
+    logger.info(f"初始资金: {initial_cash}")
+    logger.info("=" * 60)
+
+    runner = ParallelBacktestRunner(db_conn)
+
+    configs = [
+        {
+            "strategy": {
+                "name": "trailing_bearish_grid",
+                "params": {
+                    "initial_position_ratio": 0.5,
+                    "grid_up_ratio": 0.03,
+                    "grid_down_ratio": 0.05,
+                    "grid_sell_ratio": 0.1,
+                    "base_shift_threshold": 0.02,
+                    "min_position_ratio": 0.5,
+                    "max_grid_count": 5,
+                    "mandatory_buyback_days": 20,
+                    "risk_per_trade": 0.95,
+                }
+            },
+            "data": {
+                "stock_code": stock_code,
+                "start_date": start_date,
+                "end_date": end_date
+            },
+            "initial_cash": initial_cash
+        }
+    ]
+
+    results = runner.run_batch(configs)
+
+    print("\n" + "=" * 60)
+    print("空头追踪网格策略回测结果")
+    print("=" * 60)
+
+    for result in results:
+        if 'error' in result:
+            logger.error(f"回测出错: {result['error']}")
+            continue
+        strategy = result['strategy']
+
+        print(f"\n--- {strategy} ---")
+
+        force_completed = result.get('force_completed_count', 0)
+        force_loss = result.get('force_loss_total', 0.0)
+        force_ratio = (force_loss / initial_cash) if initial_cash > 0 else 0.0
+
+        if force_completed > 0:
+            print(f"  ⚠️ 强制回补触发: {force_completed} 次")
+            print(f"  ⚠️ 强制回补额外损失: {force_loss:.2f} ({force_ratio:.2%} of initial capital)")
+            if force_ratio > 0.1:
+                print(f"  💀 压力等级: CRITICAL - 请立即优化策略参数或谨慎部署实盘")
+            else:
+                print(f"  🔴 压力等级: HIGH - 建议在牛市数据上重新回测")
+        else:
+            print(f"  ✅ 无强制回补触发（策略运行于正常区间）")
+
+        if 'trades' in result and result['trades']:
+            total_trades = len(result['trades'])
+            winning_trades = len([t for t in result['trades'] if t['net'] > 0])
+            losing_trades = len([t for t in result['trades'] if t['net'] <= 0])
+            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+            total_profit = sum(t['net'] for t in result['trades'])
+
+            print(f"  总交易次数: {total_trades}")
+            print(f"  盈利交易: {winning_trades}")
+            print(f"  亏损交易: {losing_trades}")
+            print(f"  胜率: {win_rate:.2f}%")
+            print(f"  现金收益 (Cash Profit): {total_profit:.2f} 元")
+        else:
+            print(f"  无交易记录")
+
+    analyzer = PerformanceAnalyzer()
+    analysis = analyzer.compare(results)
+    logger.info("回测分析结果:")
+    logger.info(json.dumps(analysis, indent=4, ensure_ascii=False))
+    persist_backtest_results(
+        db_conn,
+        stock_code=stock_code,
+        start_date=start_date,
+        end_date=end_date,
+        initial_cash=initial_cash,
+        results=results,
+        analysis=analysis,
+        run_name=f"trailing_bearish_grid_{stock_code}_{start_date}_{end_date}"
+    )
+
+    return results
+
+
 def download_basic_data(conn, params):
     """下载基础数据"""
 
@@ -542,7 +650,12 @@ def create_arg_parser():
     )
 
     backtest_parser = subparsers.add_parser("backtest", help="运行回测")
-    backtest_parser.add_argument("--kind", choices=["factor", "bullish"], default="bullish")
+    backtest_parser.add_argument(
+        "--kind",
+        choices=["factor", "bullish", "bearish_grid"],
+        default="bullish",
+        help="回测策略类型: factor(因子策略) / bullish(4个次日看涨策略) / bearish_grid(空头追踪网格策略)"
+    )
     backtest_parser.add_argument("--stock-code", default="000001.SZ")
     backtest_parser.add_argument("--start-date", default="2020-01-01")
     backtest_parser.add_argument("--end-date", default="2026-05-21")
@@ -600,6 +713,14 @@ def cli_main(argv=None):
         if args.command == "backtest":
             if args.kind == "factor":
                 run_backtest(
+                    conn,
+                    stock_code=args.stock_code,
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                    initial_cash=args.initial_cash
+                )
+            elif args.kind == "bearish_grid":
+                run_trailing_bearish_grid_backtest(
                     conn,
                     stock_code=args.stock_code,
                     start_date=args.start_date,

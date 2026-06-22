@@ -7,7 +7,7 @@ import traceback
 from CookingEngine.Backtest.data_adapter import BacktraderDataAdapter
 from CookingEngine.Strategies.strategy_factory import StrategyFactory
 from KitchenBase.logger_config import get_logger
-from CookingEngine.Strategies.factors import FactorStrategy
+from CookingEngine.Strategies.Factors import FactorStrategy
 from CookingEngine.Strategies import strategy_registry
 
 logger = get_logger(__name__)
