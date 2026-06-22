@@ -460,14 +460,14 @@ def run_trailing_bearish_grid_backtest(
         force_ratio = (force_loss / initial_cash) if initial_cash > 0 else 0.0
 
         if force_completed > 0:
-            print(f"  ⚠️ 强制回补触发: {force_completed} 次")
-            print(f"  ⚠️ 强制回补额外损失: {force_loss:.2f} ({force_ratio:.2%} of initial capital)")
+            print(f"  [!] 强制回补触发: {force_completed} 次")
+            print(f"  [!] 强制回补额外损失: {force_loss:.2f} ({force_ratio:.2%} of initial capital)")
             if force_ratio > 0.1:
-                print(f"  💀 压力等级: CRITICAL - 请立即优化策略参数或谨慎部署实盘")
+                print(f"  [X] 压力等级: CRITICAL - 请立即优化策略参数或谨慎部署实盘")
             else:
-                print(f"  🔴 压力等级: HIGH - 建议在牛市数据上重新回测")
+                print(f"  [X] 压力等级: HIGH - 建议在牛市数据上重新回测")
         else:
-            print(f"  ✅ 无强制回补触发（策略运行于正常区间）")
+            print(f"  [OK] 无强制回补触发（策略运行于正常区间）")
 
         if 'trades' in result and result['trades']:
             total_trades = len(result['trades'])
