@@ -6,9 +6,6 @@ import backtrader as bt
 
 from CookingEngine.Strategies.Base import BaseStrategy
 from CookingEngine.Strategies import register_strategy
-from KitchenBase.logger_config import get_logger
-
-logger = get_logger(__name__)
 
 
 @register_strategy("trailing_bearish_grid")
@@ -17,7 +14,7 @@ class TrailingBearishGridStrategy(BaseStrategy):
     Trailing Bearish Grid Strategy (空头追踪网格策略)
 
     Usage:
-        python main.py backtest --kind bearish_grid --stock-code 300760.SZ --start-date 2025-01-01 --end-date 2026-06-18
+        python main.py backtest --kind bearish_grid --stock-code 300760.SZ --start-date 2025-01-01 --end-date 2025-02-28
 
     Core Mechanism:
     1. Base price dynamically shifts down, following the downtrend channel.
@@ -74,6 +71,10 @@ class TrailingBearishGridStrategy(BaseStrategy):
             self.allow_new_sells = True
 
             self.order = None
+            self.slippage_perc = 0.001  # 滑点比例 0.1%
+            self._pending_grid = None
+            self._last_expected_price = 0.0  # 最近一次下单的期望价格
+            self._last_grid_level = '-'  # 最近一次下单的网格级别
         except Exception as e:
             raise
 
@@ -97,7 +98,10 @@ class TrailingBearishGridStrategy(BaseStrategy):
             self.start_date = self.data.datetime.date(0)
 
             if self.initial_shares > 0:
-                self.order = self.buy(size=self.initial_shares)
+                initial_price = current_close * (1.0 + self.slippage_perc)
+                self._last_expected_price = current_close
+                self._last_grid_level = 0
+                self.order = self.buy(size=self.initial_shares, price=initial_price)
         except Exception as e:
             raise
 
@@ -129,7 +133,8 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 holding_days = (current_date - sell_date).days
                 if holding_days >= self.params.mandatory_buyback_days: # pyright: ignore
                     force_candidates.append((grid, holding_days))
-            force_candidates.sort(key=lambda x: x[0].get('sell_date'))
+            # LIFO 原则：优先买回最近卖出的格子（按 sell_date 降序排列）
+            force_candidates.sort(key=lambda x: x[0].get('sell_date'), reverse=True)
             return force_candidates
         except Exception as e:
             return []
@@ -145,9 +150,13 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 self._enter_emergency_mode('insufficient_cash_for_force_buyback')
                 return False
 
-            self.order = self.buy(size=buy_shares)
+            force_buy_price = current_price * (1.0 + self.slippage_perc)
+            grid_level = grid.get('grid_level', '-')
+            self._last_expected_price = current_price
+            self._last_grid_level = grid_level
+            self.order = self.buy(size=buy_shares, price=force_buy_price)
 
-            grid['sell_price_actual'] = grid.get('sell_price')
+            # 保留已有的 sell_price_actual（应该已被 notify_order 正确设置）
             grid['buy_price_actual'] = current_price
             grid['buy_date'] = self.data.datetime.date(0)
             grid['buy_commission'] = float(self.broker.getcommissioninfo(self.data).getcommission(
@@ -200,6 +209,8 @@ class TrailingBearishGridStrategy(BaseStrategy):
             grid_down_ratio = self.params.grid_down_ratio # pyright: ignore
             max_grid_count = self.params.max_grid_count # pyright: ignore
             current_price = float(self.data.close[0])
+            day_high = float(self.data.high[0])
+            day_low = float(self.data.low[0])
 
             # 检查 1: 是否允许新卖出
             if not self.allow_new_sells:
@@ -212,7 +223,11 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 last_grid = self.sold_grids[-1]
                 next_sell_price = last_grid['sell_price'] * (1.0 + grid_up_ratio)
 
-            # 检查 2: 当前价格是否达到卖出价
+            # 检查 2: 卖出价是否在当日K线范围内（必须能当天成交）
+            if next_sell_price < day_low:
+                return False, None
+
+            # 检查 3: 当前价格是否达到卖出价
             if current_price < next_sell_price:
                 return False, None
 
@@ -221,11 +236,11 @@ class TrailingBearishGridStrategy(BaseStrategy):
             remaining = self.current_position - total_sold
             min_allowed = int(self.initial_shares * min_position_ratio)
 
-            # 检查 3: 剩余仓位是否充足
+            # 检查 4: 剩余仓位是否充足
             if remaining <= min_allowed:
                 return False, None
 
-            # 检查 4: 网格数量是否超限
+            # 检查 5: 网格数量是否超限
             if len(self.sold_grids) >= max_grid_count:
                 return False, None
 
@@ -233,7 +248,7 @@ class TrailingBearishGridStrategy(BaseStrategy):
             sell_shares = int(self.initial_shares * grid_sell_ratio)
             actual_shares = min(sell_shares, max(0, remaining - min_allowed))
 
-            # 检查 5: 实际卖出数量是否为 0
+            # 检查 6: 实际卖出数量是否为 0
             if actual_shares <= 0:
                 return False, None
 
@@ -250,16 +265,37 @@ class TrailingBearishGridStrategy(BaseStrategy):
     def check_buy_signals(self):
         try:
             current_price = float(self.data.close[0])
+            day_high = float(self.data.high[0])
+            day_low = float(self.data.low[0])
+            grid_down_ratio = self.params.grid_down_ratio  # pyright: ignore
             unsold_grids = [g for g in self.sold_grids if not g.get('filled', False)]
-            unsold_grids.sort(key=lambda x: x.get('sell_price', 0), reverse=True)
+            unsold_grids.sort(key=lambda x: x.get('sell_price_actual') if x.get('sell_price_actual') is not None else x.get('sell_price', 0), reverse=True)
 
             for grid in unsold_grids:
-                buy_price = grid.get('buy_price', current_price)
-                if current_price <= buy_price:
-                    required_cash = grid['sell_shares'] * current_price
-                    if self.broker.get_cash() < required_cash:
-                        continue
-                    return True, grid
+                # 基于实际卖出价动态计算买回价（优先使用实际成交价）
+                if grid.get('sell_price_actual') is not None:
+                    actual_sell_price = grid['sell_price_actual']
+                else:
+                    actual_sell_price = grid.get('sell_price', current_price)
+                buy_price = actual_sell_price * (1.0 - grid_down_ratio)
+
+                # 调试日志
+                self.log(f"[BUY CHECK] Grid #{grid.get('grid_level')}, sell_price_actual={grid.get('sell_price_actual')}, sell_price={grid.get('sell_price')}, buy_price={buy_price:.2f}, close={current_price:.2f}")
+
+                # 检查1: 当前价格达到买回价
+                if current_price > buy_price:
+                    continue
+
+                # 检查2: 买回价在当日K线范围内（必须能当天成交）
+                if buy_price > day_high:
+                    continue
+
+                # 检查3: 资金是否充足
+                required_cash = grid['sell_shares'] * current_price
+                if self.broker.get_cash() < required_cash:
+                    continue
+
+                return True, grid
 
             return False, None
         except Exception as e:
@@ -272,15 +308,31 @@ class TrailingBearishGridStrategy(BaseStrategy):
         try:
             size = sell_info['sell_shares']
             price = sell_info['sell_price']
-            self.order = self.sell(size=size, price=price)
+            self._last_expected_price = price
+            self._last_grid_level = sell_info.get('grid_level', '-')
+            sell_price_with_slippage = price * (1.0 - self.slippage_perc)
+            self.order = self.sell(size=size, price=sell_price_with_slippage)
         except Exception as e:
             pass
 
     def execute_buy(self, grid):
         try:
             size = grid['sell_shares']
-            price = grid.get('buy_price', float(self.data.close[0]))
-            self.order = self.buy(size=size, price=price)
+            grid_down_ratio = self.params.grid_down_ratio  # pyright: ignore
+            # 基于实际卖出价动态计算买回价（优先使用实际成交价）
+            if grid.get('sell_price_actual') is not None:
+                actual_sell_price = grid['sell_price_actual']
+            else:
+                actual_sell_price = grid.get('sell_price', float(self.data.close[0]))
+            buy_price = actual_sell_price * (1.0 - grid_down_ratio)
+            self._last_expected_price = buy_price
+            self._last_grid_level = grid.get('grid_level', '-')
+            buy_price_with_slippage = buy_price * (1.0 + self.slippage_perc)
+            
+            # 调试日志
+            self.log(f"[BUY EXEC] Grid #{grid.get('grid_level')}, sell_price_actual={grid.get('sell_price_actual')}, actual_sell_price={actual_sell_price}, buy_price={buy_price:.2f}, size={size}")
+            
+            self.order = self.buy(size=size, price=buy_price_with_slippage)
         except Exception as e:
             pass
 
@@ -341,12 +393,9 @@ class TrailingBearishGridStrategy(BaseStrategy):
 
             grid['_round_closed'] = True
 
-            self._log_grid_stack(f"BUY @{buy_price:.2f}")
-
             if all(g.get('filled', False) for g in self.sold_grids):
                 self.round_count += 1
                 self.sold_grids = []
-                self._log_grid_stack("ROUND COMPLETE (STACK CLEARED)")
         except Exception as e:
             pass
 
@@ -356,6 +405,14 @@ class TrailingBearishGridStrategy(BaseStrategy):
             return self.broker.get_cash() + self.current_position * price
         except Exception as e:
             return self.broker.get_cash()
+
+    def _update_profit_status(self):
+        try:
+            current_total_asset = self._compute_current_total_asset()
+            self.total_asset_profit = current_total_asset - self.initial_total_asset
+            self.cash_profit = self.total_profit
+        except Exception as e:
+            pass
 
     def _issue_sold_grid_record(self, sell_info):
         try:
@@ -375,49 +432,7 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 'force_loss': 0.0,
             }
             self.sold_grids.append(new_grid)
-            self._log_grid_stack(f"SELL @{new_grid['sell_price']:.2f}")
-        except Exception as e:
-            pass
-
-    def _log_grid_stack(self, action_desc=""):
-        try:
-            grids = self.sold_grids
-            if not grids:
-                self.log(f"[GRID STACK{action_desc}] EMPTY")
-                return
-            sorted_grids = sorted(grids, key=lambda g: g.get('sell_price', 0))
-            price_list = []
-            for g in sorted_grids:
-                sell_p = g.get('sell_price_actual') or g.get('sell_price', 0)
-                buy_p = g.get('buy_price_actual') or g.get('buy_price', 0)
-                status = "✓" if g.get('filled') else "○"
-                sell_target = g.get('sell_price', 0)
-                if sell_p != sell_target:
-                    price_list.append(f"{status}{sell_target}→{sell_p:.2f}→{buy_p:.2f}")
-                else:
-                    price_list.append(f"{status}{sell_p:.2f}→{buy_p:.2f}")
-            self.log(f"[GRID STACK{action_desc}] [{', '.join(price_list)}]")
-        except Exception as e:
-            pass
-
-    def _log_grid_stack_after_update(self, updated_grid):
-        try:
-            target = updated_grid.get('sell_price', 0)
-            actual = updated_grid.get('sell_price_actual', 0)
-            if target != actual and actual is not None:
-                self.log(f"[GRID PRICE UPDATED] target={target:.2f}, actual={actual:.2f}")
-                self._log_grid_stack("AFTER PRICE UPDATE")
-        except Exception as e:
-            pass
-
-    # ------------------------------------------------------------
-    # Logging
-    # ------------------------------------------------------------
-    def log_grid_status(self):
-        try:
-            current_total_asset = self._compute_current_total_asset()
-            self.total_asset_profit = current_total_asset - self.initial_total_asset
-            self.cash_profit = self.total_profit
+            self._pending_grid = new_grid
         except Exception as e:
             pass
 
@@ -431,6 +446,16 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 self._initialized = True
                 return
 
+            # 输出当前K线数据：开盘价、最高价、最低价、收盘价
+            open_price = float(self.data.open[0])
+            high_price = float(self.data.high[0])
+            low_price = float(self.data.low[0])
+            close_price = float(self.data.close[0])
+            self.log(
+                f"[{self.data.datetime.date(0)}] OHLC: "
+                f"O:{open_price:.2f}, H:{high_price:.2f}, L:{low_price:.2f}, C:{close_price:.2f}"
+            )
+
             if self.order is not None:
                 return
 
@@ -438,9 +463,9 @@ class TrailingBearishGridStrategy(BaseStrategy):
             force_candidates = self.check_force_buyback_signals()
             if force_candidates:
                 for grid, holding_days in force_candidates:
+                    self.log(f"[FORCE BUY] Grid #{grid.get('grid_level')}, sell_price_actual={grid.get('sell_price_actual')}, holding_days={holding_days}")
                     self.execute_force_buyback(grid, holding_days)
-                    self.close_grid_round(grid)
-                self.log_grid_status()
+                self._update_profit_status()
                 return
 
             # Step 1: Base price update
@@ -449,89 +474,104 @@ class TrailingBearishGridStrategy(BaseStrategy):
             # Step 2: Normal buy check
             buy_signal, buy_grid = self.check_buy_signals()
             if buy_signal and buy_grid is not None:
+                self.log(f"[NORMAL BUY] Grid #{buy_grid.get('grid_level')}, sell_price_actual={buy_grid.get('sell_price_actual')}, sell_price={buy_grid.get('sell_price')}")
                 self.execute_buy(buy_grid)
-                self.close_grid_round(buy_grid)
-                self.log_grid_status()
+                self._update_profit_status()
                 return
 
             # Step 3: Normal sell check
             sell_signal, sell_info = self.check_sell_signals()
             if sell_signal and sell_info is not None:
+                sell_info['grid_level'] = len(self.sold_grids) + 1
                 self.execute_sell(sell_info)
                 self._issue_sold_grid_record(sell_info)
-                self.log_grid_status()
+                self._update_profit_status()
                 return
 
             # Step 4: Status log
-            self.log_grid_status()
+            self._update_profit_status()
         except Exception as e:
             pass
 
     def notify_order(self, order):
-        try:
-            status_map = {
-                order.Submitted: "Submitted",
-                order.Accepted: "Accepted",
-                order.Completed: "Completed",
-                order.Canceled: "Canceled",
-                order.Margin: "Margin",
-                order.Rejected: "Rejected",
-            }
-            status_name = status_map.get(order.status, f"Unknown({order.status})")
-            target_val = getattr(order, 'target', None) or 'N/A'
+        """订单状态变化回调函数
 
+        处理卖出/买入订单完成后的逻辑：
+        1. 更新持仓数量
+        2. 匹配对应网格并更新网格状态
+        3. 对于买回订单，若网格已卖出则结算该网格的盈亏
+        """
+        try:
+            # 过滤挂单状态：只处理已完成的订单
             if order.status in [order.Submitted, order.Accepted]:
                 return
 
+            # 订单已完成
             if order.status in [order.Completed]:
-                executed_price = order.executed.price
-                executed_size = int(order.executed.size)
+                # 提取订单执行信息
+                executed_price = order.executed.price  # 实际成交价
+                executed_size = int(order.executed.size)  # 成交股数（正=买入，负=卖出）
                 action = 'BUY' if order.isbuy() else 'SELL'
 
+                # 从保存的最近一次下单的期望价格和网格级别获取
+                expected_price = self._last_expected_price if self._last_expected_price > 0 else executed_price
+                grid_level = self._last_grid_level
+
+                # 输出交易日志：记录成交价、股数、P_base、网格级别、期望价、实际价
                 self.log(
-                    f"{action} EXECUTED, Price: {executed_price:.2f}, "
-                    f"Cost: {order.executed.value:.2f}, Commission: {order.executed.comm:.2f}"
+                    f"{action} EXECUTED, Level: {grid_level}, Price: {executed_price:.2f}, Size: {executed_size}, "
+                    f"P_base: {self.p_base:.2f}, Expected: {expected_price:.2f}, Actual: {executed_price:.2f}"
                 )
 
+                # 处理买入订单（买回网格）
                 if order.isbuy():
+                    # 更新持仓：增加买入股数
                     self.current_position = self.current_position + executed_size
 
-                    for grid in self.sold_grids:
+                    # 匹配网格：找到对应的卖出网格并标记买回（LIFO：从尾部开始遍历）
+                    for grid in reversed(self.sold_grids):
+                        # 匹配条件：网格未买回 + 股数匹配 + 未实际买回 + 已卖出
                         if (not grid.get('filled', False)
                                 and grid.get('sell_shares') == executed_size
                                 and grid.get('buy_price_actual') is None
                                 and grid.get('sell_date') is not None):
-                            grid['buy_price_actual'] = executed_price
-                            grid['buy_commission'] = float(order.executed.comm)
-                            grid['buy_date'] = self.data.datetime.date(0)
+                            # 更新网格的实际买回信息
+                            grid['buy_price_actual'] = executed_price  # 实际买回价
+                            grid['buy_commission'] = float(order.executed.comm)  # 买回佣金
+                            grid['buy_date'] = self.data.datetime.date(0)  # 买回日期
+
+                            # 若网格已完成卖出，则结算该网格的盈亏
                             if grid.get('sell_price_actual') is not None:
-                                self.close_grid_round(grid)
-                            break
+                                self.close_grid_round(grid)  # 调用结算函数
+                            break  # 只匹配第一个符合条件的网格
+
+                # 处理卖出订单（卖出网格）
                 else:
+                    # 更新持仓：减少卖出股数
                     self.current_position = self.current_position - abs(executed_size)
 
-                    matched = False
-                    for grid in self.sold_grids:
-                        if (not grid.get('filled', False)
-                                and grid.get('sell_shares') == abs(executed_size)
-                                and grid.get('sell_price_actual') is None):
-                            grid['sell_price_actual'] = executed_price
-                            grid['sell_commission'] = float(order.executed.comm)
-                            grid['buy_price'] = executed_price * (1.0 - self.params.grid_down_ratio)  # pyright: ignore
-                            self._log_grid_stack_after_update(grid)
-                            matched = True
-                            break
-                    if not matched:
-                        pass
+                    # 优先使用 _pending_grid 引用更新
+                    if hasattr(self, '_pending_grid') and self._pending_grid is not None:
+                        grid = self._pending_grid
+                        grid['sell_price_actual'] = executed_price
+                        grid['sell_commission'] = float(order.executed.comm)
+                        grid['buy_price'] = executed_price * (1.0 - self.params.grid_down_ratio)  # pyright: ignore
+                        self._pending_grid = None
+                    else:
+                        # 回退方案：从尾部开始匹配最近添加的网格
+                        for grid in reversed(self.sold_grids):
+                            if (not grid.get('filled', False)
+                                    and grid.get('sell_shares') == abs(executed_size)):
+                                grid['sell_price_actual'] = executed_price
+                                grid['sell_commission'] = float(order.executed.comm)
+                                grid['buy_price'] = executed_price * (1.0 - self.params.grid_down_ratio)  # pyright: ignore
+                                break
 
-            elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-                self.log(
-                    f"Order Canceled/Margin/Rejected. "
-                    f"Status={order.status}"
-                )
-
+            # 重置订单引用，允许下一个订单下单
             self.order = None
+
         except Exception as e:
+            # 异常处理：重置订单引用，防止订单阻塞
             self.order = None
 
     def notify_trade(self, trade):
