@@ -53,6 +53,47 @@ In a downtrend channel, a dynamically moving base price (P_base) is established.
 | Volume Filter Toggle | `volume_filter` | bool | False | Enable volume confirmation |
 | Stop Loss Line | `stop_loss_line` | float | 0.20 (20%) | Extreme stop loss threshold |
 
+### 2.3 Order Type and Execution Mechanism Constraints (MANDATORY)
+
+Grid strategy MUST use **Limit Order** (限价单) combined with **Slippage** for backtesting and live trading. Market Order (市价单) is strictly prohibited.
+
+#### 2.3.1 Why Limit Order is Mandatory
+
+Grid strategy generates trading signals at **precise price levels** (e.g., `p_base × (1 + grid_up_ratio)` for sell, `sell_price × (1 - grid_down_ratio)` for buy). Using Limit Order ensures:
+
+1. **Price Certainty**: Orders are only filled when the market price crosses the trigger level, which is the core premise of grid trading.
+2. **Grid Integrity**: Each grid level corresponds to an exact price band. Market orders would cause fills at unpredictable prices, breaking the grid's "sell-high, buy-low" closed-loop logic.
+3. **Backtest Fidelity**: Backtrader's `bt.Order.Limit` fills orders only when the bar's price range touches the limit price, faithfully reproducing the real market scenario where a grid level is "touched and filled."
+
+#### 2.3.2 Why Slippage is Mandatory
+
+The grid strategy's single-round profit is typically small (`grid_up_ratio` + `grid_down_ratio`, roughly 3%+5% = 8% in the default config). Without slippage, backtesting will **overestimate profits** and produce unrealistic win rates. Slippage must be introduced to simulate real market friction:
+
+- **Buy side**: Executed price = `limit_price × (1 + slippage_perc)` (成交略高于限价)
+- **Sell side**: Executed price = `limit_price × (1 - slippage_perc)` (成交略低于限价)
+
+#### 2.3.3 Backtrader Recommended Configuration
+
+```python
+# 1. Strategy side: always pass an explicit price when calling buy()/sell()
+self.order = self.buy(size=size, price=buy_price)   # Limit Buy
+self.order = self.sell(size=size, price=sell_price)  # Limit Sell
+
+# 2. Broker side: enable broker-level slippage (recommended)
+cerebro.broker.set_slippage_perc(
+    perc=0.001,       # 0.1% slippage, adjustable per asset volatility
+    abslimit=0.0      # optional absolute price cap
+)
+# Or use a custom slippage class for volatility-aware models:
+cerebro.broker.set_slippage(GridSlippage)
+```
+
+#### 2.3.4 Forbidden Practices
+
+❌ **Market Order** (`self.buy(size)` / `self.sell(size)` without a price) — will execute at the current bar's close, bypassing grid price levels entirely.
+
+❌ **Manually embedding slippage into the limit price** (e.g., `price * (1 + 0.001)` passed as the limit price) — this shifts the nominal grid level and may cause the order to never get filled on a weak signal. Prefer **Broker-level slippage** via `cerebro.broker.set_slippage_perc()` or a custom `bt.Slippage_x` subclass.
+
 ---
 
 ## 3. Detailed Trading Logic
@@ -278,22 +319,82 @@ if all_grids_filled:
 | `force_loss_total` | float | 0 | Cumulative extra loss caused by forced buy-back across all grids |
 | `force_buyback_warned` | bool | False | Whether a backtest warning has already been issued for forced buyback events |
 
-### 4.2 Grid Record Structure
+### 4.2 Grid Record Structure (Detailed)
+
+Each grid element in `sold_grids` is a dictionary with the following fields. The fields are grouped by **lifecycle phase**: Planned → Submitted → Filled → Closed.
+
+#### 4.2.1 Full Field Definition
+
+| Field | Type | Required | Lifecycle Phase | Write Location (Function) | Description |
+|-------|------|----------|-----------------|---------------------------|-------------|
+| `round_id` | int | ✅ | Planned | `_issue_sold_grid_record` | Grid round identifier (inherited from current `round_count`) |
+| `grid_level` | int | ✅ | Planned | `_issue_sold_grid_record` | Sequence number within the current round (`len(sold_grids) + 1`) |
+| `sell_price` | float | ✅ | Planned | `_issue_sold_grid_record` | **Intended** sell price (nominal grid level price, `p_base × (1+U%)` or `prev_sell × (1+U%)`) |
+| `sell_shares` | int | ✅ | Planned | `_issue_sold_grid_record` | Number of shares sold at this grid level |
+| `buy_price` | float | ✅ | Planned (updated post-fill) | `_issue_sold_grid_record` / `notify_order` | Intended buy price (`sell_price × (1-D%)`), **recalculated using `sell_price_actual` after the sell order is filled** |
+| `sell_date` | date | ✅ | Submitted | `_issue_sold_grid_record` | Trading date of the sell order submission (used for timeout counter) |
+| `sell_price_actual` | float | ⚠️ | Filled | `notify_order` (sell branch) | Actual sell execution price (filled by backtrader broker) |
+| `sell_commission` | float | ⚠️ | Filled | `notify_order` (sell branch) | Commission for the sell execution |
+| `buy_price_actual` | float | ⚠️ | Filled | `notify_order` (buy branch) / `close_grid_round` fallback | Actual buy execution price |
+| `buy_commission` | float | ⚠️ | Filled | `notify_order` (buy branch) | Commission for the buy execution |
+| `buy_date` | date | ⚠️ | Filled | `notify_order` (buy branch) / `close_grid_round` fallback | Trading date of the buy-back fill |
+| `filled` | bool | ✅ | Closed | `close_grid_round` | Whether the grid has been fully bought back and settled |
+| `force_completed` | bool | ✅ | Closed | `execute_force_buyback` / `_enter_emergency_mode` | Whether the grid was force-completed (non-normal path) |
+| `force_reason` | str\|None | ✅ | Closed | `execute_force_buyback` / `_enter_emergency_mode` | Force reason: `'timeout'` / `'emergency'` / `None` |
+| `force_loss` | float | ✅ | Closed | `execute_force_buyback` | Extra loss (or reduced profit) from force buy-back = `actual_buy_price - intended_buy_price` |
+| `_round_closed` | bool | ✅ | Closed | `close_grid_round` | Internal guard to prevent double-settlement of the same grid |
+
+#### 4.2.2 State Lifecycle
+
+```
+         _issue_sold_grid_record         notify_order(sell)        notify_order(buy)        close_grid_round
+   ┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+   │   Planned (入栈)     │ → │   Submitted (挂单)   │ → │   Filled (成交)      │ → │   Closed (结算)      │
+   └─────────────────────┘    └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+   - round_id                 - sell_price_actual          - buy_price_actual         - filled=True
+   - grid_level              - sell_commission             - buy_commission            - force_completed flag
+   - sell_price (nominal)     - buy_price (recalc)         - buy_date                  - _round_closed=True
+   - sell_shares              - (status: Submitted)        - (status: Partially Filled)- (status: Settled)
+   - buy_price (nominal)
+   - sell_date
+   - filled=False
+```
+
+#### 4.2.3 Field Read by Which Functions
+
+| Function | Fields Read | Purpose |
+|----------|-------------|---------|
+| `check_sell_signals` | `sell_price` (last grid), `sell_shares` (sum for total_sold) | Compute next sell price and remaining position |
+| `check_buy_signals` | `filled`, `sell_price_actual`, `sell_price`, `buy_price`, `sell_shares`, `sell_date` | Find eligible grid to buy back; compute buy trigger price with actual sell price |
+| `check_force_buyback_signals` | `filled`, `sell_date` | Identify grids held longer than `mandatory_buyback_days` |
+| `execute_force_buyback` | `sell_shares`, `grid_level`, `buy_price` | Build force-buy order and record force-loss metadata |
+| `_enter_emergency_mode` | `filled` | Mark all unfilled grids as emergency-closed |
+| `close_grid_round` | `_round_closed`, `filled`, `sell_price_actual`, `sell_price`, `buy_price_actual`, `buy_price`, `sell_shares`, `sell_commission`, `buy_commission`, `round_id`, `grid_level`, `sell_date`, `buy_date`, `force_loss` | Settle PnL, append to `self.trades`, and clear `sold_grids` when all grids are closed |
+| `notify_order` (sell) | — (writes) | Match `_pending_grid`; fallback LIFO match by `sell_shares` |
+| `notify_order` (buy) | `filled`, `sell_shares`, `buy_price_actual`, `sell_date`, `sell_price_actual` | LIFO match and trigger settlement |
+| `_issue_sold_grid_record` | `round_count` (reads) | Set `round_id` and `grid_level` for the new grid |
+
+#### 4.2.4 Snapshot Example
 
 ```python
-sold_grid_record = {
-    'round_id': int,           # Grid round ID
-    'grid_level': int,         # Grid level (which sell)
-    'sell_price': float,       # Sell price
-    'sell_shares': int,        # Sell quantity
-    'buy_price': float,        # Corresponding buy price
-    'filled': bool,            # Whether bought back
-    'buy_price_actual': float, # Actual buy price (filled after buy-back)
-    # ===== Forced Buyback Tracking =====
-    'sell_date': datetime,     # Trading date on which this sell was executed (for timeout counting)
-    'force_completed': bool,   # Whether this grid was force-completed (timed out, executed at market)
-    'force_reason': str,       # Reason for force completion: 'timeout' | 'stop_loss' | 'liquidity' | None
-    'force_loss': float        # Extra loss (or reduced profit) caused by forced buy-back = actual_buy_price - intended_buy_price
+# A grid after sell filled but not yet bought back
+{
+    'round_id': 0,
+    'grid_level': 1,
+    'sell_price': 10.30,           # nominal
+    'sell_price_actual': 10.34,    # filled by broker (includes slippage)
+    'sell_shares': 500,
+    'sell_commission': 5.17,
+    'buy_price': 9.82,             # = sell_price_actual * (1 - grid_down_ratio), recalc after fill
+    'buy_price_actual': None,
+    'buy_commission': 0.0,
+    'sell_date': date(2025, 2, 5),
+    'buy_date': None,
+    'filled': False,
+    'force_completed': False,
+    'force_reason': None,
+    'force_loss': 0.0,
+    '_round_closed': False
 }
 ```
 
