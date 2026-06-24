@@ -42,7 +42,7 @@ In a downtrend channel, a dynamically moving base price (P_base) is established.
 | Per-Grid Sell Ratio | `grid_sell_ratio` | float | 0.1 (10%) | Q% of base position sold each time |
 | Base Price Shift Threshold | `base_shift_threshold` | float | 0.02 (2%) | Threshold for 2% base price downward shift |
 | Position Protection Line | `min_position_ratio` | float | 0.5 | Remaining position not less than 50% of initial |
-| **Mandatory Buyback Days** | `mandatory_buyback_days` | int | **20** | **Maximum consecutive trading days after a sell before forced market buy-back; if not triggered within N days, execute a market buy-back regardless of price to avoid "incomplete buy-back trap"** |
+| **Mandatory Buyback Days** | `mandatory_buyback_days` | int | **30** | **Maximum consecutive trading days after a sell before forced market buy-back; if not triggered within N days, execute a market buy-back regardless of price to avoid "incomplete buy-back trap"** |
 
 ### 2.2 Extended Parameters
 

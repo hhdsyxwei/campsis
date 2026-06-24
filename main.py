@@ -428,7 +428,7 @@ def run_trailing_bearish_grid_backtest(
                     "base_shift_threshold": 0.02,
                     "min_position_ratio": 0.5,
                     "max_grid_count": 5,
-                    "mandatory_buyback_days": 20,
+                    "mandatory_buyback_days": 30,
                     "risk_per_trade": 0.95,
                 }
             },
