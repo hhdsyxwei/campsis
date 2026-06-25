@@ -146,8 +146,7 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 return False
 
             # 记录强制买回日志
-            self.log(f"[FORCE BUY] Grid #{grid.get('grid_level')}, Sell: {grid.get('sell_price')}, Actual: {grid.get('sell_price_actual')}, Target Buy: {current_price:.2f}, Hold Days: {holding_days}")
-
+            
             force_buy_price = current_price * (1.0 + self.slippage_perc)
             
             # 异步提交订单，通过 info 传递上下文
@@ -302,7 +301,7 @@ class TrailingBearishGridStrategy(BaseStrategy):
             buy_price = actual_sell_price * (1.0 - grid_down_ratio)
             
             # 统一的买入执行日志
-            self.log(f"[{reason}] Grid #{grid.get('grid_level')}, Sell: {grid.get('sell_price')}, Actual: {grid.get('sell_price_actual')}, Target Buy: {buy_price:.2f}, Size: {size}")
+            
             
             # 异步提交订单，通过 info 传递上下文
             self.order = self.buy(size=size, price=buy_price * (1.0 + self.slippage_perc), info={'grid': grid, 'reason': reason})
@@ -476,14 +475,6 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 executed_price = order.executed.price
                 executed_size = int(order.executed.size)
                 action = 'BUY' if order.isbuy() else 'SELL'
-
-                # 输出交易日志
-                level = grid.get('grid_level', '-') if grid else 'INITIAL'
-                expected_price = grid.get('buy_price', grid.get('sell_price', '-')) if grid else executed_price
-                self.log(
-                    f"{action} EXECUTED, Level: {level}, Price: {executed_price:.2f}, Size: {executed_size}, "
-                    f"P_base: {self.p_base:.2f}, Expected: {expected_price}, Actual: {executed_price:.2f}"
-                )
 
                 # 处理初始建仓等非网格订单
                 if grid is None:
