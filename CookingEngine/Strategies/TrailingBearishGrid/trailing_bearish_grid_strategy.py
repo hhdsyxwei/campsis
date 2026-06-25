@@ -1,11 +1,12 @@
 # trailing_bearish_grid_strategy.py
 # Trailing Bearish Grid Strategy (空头追踪网格策略)
-import traceback
-
 import backtrader as bt
 
 from CookingEngine.Strategies.Base import BaseStrategy
 from CookingEngine.Strategies import register_strategy
+from KitchenBase.logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @register_strategy("trailing_bearish_grid")
@@ -109,8 +110,8 @@ class TrailingBearishGridStrategy(BaseStrategy):
             threshold = self.p_base * (1.0 - self.params.base_shift_threshold) # pyright: ignore
             if today_low < threshold:
                 self.p_base = today_low
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("update_base_price failed")
 
     # ------------------------------------------------------------
     # Force buyback (HIGHEST PRIORITY)
@@ -131,7 +132,8 @@ class TrailingBearishGridStrategy(BaseStrategy):
             # LIFO 原则：优先买回最近卖出的格子（按 sell_date 降序排列）
             force_candidates.sort(key=lambda x: x[0].get('sell_date'), reverse=True)
             return force_candidates
-        except Exception as e:
+        except Exception:
+            logger.exception("check_force_buyback_signals failed")
             return []
 
     def execute_force_buyback(self, grid, holding_days):
@@ -146,14 +148,19 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 return False
 
             # 记录强制买回日志
-            
+            estimated_loss = (current_price - grid.get('sell_price', current_price)) * buy_shares
+            logger.info(f"[FORCE BUY] Grid level={grid.get('grid_level')}, holding_days={holding_days}, "
+                        f"sell_price_plan={grid.get('sell_price')}, current_price={current_price}, "
+                        f"shares={buy_shares}, estimated_loss={estimated_loss:.2f}")
+
             force_buy_price = current_price * (1.0 + self.slippage_perc)
             
             # 异步提交订单，通过 info 传递上下文
             self.order = self.buy(size=buy_shares, price=force_buy_price, info={'grid': grid, 'reason': 'FORCE BUY'})
 
             return True
-        except Exception as e:
+        except Exception:
+            logger.exception("execute_force_buyback failed")
             return False
 
     def _enter_emergency_mode(self, reason):
@@ -165,14 +172,14 @@ class TrailingBearishGridStrategy(BaseStrategy):
                     grid['force_reason'] = 'emergency'
                     grid['filled'] = True
             self._notify_emergency(reason)
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("_enter_emergency_mode failed")
 
     def _notify_emergency(self, reason):
         try:
-            pass
-        except Exception as e:
-            pass
+            logger.warning(f"[EMERGENCY] Entered emergency mode: {reason}")
+        except Exception:
+            logger.exception("_notify_emergency failed")
 
     # ------------------------------------------------------------
     # Sell / Buy signal checks
@@ -236,7 +243,8 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 'sell_shares': actual_shares,
                 'buy_price': buy_price,
             }
-        except Exception as e:
+        except Exception:
+            logger.exception("check_sell_signals failed")
             return False, None
 
     def check_buy_signals(self):
@@ -261,18 +269,24 @@ class TrailingBearishGridStrategy(BaseStrategy):
                     continue
 
                 # 检查2: 买回价在当日K线范围内（必须能当天成交）
+                # 2.1 买回价不能高于当日最高价（否则当日未触底，无法成交）
                 if buy_price > day_high:
                     continue
+                # 2.2 买回价不能低于当日最低价（否则订单会低于限价被拒）
+                if buy_price < day_low:
+                    continue
 
-                # 检查3: 资金是否充足
-                required_cash = grid['sell_shares'] * current_price
+                # 检查3: 资金是否充足（使用含滑点的预估成交价计算）
+                estimated_buy_price = buy_price * (1.0 + self.slippage_perc)
+                required_cash = grid['sell_shares'] * estimated_buy_price
                 if self.broker.get_cash() < required_cash:
                     continue
 
                 return True, grid
 
             return False, None
-        except Exception as e:
+        except Exception:
+            logger.exception("check_buy_signals failed")
             return False, None
 
     # ------------------------------------------------------------
@@ -284,10 +298,12 @@ class TrailingBearishGridStrategy(BaseStrategy):
             price = sell_info['sell_price']
             sell_price_with_slippage = price * (1.0 - self.slippage_perc)
             
+            logger.info(f"[NORMAL SELL] Grid level={sell_info.get('grid_level')}, sell_price={price}, size={size}")
+            
             # 异步提交订单，通过 info 传递上下文
             self.order = self.sell(size=size, price=sell_price_with_slippage, info={'grid': sell_info, 'reason': 'NORMAL SELL'})
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("execute_sell failed")
 
     def execute_buy(self, grid, reason="NORMAL BUY"):
         try:
@@ -301,12 +317,13 @@ class TrailingBearishGridStrategy(BaseStrategy):
             buy_price = actual_sell_price * (1.0 - grid_down_ratio)
             
             # 统一的买入执行日志
-            
+            logger.info(f"[NORMAL BUY] Grid level={grid.get('grid_level')}, sell_price={grid.get('sell_price')}, "
+                        f"buy_price={buy_price:.3f}, size={size}, reason={reason}")
             
             # 异步提交订单，通过 info 传递上下文
             self.order = self.buy(size=size, price=buy_price * (1.0 + self.slippage_perc), info={'grid': grid, 'reason': reason})
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("execute_buy failed")
 
     def close_grid_round(self, grid):
         try:
@@ -368,14 +385,15 @@ class TrailingBearishGridStrategy(BaseStrategy):
             if all(g.get('filled', False) for g in self.sold_grids):
                 self.round_count += 1
                 self.sold_grids = []
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("close_grid_round failed")
 
     def _compute_current_total_asset(self):
         try:
             price = float(self.data.close[0])
             return self.broker.get_cash() + self.current_position * price
-        except Exception as e:
+        except Exception:
+            logger.exception("_compute_current_total_asset failed")
             return self.broker.get_cash()
 
     def _update_profit_status(self):
@@ -383,8 +401,8 @@ class TrailingBearishGridStrategy(BaseStrategy):
             current_total_asset = self._compute_current_total_asset()
             self.total_asset_profit = current_total_asset - self.initial_total_asset
             self.cash_profit = self.total_profit
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("_update_profit_status failed")
 
     def _issue_sold_grid_record(self, sell_info):
         try:
@@ -404,7 +422,8 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 'force_loss': 0.0,
             }
             return new_grid
-        except Exception as e:
+        except Exception:
+            logger.exception("_issue_sold_grid_record failed")
             return None
 
     # ------------------------------------------------------------
@@ -449,14 +468,16 @@ class TrailingBearishGridStrategy(BaseStrategy):
                 # 创建新的网格记录对象
                 new_grid = self._issue_sold_grid_record(sell_info)
                 if new_grid:
+                    # 立即加入 sold_grids，防止下一K线重复挂单
+                    self.sold_grids.append(new_grid)
                     self.execute_sell(new_grid)
                 self._update_profit_status()
                 return
 
             # Step 4: Status log
             self._update_profit_status()
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("next() failed")
 
     def notify_order(self, order):
         """订单状态变化回调函数"""
@@ -465,16 +486,16 @@ class TrailingBearishGridStrategy(BaseStrategy):
             if order.status in [order.Submitted, order.Accepted]:
                 return
 
+            # 获取上下文
+            context = order.info
+            grid = context.get('grid') if context else None
+            reason = context.get('reason', 'UNKNOWN') if context else 'UNKNOWN'
+            action = 'BUY' if order.isbuy() else 'SELL'
+
             # 订单已完成
-            if order.status in [order.Completed]:
-                # 从订单的 info 中获取上下文
-                context = order.info
-                grid = context.get('grid')
-                reason = context.get('reason', 'UNKNOWN')
-                
+            if order.status == order.Completed:
                 executed_price = order.executed.price
                 executed_size = int(order.executed.size)
-                action = 'BUY' if order.isbuy() else 'SELL'
 
                 # 处理初始建仓等非网格订单
                 if grid is None:
@@ -500,11 +521,18 @@ class TrailingBearishGridStrategy(BaseStrategy):
                         # 强制买回结算逻辑
                         grid['force_completed'] = True
                         grid['force_reason'] = 'timeout'
-                        grid['force_loss'] = (executed_price - grid.get('buy_price', executed_price)) * executed_size
+                        # 计算强制买回的实际亏损：实际成交价 - 原本计划的买回价
+                        planned_buy_price = grid.get('buy_price', executed_price)
+                        if planned_buy_price is None or planned_buy_price <= 0:
+                            planned_buy_price = executed_price
+                        grid['force_loss'] = (executed_price - planned_buy_price) * executed_size
                         self.force_completed_count += 1
                         self.force_loss_total += grid['force_loss']
                         if not self.force_buyback_warned:
                             self.force_buyback_warned = True
+                        logger.warning(f"[FORCE BUY COMPLETED] Grid level={grid.get('grid_level')}, "
+                                       f"executed_price={executed_price}, planned={planned_buy_price}, "
+                                       f"force_loss={grid['force_loss']:.2f}")
                             
                     # 统一调用结算函数
                     self.close_grid_round(grid)
@@ -522,23 +550,41 @@ class TrailingBearishGridStrategy(BaseStrategy):
                     if grid not in self.sold_grids:
                         self.sold_grids.append(grid)
 
+            # 非 Completed 状态：Canceled / Margin / Rejected
+            else:
+                if grid is not None:
+                    # 将失败/撤销的网格标记为已处理，防止强制买回误触发
+                    if not grid.get('filled', False):
+                        grid['filled'] = True
+                        grid['force_completed'] = True
+                        grid['force_reason'] = 'order_failed'
+                        grid['buy_date'] = self.data.datetime.date(0)
+                        grid['buy_price_actual'] = float(self.data.close[0])
+                        logger.warning(f"[ORDER FAILED] action={action}, reason={reason}, "
+                                       f"grid_level={grid.get('grid_level')}, status={order.status}")
+                        # 调用结算函数将此轮标记结束
+                        self.close_grid_round(grid)
+
             # 重置订单引用
             self.order = None
 
-        except Exception as e:
+        except Exception:
             # 异常处理：重置订单引用
             self.order = None
+            logger.exception("notify_order failed")
 
     def notify_trade(self, trade):
         try:
             pass
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("notify_trade failed")
 
     def stop(self):
         try:
             final_value = self.get_current_value()
             total_return = self.get_total_return()
+            logger.info(f"[STRATEGY STOP] final_value={final_value:.2f}, total_return={total_return:.4%}, "
+                        f"force_completed_count={self.force_completed_count}, force_loss_total={self.force_loss_total:.2f}")
             super().stop()
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("stop() failed")
