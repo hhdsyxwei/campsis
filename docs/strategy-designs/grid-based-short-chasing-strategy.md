@@ -1,4 +1,4 @@
-# Grid-Based Short-Chasing Strategy Design Document
+# Grid-Based Bear-Chasing Strategy (网格追空策略) 设计文档
 
 ## Summary & Table of Contents
 
@@ -7,9 +7,9 @@
 | Dimension | Description |
 | :--- | :--- |
 | **🎯 Strategy Positioning** | An active grid strategy that captures **rebound opportunities** in a **downtrend (bearish market)**. |
-| **💡 Core Logic** | At the daily open, based on a dynamically adjusted base price, it **places multiple limit sell orders at different prices in one batch** (Static Multi-Order Parallel Model). It captures intraday rebound highs to go short, then buys back at lower prices to close positions. |
-| **⚙️ Workflow** | **Place Orders** → **Rebound Triggered** (Establish Short Position) → **Price Pullback** (Buy Back to Close) |
-| **🛡️ Risk Control** | - **Mandatory Buyback Mechanism**: Any short position can be held for a maximum of 30 days. <br> - **Dynamic Base Price Downshift**: Only shifts down, following the bearish trend. <br> - **Consecutive Downshift Risk Control**: Pauses opening new positions if the base price shifts down for more than 3 consecutive days. |
+| **💡 Core Logic** | At the daily open, based on a dynamically adjusted base price, it **places multiple limit sell orders at different prices in one batch** (Static Multi-Order Parallel Model). It captures intraday rebound highs to sell holdings, then buys back at lower prices to add positions. |
+| **⚙️ Workflow** | **Place Orders** → **Rebound Triggered** (Reduce Position) → **Price Pullback** (Buy Back to Add Position) |
+| **🛡️ Risk Control** | - **Mandatory Buyback Mechanism**: Any sell position can be held for a maximum of 30 days. <br> - **Dynamic Base Price Downshift**: Only shifts down, following the bearish trend. <br> - **Consecutive Downshift Risk Control**: Pauses opening new sell orders if the base price shifts down for more than 3 consecutive days. |
 | **📊 Applicable Scenarios** | ✅ Oscillating downtrend channels, pulsed rebounds, large-cap blue-chip stocks (sufficient liquidity). <br> ❌ Unilateral uptrends, unilateral decline without rebound, high-level oscillation. |
 
 ---
@@ -20,7 +20,9 @@
     *   1.1. Strategy Name
     *   1.2. Core Mechanism
     *   1.3. Core Features
-    *   1.4. Applicable Scenarios
+    *   1.4. Strategy Goals
+    *   1.5. Applicable Scenarios
+    *   1.6. Market Structural Fit & Adaptability
 2.  **Strategy Design Philosophy**
 3.  **Prerequisites**
 4.  **Core Design Concept**
@@ -50,25 +52,35 @@
 
 ---
 
-This document details the core logic of the Grid-Based Short-Chasing Strategy. The strategy is based on a "Static Multi-Order Parallel Model", aiming to capture rebound opportunities in a downtrend and maximize the efficiency of capturing intraday volatility through multiple pre-placed limit sell orders.
+This document details the core logic of the **Grid-Based Bear-Chasing Strategy (网格追空策略)**. The strategy is based on a "Static Multi-Order Parallel Model", aiming to capture rebound opportunities in a downtrend and maximize the efficiency of capturing intraday volatility through multiple pre-placed limit sell orders. The term "Bear-Chasing" refers to actively tracking the structural profit opportunities within a bear market, rather than engaging in high-risk short-selling.
 
 ---
 
 ## 1. Strategy Core Elements
 
 ### 1.1 Strategy Name
-**Grid-Based Short-Chasing Strategy** (网格追空策略)
+**Grid-Based Bear-Chasing Strategy** (网格追空策略)
+*   **Name Definition**: "Bear-Chasing" refers to the strategy's active pursuit of profit opportunities in a **bear market (空头市场)**. It is **not** a high-risk short-selling strategy, but rather a tactical operation based on existing long positions.
 
 ### 1.2 Core Mechanism
-In a **downtrend** (bearish market), the strategy utilizes the "Static Multi-Order Parallel" model. At the start of each trading day, based on the base price `P_base`, it places **multiple limit sell orders at different prices** in one batch. When the price rebounds and hits the sell order, the strategy passively establishes a short position; subsequently, when the price falls, it closes the position via a pre-calculated limit buy order. The entire trading cycle consists of "Sell (Open Short) - Buy (Close Short)", locking in oscillating profits.
+In a downtrend (bearish market), the strategy first establishes an initial base position by allocating a portion of its total capital. It then operates under the "Static Multi-Order Parallel" model: at the start of each trading day, it batches multiple limit sell orders at staggered prices based on the reference price P_base. When a price rebound triggers a sell order, the strategy passively reduces its position by selling a portion of its holdings. Subsequently, as the price declines, it re-adds the position via pre-calculated limit buy orders. This "sell-to-reduce, buy-to-add" cycle locks in profits from price oscillations while preserving a core long exposure over the long term.
 
 ### 1.3 Core Features
 - **Efficient Volatility Capture**: By placing N sell orders daily, it maximizes the opportunity to capture consecutive intraday rises, compensating for the inefficiency of the "single-order model".
 - **Dynamic Base Price Downshift**: The base price `P_base` dynamically follows the market downshift, maintaining the strategy's bearish aggressiveness.
-- **One-to-One Hedging**: Every sell order (open short) is bound to a buy order (close short), forming an independent trading loop.
-- **Mandatory Risk Hedging**: The `mandatory_buyback_days` mechanism ensures that any short position's holding period has an upper limit, preventing unlimited losses in extreme market conditions.
+- **One-to-One Hedging**: Every sell order (reduce position) is bound to a buy order (add position), forming an independent trading loop.
+- **Mandatory Risk Hedging**: The `mandatory_buyback_days` mechanism ensures that any sell position's holding period has an upper limit, preventing losses in extreme market conditions.
 
-### 1.4 Applicable Scenarios
+### 1.4 Strategy Goals
+| Goal Type | Specific Objective | Description |
+| :--- | :--- | :--- |
+| **Core Profit Goal** | Long-term Cash Flow Generation | Based on the structural characteristic of "short bull, long bear" markets, the strategy focuses on generating consistent long-term cash profits. It does **not** deliberately pursue short-term increases in total assets; instead, it strategically captures the "sell high, buy low" cycles in prolonged bear markets to continuously accumulate cash returns. |
+| **Risk Control Goal** | Limit Maximum Holding Period | Use the `mandatory_buyback_days` mechanism to ensure that any sell-to-reduce trade is forcibly closed within a predefined period (e.g., 30 days), preventing the risk of unlimited losses caused by a single trade being trapped in a continued uptrend. |
+| **Risk Control Goal** | Adapt to Market Downtrend | Dynamically adjust the base price downward following the market's downtrend, ensuring that the strategy's sell orders are always placed at higher relative prices, maintaining the strategy's "follow the trend" ability. |
+| **Position Management Goal** | Maintain Core Long Exposure | While capturing short-term trading opportunities, always ensure a core long position is maintained. The trading of reducing and adding positions is a tactical overlay on the strategic long-term holding. |
+| **Execution Efficiency Goal** | Maximize Volatility Capture Efficiency | Use the "Static Multi-Order Parallel" model to place multiple sell orders at different prices at one time, improving the probability of capturing intraday rebounds and maximizing the utilization of volatile opportunities. |
+
+### 1.5 Applicable Scenarios
 | Suitable | Unsuitable |
 | :--- | :--- |
 | ✅ The target is in a clear **oscillating downtrend channel** | ❌ **Continued unilateral uptrend** market |
@@ -83,19 +95,19 @@ This strategy's performance is highly dependent on the structural characteristic
 | :--- | :--- | :--- | :--- |
 | **A-Share Market (中国A股)** | ✅ **Highly Suitable** | ⭐⭐⭐⭐⭐ | The classic structure of "short bull, long bear" (牛短熊长) is the ideal environment: <br>1. **Long Bear**: Provides continuous "sell high — buy low" cycles as the base price shifts down. <br>2. **Sharp Rallies**: Offers frequent and explosive rebound opportunities for the batch of sell orders to be triggered. |
 | **Hong Kong Stock Market (港股)** | ⚠️ **Partially Suitable** | ⭐⭐⭐ | Similar to A-shares, it can exhibit a volatile, range-bound nature. However, the lower liquidity compared to A-shares (especially for small caps) and greater influence by overseas capital flows may cause slippage during mandatory buybacks. The strategy works better for large-cap stocks. |
-| **U.S. Stock Market (美股)** | ❌ **Unsuitable** | ⭐ | The dominant "slow bull" (慢牛) structure, where prices tend to drift upward over the long term without significant pullbacks, is hostile. The **"buyback" phase is permanently missing**, causing the profit loop to break and resulting in potential unlimited losses on short positions. |
+| **U.S. Stock Market (美股)** | ❌ **Unsuitable** | ⭐ | The dominant "slow bull" (慢牛) structure, where prices tend to drift upward over the long term without significant pullbacks, is hostile. The **"buyback" phase is permanently missing**, causing the profit loop to break and resulting in potential unlimited losses on sell positions. |
 | **European Markets** | ❌ **Unsuitable** | ⭐ | Similar to the U.S., European markets often exhibit a secular upward trend with lower volatility. The lack of sustained bear markets and sharp, frequent rebounds makes the strategy's long-term profit accumulation highly challenging. |
-| **Cryptocurrency Market (加密货币)** | ⚠️ **High Risk / Partially Suitable** | ⭐⭐ | While crypto markets offer extreme volatility (which is good for rebound selling), their unpredictable nature, potential for infinite squeezes (e.g., short squeezes in a bull trap), and often shallow liquidity make the risk of unlimited losses and slippage during mandatory buybacks extremely high. It requires very strict risk management. |
+| **Cryptocurrency Market (加密货币)** | ⚠️ **High Risk / Partially Suitable** | ⭐⭐ | While crypto markets offer extreme volatility (which is good for rebound selling), their unpredictable nature, potential for infinite squeezes, and often shallow liquidity make the risk of unlimited losses and slippage during mandatory buybacks extremely high. It requires very strict risk management. |
 
 ---
 
 ## 2. Strategy Design Philosophy
 
-The core philosophy of this strategy is **"Follow the trend to short, earn from volatility"**. It is not an ordinary grid that passively earns low prices in an oscillating market, but an **active strategy that uses rebounds in a downtrend (bearish) as trading opportunities**.
+The core philosophy of this strategy is **"Follow the trend to sell high, earn from volatility"**. It is not an ordinary grid that passively earns low prices in an oscillating market, but an **active strategy that uses rebounds in a downtrend (bearish) as trading opportunities**.
 
-*   **Follow the trend**: Being in an **oscillating downward channel** is the premise and safety net of the strategy. Market inertia will continuously push the price down, making the high sell-then-low buy (close position) have higher win rates and certainty.
-*   **Profit from volatility**: In a downtrend, price inevitably comes with rebounds. The strategy aims to capture these "pulsed rebounds", establishing short positions (selling) at high points and cashing in profits (buying back) using market inertia.
-*   **Risk hedging**: Every sell (open short) immediately locks in its corresponding target buyback price, forming a trading loop. This allows the strategy to automatically realize profits via price pullbacks without judging the market's end point.
+*   **Follow the trend**: Being in an **oscillating downward channel** is the premise and safety net of the strategy. Market inertia will continuously push the price down, making the high sell-then-low buy (add position) have higher win rates and certainty.
+*   **Profit from volatility**: In a downtrend, price inevitably comes with rebounds. The strategy aims to capture these "pulsed rebounds", reducing positions (selling) at high points and cashing in profits (buying back) using market inertia.
+*   **Risk hedging**: Every sell (reduce position) immediately locks in its corresponding target buyback price, forming a trading loop. This allows the strategy to automatically realize profits via price pullbacks without judging the market's end point.
 
 ---
 
@@ -109,8 +121,8 @@ To ensure the strategy functions as designed, the following prerequisites must b
 
 ### 3.2 Trading Rules & Mechanisms
 *   **Lot Size**: All buy and sell orders must be multiples of **100 shares (1 lot)**.
-*   **Short Selling**: The target market must allow **short selling** (selling securities not currently held) for the strategy to establish bearish positions.
-*   **Margin Requirements**: Adequate margin must be available in the trading account to support the leveraged nature of short positions.
+*   **Initial Position Establishment**: The strategy requires the establishment of an **initial base position** at the start. A predetermined proportion of the total capital (e.g., 40%) must be allocated to purchase the target stock to enable subsequent sell operations.
+*   **Sufficient Capital**: Adequate capital must be available in the trading account to support the strategy's buyback (position adding) operations.
 
 ### 3.3 Technical Framework Requirements
 *   **State-Driven Execution**: The strategy requires a **state-driven trading framework** (e.g., Backtrader, Zipline) that supports event-driven, bar-by-bar execution.
@@ -130,7 +142,7 @@ To ensure the strategy functions as designed, the following prerequisites must b
 
 ## 5. Generation and Update Mechanism of the Base Price
 
-The base price is the only anchor point for the grid strategy to calculate all order prices. Drawing on the design philosophy of **Trailing Bearish Grid Strategy**, this strategy adopts a **dynamic downshift mechanism**, so that the base price always follows the channel center of the downtrend, thereby improving the strategy's adaptability.
+The base price is the only anchor point for the grid strategy to calculate all order prices. Drawing on the design philosophy of **Grid-Based Bear-Chasing Strategy**, this strategy adopts a **dynamic downshift mechanism**, so that the base price always follows the channel center of the downtrend, thereby improving the strategy's adaptability.
 
 ### 5.1 Core Design Principles
 *   **Down Only**: The base price only shifts down when the price drops, and never shifts up due to rebounds. This ensures the strategy's "follow the trend" in a bearish market.
@@ -324,8 +336,8 @@ To clearly show the key parameters affecting strategy performance, the following
 | **Initial Position Ratio** | `initial_position_ratio` | float | 0.4 (40%) | **Definition**: The ratio of funds used for grid trading to total funds. <br>**Impact**: **Too high (>60%)** has high capital efficiency but weak risk resistance; **Too low (<20%)** is very safe but has no obvious returns. <br>**Suggestion**: Conservative 30-40%, Aggressive 40-50%. |
 | **Grid Upward Spacing** | `grid_up_ratio` | float | 0.03 (3%) | **Definition**: The price spacing between sell grids. <br>**Impact**: The smaller the spacing, the denser the order placement, the stronger the ability to capture volatility, but the greater the risk of rapid full position on a unilateral uptrend. |
 | **Grid Buyback Price Difference** | `grid_down_ratio` | float | 0.05 (5%) | **Definition**: The decline amplitude of the buyback price relative to the sell price. <br>**Impact**: The larger the amplitude, the higher the single profit, but the more difficult the buyback transaction, the longer the holding period, and the greater the risk of facing a rebound. |
-| **Parallel Order Quantity** | `num_grids` | int | 5 | **Definition**: The number of sell orders placed simultaneously per day. <br>**Impact**: The larger the quantity, the stronger the ability to capture the rally on a single day, but the more capital it occupies, and the higher the risk that all orders are triggered (full position short). |
-| **Mandatory Buyback Days** | `mandatory_buyback_days` | int | 30 | **Definition**: The maximum number of trading days that a sell grid (short order) can hold after being executed. <br>**Impact**: **The only safety fuse**. The shorter the days, the smaller the risk exposure, but frequent mandatory buybacks (stop loss) may be triggered in a weak oscillating market. |
+| **Parallel Order Quantity** | `num_grids` | int | 5 | **Definition**: The number of sell orders placed simultaneously per day. <br>**Impact**: The larger the quantity, the stronger the ability to capture the rally on a single day, but the more capital it occupies, and the higher the risk that all orders are triggered (full position reduction). |
+| **Mandatory Buyback Days** | `mandatory_buyback_days` | int | 30 | **Definition**: The maximum number of trading days that a sell grid (sell order) can hold after being executed. <br>**Impact**: **The only safety fuse**. The shorter the days, the smaller the risk exposure, but frequent mandatory buybacks (stop loss) may be triggered in a weak oscillating market. |
 
 ### 11.2 Order Type Specification
 
@@ -340,11 +352,15 @@ To balance profitability and risk control, the strategy adopts different order t
     *   **Mandatory Buyback Orders**: **Market Order**. When a timeout or risk warning is triggered, to ensure immediate position closing, the market price is unconditionally accepted to control further losses.
 
 ### 11.3 Risk Control Mechanism Summary
-*   **Core Risk**: The biggest risk of this strategy is a **unilateral uptrend**. After all sell orders are filled, if the price continues to not fall back, it will lead to margin exhaustion, eventually triggering forced liquidation or margin call.
+*   **Core Risk**: The biggest risk of this strategy is a **unilateral uptrend**. After all sell orders are filled, if the price continues to not fall back, it will lead to capital exhaustion, eventually triggering forced liquidation or a liquidity crisis.
 *   **Control Measures**:
     1.  **Initial Position Control**: Limit total risk exposure through `initial_position_ratio`.
     2.  **Mandatory Buyback Mechanism**: Use `mandatory_buyback_days` as the last line of defense to lock losses within an acceptable range. Market orders are used for mandatory buybacks to ensure quick execution.
     3.  **Grid Parameter Configuration**: Reasonably configure `grid_up_ratio` and `num_grids` to avoid excessive order placement leading to rapid full positions.
+    4.  **Liquidity Crisis Response Mechanism**:
+        *   **Real-time Liquidity Monitoring**: Continuously monitor the bid/ask spread and order book depth. If the spread exceeds a certain threshold (e.g., `max_spread_ratio`) or the volume is critically low, the strategy should automatically pause trading.
+        *   **Forced Liquidation via Market Orders**: When a liquidity crisis is triggered (e.g., limit down, extreme spread), the strategy should prioritize exiting positions. It must use market orders to ensure execution, accepting high slippage as a cost of risk control.
+        *   **Sliced Execution**: For large positions, split forced liquidation orders into multiple smaller market orders to minimize market impact and improve the probability of filling at a reasonable price.
 
 ---
 
@@ -355,7 +371,7 @@ This section is dedicated to recording potential mechanism vulnerabilities found
 ### 12.1 Intraday Dynamic Order Placement Missing Risk
 *   **Problem Description**:
     *   In the current design, the `next()` function is responsible for uniformly placing buy orders for all grids with `pending_buy` status daily. The `notify_order` function only updates the status to `pending_buy` when a sell order is executed.
-    *   **Vulnerability Point**: If a sell order is executed intraday, its status becomes `pending_buy`, but its buy order must wait until the next `next()` function runs to be generated. This means that during the remaining trading time after execution, the strategy is in a "naked" state (holding a short position without a corresponding buy order for risk hedging).
+    *   **Vulnerability Point**: If a sell order is executed intraday, its status becomes `pending_buy`, but its buy order must wait until the next `next()` function runs to be generated. This means that during the remaining trading time after execution, the strategy is in a "naked" state (having reduced a position without a corresponding buy order for risk hedging).
 *   **Risk Assessment**:
     *   **High Risk**: In extreme market conditions, violent intraday price fluctuations may lead to margin shortages, increasing the risk of being forced to liquidate.
 *   **Follow-up Optimization Direction**:
