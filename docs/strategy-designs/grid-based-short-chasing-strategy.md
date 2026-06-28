@@ -8,7 +8,7 @@
 | :--- | :--- |
 | **🎯 Strategy Positioning** | An active grid strategy that captures **rebound opportunities** in a **downtrend (bearish market)**. |
 | **💡 Core Logic** | At the daily open, based on a dynamically adjusted base price, it **places multiple limit sell orders at different prices in one batch** (Static Multi-Order Parallel Model). It captures intraday rebound highs to go short, then buys back at lower prices to close positions. |
-| **⚙️ Workflow** | **Place Orders** $\rightarrow$ **Rebound Triggered** (Establish Short Position) $\rightarrow$ **Price Pullback** (Buy Back to Close) |
+| **⚙️ Workflow** | **Place Orders** → **Rebound Triggered** (Establish Short Position) → **Price Pullback** (Buy Back to Close) |
 | **🛡️ Risk Control** | - **Mandatory Buyback Mechanism**: Any short position can be held for a maximum of 30 days. <br> - **Dynamic Base Price Downshift**: Only shifts down, following the bearish trend. <br> - **Consecutive Downshift Risk Control**: Pauses opening new positions if the base price shifts down for more than 3 consecutive days. |
 | **📊 Applicable Scenarios** | ✅ Oscillating downtrend channels, pulsed rebounds, large-cap blue-chip stocks (sufficient liquidity). <br> ❌ Unilateral uptrends, unilateral decline without rebound, high-level oscillation. |
 
