@@ -1,4 +1,4 @@
-# Grid-Based Bear-Chasing Strategy (网格追空策略) 设计文档
+# Grid-Based Bear-Chasing Strategy Design Document
 
 ## Summary & Table of Contents
 
