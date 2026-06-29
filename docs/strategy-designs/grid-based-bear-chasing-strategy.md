@@ -323,50 +323,50 @@ The `notify_order` function only serves as a **status updater** and does not gen
 
 ```mermaid
 sequenceDiagram
-    participant Next as next() Start
-    participant Refresh as Step 0: Refresh
-    participant BuyLogic as Step 1/2: Buyback Logic
-    participant SellLogic as Step 3: Selling Logic
-    participant Cleanup as Step 4: Data Cleanup
-    participant BaseUpdate as Step 5: Base Price Update (Downshift)
+    participant Next as "next() Start"
+    participant Refresh as "Step 0: Refresh"
+    participant BuyLogic as "Step 1/2: Buyback Logic"
+    participant SellLogic as "Step 3: Selling Logic"
+    participant Cleanup as "Step 4: Data Cleanup"
+    participant BaseUpdate as "Step 5: Base Price Update (Downshift)"
 
-    Next->>Refresh: Initialize order list
+    Next->>Refresh: "Initialize order list"
     Refresh->>BuyLogic: 
 
-    BuyLogic->>BuyLogic: Step 1.1: Scan sold_grids for overdue pending_buy grids
+    BuyLogic->>BuyLogic: "Step 1.1: Scan sold_grids for pending_buy grids"
 
     alt Mandatory Buyback Triggered
-        BuyLogic->>BuyLogic: 1.2: Submit MARKET ORDER & CANCEL sell orders
-        BuyLogic->>BuyLogic: **1.2: Execute Base Price UPSHIFT**<br>(See 9.1 Detail)
-        BuyLogic->>BuyLogic: 1.3: Mark grid as 'force_closed' & update streak
-        BuyLogic->>BuyLogic: 1.4: forced_buyback_streak += 1
-        BuyLogic->>BuyLogic: 1.4: Check streak >= max_forced_buyback_days
-        Note right of BuyLogic: Output WARNING log if threshold reached
-        BuyLogic->>BuyLogic: Step 2: Generate new limit buy orders<br>(for all pending_buy grids)
-        BuyLogic->>SellLogic: Continue (non-blocking)
+        BuyLogic->>BuyLogic: "**Step 1.2: Execute Mandatory Buyback Process**<br>(See 9.2 Detail)"
+        BuyLogic->>BuyLogic: "Step 2: Generate new limit buy orders<br>(for all pending_buy grids)"
+        BuyLogic->>SellLogic: "Continue (non-blocking)"
+        
+    else Normal Buyback Triggered
+        BuyLogic->>BuyLogic: "**Step 1.2: Execute Normal Buyback Process**<br>(See 9.3 Detail)"
+        BuyLogic->>BuyLogic: "Step 2: Generate new limit buy orders<br>(for all pending_buy grids)"
+        BuyLogic->>SellLogic: "Continue (non-blocking)"
 
-    else No Mandatory Buyback
-        BuyLogic->>BuyLogic: 1.4: Reset forced_buyback_streak = 0
-        BuyLogic->>BuyLogic: Step 2: Generate new limit buy orders<br>(for all pending_buy grids)
-        BuyLogic->>SellLogic: Continue
+    else No Buyback
+        BuyLogic->>BuyLogic: "Step 1.2: Reset forced_buyback_streak = 0"
+        BuyLogic->>BuyLogic: "Step 2: Generate new limit buy orders<br>(for all pending_buy grids)"
+        BuyLogic->>SellLogic: "Continue"
     end
 
-    SellLogic->>SellLogic: Step 3.1: Cancel any remaining old sell orders<br>(redundant safety check)
-    SellLogic->>SellLogic: Step 3.2: Generate new limit sell orders
+    SellLogic->>SellLogic: "Step 3.1: Cancel any remaining old sell orders<br>(redundant safety check)"
+    SellLogic->>SellLogic: "Step 3.2: Generate new limit sell orders"
     SellLogic->>Cleanup: 
 
-    Cleanup->>Cleanup: Step 4: Clean up expired records<br>('filled' / 'force_closed' status)
+    Cleanup->>Cleanup: "Step 4: Clean up expired records<br>('filled' / 'force_closed' status)"
     Cleanup->>BaseUpdate: 
 
-    BaseUpdate->>BaseUpdate: **5.1: Execute Base Price DOWNSHIFT**<br>(See 9.1 Detail)
-    BaseUpdate->>Next: Complete
+    BaseUpdate->>BaseUpdate: "**5.1: Execute Base Price Bidirectional Adjustment**<br>(See 9.1 Detail)"
+    BaseUpdate->>Next: "Complete"
 
-    Note over Next,BaseUpdate: ─── Intraday Trading (async, via notify_order) ───
+    Note over Next,BaseUpdate: "─── Intraday Trading (async, via notify_order) ───"
 
     alt Sell order filled
-        Next->>Next: Remove from active_sell_orders<br>Add new 'pending_buy' record to sold_grids
+        Next->>Next: "Remove from active_sell_orders<br>Add new 'pending_buy' record to sold_grids"
     else Buy order filled
-        Next->>Next: Remove from active_buy_orders<br>Update grid status to 'filled'
+        Next->>Next: "Remove from active_buy_orders<br>Update grid status to 'filled'"
     end
 ```
 
@@ -376,44 +376,90 @@ This diagram details the complex logic of how the base price is dynamically adju
 
 ```mermaid
 flowchart TD
-    subgraph "基准价上调机制 (Step 1.2)"
+    subgraph "Base Price Upshift Mechanism (Step 1.2)"
         direction LR
-        UpStart[每日开盘时执行 Step 1.2] --> CheckForcedBuyback{是否触发强制回购?}
-        CheckForcedBuyback -- 是 --> UpAction[基准价上调<br>Base = Close[-1] (昨日收盘价)]
-        UpAction --> CancelSells[取消所有未成交限价卖单]
-        CancelSells --> UpEnd([流程结束，准备生成新卖单])
+        UpStart["Execute at Daily Market Open"] --> CheckForcedBuyback{"Is Forced Buyback Triggered?"}
+        CheckForcedBuyback -- Yes --> UpAction["Upshift Base Price<br>Base = Close[-1]<br>(Yesterday's Close)"]
+        UpAction --> CancelSells["Cancel All Unfilled Limit Sell Orders"]
+        CancelSells --> UpEnd["Process Ended, Prepare New Sell Orders"]
     end
 
-    subgraph "基准价下调机制 (Step 5)"
+    subgraph "Base Price Downshift Mechanism (Step 5)"
         direction TB
-        DownStart[每日收盘后执行 Step 5] --> Calc[计算偏离度<br>decline = (Base - Close[0]) / Base]
+        DownStart["Execute at Daily Market Close"] --> Calc["Calculate Deviation<br>decline = (Base - Close[0]) / Base"]
         
-        Calc --> CheckCondition{判断市场状态}
+        Calc --> CheckCondition{"Determine Market State"}
         
-        CheckCondition -- "急跌 (decline > 5%)" --> Track1_Start
+        CheckCondition -- "Plunge (decline greater than 5 percent)" --> Track1_Start
         
-        subgraph "Track 1: 急跌响应 (Plunge Response)"
-            Track1_Start[触发 Track 1] --> Track1_Action[基准价立即下调<br>Base = Close[0]]
-            Track1_Action --> Track1_Reset[重置计数器 days = 0]
+        subgraph "Track 1: Plunge Response"
+            Track1_Start["Trigger Track 1"] --> Track1_Action["Immediate Base Price Downshift<br>Base = Close[0]"]
+            Track1_Action --> Track1_Reset["Reset Counter days = 0"]
             Track1_Reset --> DownEnd
         end
         
-        CheckCondition -- "阴跌 (2% <= decline <= 5%)" --> Track2_Start
+        CheckCondition -- "Gradual Decline (between 2 percent and 5 percent)" --> Track2_Start
         
-        subgraph "Track 2: 时间磨损响应 (Time Decay Response)"
-            Track2_Start[触发 Track 2] --> Inc[天数计数器增加<br>days += 1]
-            Inc --> CheckDays{"天数达到阈值?<br>days >= 5 ?<br>(time_decay_days)"}
-            CheckDays -- "是" --> Decay[基准价强制调整<br>Base = Base * (1 - 0.5%)<br>(time_decay_ratio)]
-            Decay --> Track2_Reset[重置计数器 days = 0]
+        subgraph "Track 2: Time Decay Response"
+            Track2_Start["Trigger Track 2"] --> Inc["Days Counter Increment<br>days += 1"]
+            Inc --> CheckDays{"Check if days count reaches threshold<br>Check if days greater than or equal to 5<br>(time_decay_days)"}
+            CheckDays -- "Yes" --> Decay["Forced Base Price Adjustment<br>Base = Base * (1 - 0.5 percent)<br>(time_decay_ratio)"]
+            Decay --> Track2_Reset["Reset Counter days = 0"]
             Track2_Reset --> DownEnd
-            CheckDays -- "否" --> Wait([等待次日观察])
+            CheckDays -- "No" --> Wait["Wait for Next Day Observation"]
         end
 
-        CheckCondition -- "震荡/反弹 (decline < 2%)" --> ResetCounter[重置计数器 days = 0]
-        ResetCounter --> NoChange([基准价维持不变])
+        CheckCondition -- "Rangebound/Rebound (decline less than 2 percent)" --> ResetCounter["Reset Counter days = 0"]
+        ResetCounter --> NoChange["Base Price Remains Unchanged"]
     end
     
-    DownEnd[([流程终止])]
+    DownEnd["Process Terminated"]
+```
+
+***
+
+
+### 9.2 Mandatory Buyback Process Detail
+
+This diagram details the handling process of the mandatory buyback signal, which is triggered when a grid fails to fill within the holding period.
+
+```mermaid
+flowchart TD
+    Start["Start Mandatory Buyback"] --> SubmitOrder["Submit MARKET ORDER<br>to buy back shares"]
+    
+    SubmitOrder --> CancelSells["Cancel all unfilled<br>limit sell orders"]
+    
+    CancelSells --> Upshift["Execute Base Price UPSHIFT<br>(See 9.1 Detail)"]
+    
+    Upshift --> MarkGrid["Mark grid as 'force_closed'"]
+    
+    MarkGrid --> UpdateStreak["Update forced_buyback_streak counter<br>streak += 1"]
+    
+    UpdateStreak --> CheckStreak{"Check if streak >=<br>max_forced_buyback_days?"}
+    
+    CheckStreak -- Yes --> LogWarning["Output WARNING log<br>for consecutive force closes"]
+    
+    CheckStreak -- No --> End["End Process"]
+    
+    LogWarning --> End
+
+```
+
+***
+
+### 9.3 Normal Buyback Process Detail
+
+This diagram details the handling process of the normal buyback signal, which is triggered when a limit buy order is successfully filled by the market.
+
+```mermaid
+flowchart TD
+    Start["Start Normal Buyback"] --> ConfirmFill["Confirm limit buy order is filled"]
+    
+    ConfirmFill --> UpdateStatus["Update grid status to 'filled'"]
+    
+    UpdateStatus --> RecordProfit["Record trading profit for this grid"]
+    
+    RecordProfit --> End["End Process"]
 ```
 
 ***
