@@ -71,7 +71,7 @@ In a downtrend (bearish market), the strategy first establishes an initial base 
 ### 1.3 Core Features
 
 - **Efficient Volatility Capture**: By placing N sell orders daily, it maximizes the opportunity to capture consecutive intraday rises, compensating for the inefficiency of the "single-order model".
-- **Bidirectional Base Price Anchoring Mechanism**: The base price `P_base` dynamically adjusts in both directions: it shifts down following market declines, and shifts up to yesterday's closing price when a mandatory buyback is triggered (indicating a potential trend reversal). This ensures the strategy's adaptability in both bear and bull markets.
+- **Unidirectional Base Price Anchoring Mechanism (Gravity Model)**: The base price `P_base` acts like a "gravity well," only dynamically adjusting **downward** to follow market declines. It never shifts up, ensuring the strategy continuously captures lower support levels and maintains its "buy-the-dip" capability in bear markets.
 - **Spot Base Position Hedging**: The strategy maintains a core long position (base position) from the outset. This acts as a natural hedge against extreme uptrends (squeezing), ensuring that if the market rises sharply, the portfolio's overall value is not negatively impacted by the short-term "sell-then-buy" trading loop.
 - **One-to-One Hedging**: Every sell order (reduce position) is bound to a buy order (add position), forming an independent trading loop.
 - **Mandatory Risk Hedging**: The `mandatory_buyback_days` mechanism ensures that any sell position's holding period has an upper limit, preventing losses in extreme market conditions.
@@ -152,15 +152,15 @@ To ensure the strategy functions as designed, the following prerequisites must b
 
 ## 5. Generation and Update Mechanism of the Base Price
 
-The base price is the only anchor point for the grid strategy to calculate all order prices. Drawing on the design philosophy of **Grid-Based Bear-Chasing Strategy**, this strategy adopts a **dynamic bidirectional update mechanism** (downshift by threshold, upshift by trigger), ensuring the base price always follows the market's trend, whether it is a downtrend or a potential reversal, thereby improving the strategy's adaptability.
+The base price is the only anchor point for the grid strategy to calculate all order prices. Drawing on the design philosophy of **Grid-Based Bear-Chasing Strategy**, this strategy adopts a **dynamic unidirectional update mechanism** (Down Only), ensuring the base price acts as a "gravity well," only following the market's decline, thereby maintaining the strategy's core competitiveness of "buying the dip."
 
 ### 5.1 Core Design Principles
 
-- **Down by Threshold, Up by Trigger**:
-  - **Down**: The base price shifts down *only when* the price drops below a certain threshold (`base_shift_threshold`). This ensures the strategy's "follow the trend" in a bearish market, avoiding frequent adjustments.
-  - **Up**: The base price shifts up *only when* a mandatory buyback is triggered. This acts as a signal for potential trend reversal (from bear to bull), allowing the strategy to adapt.
-- **Dynamic Following**: The base price is not a fixed value, but a "dynamic anchor" that follows the market's trend, shifting down in a downtrend and being re-anchored upward when a reversal is signaled.
-- **Event-Driven**: The base price update is strictly event-driven: downshifts are triggered by daily closing price evaluations, while upshifts are triggered by the specific event of a mandatory buyback.
+- **Down Only (Gravity Model)**:
+  - **Down**: The base price shifts down *only when* the price drops below a certain threshold (`base_shift_threshold`). This ensures the strategy's "follow the trend" in a bearish market, continuously capturing lower support levels.
+  - **No Upward Adjustment**: The base price **never** shifts up, even in the event of a mandatory buyback or a short-term rebound. This prevents the strategy from being caught in a "chasing the rally" trap in a bear market.
+- **Dynamic Following**: The base price is not a fixed value, but a "dynamic anchor" that follows the market's trend, only shifting down in a downtrend.
+- **Event-Driven**: The base price update is strictly event-driven, triggered by daily closing price evaluations.
 
 ### 5.2 Generation Mechanism
 
@@ -335,8 +335,8 @@ sequenceDiagram
 
     BuyLogic->>BuyLogic: "Step 1.1: Scan sold_grids for pending_buy grids"
 
-    alt Mandatory Buyback Triggered
-        BuyLogic->>BuyLogic: "**Step 1.2: Execute Mandatory Buyback Process**<br>(See 9.2 Detail)"
+    alt Mandatory Buyback Triggered (Pure Risk Control)
+        BuyLogic->>BuyLogic: "**Step 1.2: Execute Mandatory Buyback Process**<br>(See 9.2 Detail, Does NOT change Base Price)"
         BuyLogic->>BuyLogic: "Step 2: Generate new limit buy orders<br>(for all pending_buy grids)"
         BuyLogic->>SellLogic: "Continue (non-blocking)"
         
@@ -358,7 +358,7 @@ sequenceDiagram
     Cleanup->>Cleanup: "Step 4: Clean up expired records<br>('filled' / 'force_closed' status)"
     Cleanup->>BaseUpdate: 
 
-    BaseUpdate->>BaseUpdate: "**5.1: Execute Base Price Bidirectional Adjustment**<br>(See 9.1 Detail)"
+    BaseUpdate->>BaseUpdate: "**5.1: Execute Base Price Downshift**<br>(See 9.1 Detail)"
     BaseUpdate->>Next: "Complete"
 
     Note over Next,BaseUpdate: "─── Intraday Trading (async, via notify_order) ───"
@@ -370,20 +370,12 @@ sequenceDiagram
     end
 ```
 
-### 9.1 Base Price Bidirectional Adjustment Mechanism Detail
+### 9.1 Base Price Unidirectional Adjustment Mechanism Detail
 
-This diagram details the complex logic of how the base price is dynamically adjusted both upward and downward, which is simplified in the core flow diagram above.
+This diagram details the logic of how the base price is dynamically adjusted **downward** only, acting as a "gravity well" to capture lower support levels.
 
 ```mermaid
 flowchart TD
-    subgraph "Base Price Upshift Mechanism (Step 1.2)"
-        direction LR
-        UpStart["Execute at Daily Market Open"] --> CheckForcedBuyback{"Is Forced Buyback Triggered?"}
-        CheckForcedBuyback -- Yes --> UpAction["Upshift Base Price<br>Base = Close[-1]<br>(Yesterday's Close)"]
-        UpAction --> CancelSells["Cancel All Unfilled Limit Sell Orders"]
-        CancelSells --> UpEnd["Process Ended, Prepare New Sell Orders"]
-    end
-
     subgraph "Base Price Downshift Mechanism (Step 5)"
         direction TB
         DownStart["Execute at Daily Market Close"] --> Calc["Calculate Deviation<br>decline = (Base - Close[0]) / Base"]
@@ -421,7 +413,7 @@ flowchart TD
 
 ### 9.2 Mandatory Buyback Process Detail
 
-This diagram details the handling process of the mandatory buyback signal, which is triggered when a grid fails to fill within the holding period.
+This diagram details the handling process of the mandatory buyback signal, which is triggered when a grid fails to fill within the holding period. **Note**: This is a pure risk-control action and does NOT affect the base price.
 
 ```mermaid
 flowchart TD
@@ -429,9 +421,7 @@ flowchart TD
     
     SubmitOrder --> CancelSells["Cancel all unfilled<br>limit sell orders"]
     
-    CancelSells --> Upshift["Execute Base Price UPSHIFT<br>(See 9.1 Detail)"]
-    
-    Upshift --> MarkGrid["Mark grid as 'force_closed'"]
+    CancelSells --> MarkGrid["Mark grid as 'force_closed'"]
     
     MarkGrid --> UpdateStreak["Update forced_buyback_streak counter<br>streak += 1"]
     
@@ -472,8 +462,8 @@ This section focuses on describing the strategy's handling logic under extreme o
 
 - **Risk Description**:
   - When the target is in a unilateral downtrend, the base price will shift down daily (based on the closing price), causing the daily sell grid price to also decrease.
-  - The strategy will place sell orders at increasingly lower prices. If the market continues to fall without rebounding, these sell orders will continue to be executed, causing the strategy to establish a large number of short positions at low levels.
-  - Once the market rebounds at low levels, these short positions will face huge unrealized loss risks.
+  - The strategy will place sell orders at increasingly lower prices. If the market continues to fall without rebounding, these sell orders will continue to be executed, causing the strategy to continuously reduce its holdings at low levels.
+  - Once all holdings are sold (position is empty), the strategy will hold only cash, missing any potential rebound gains.
 - **Risk Control Strategy**:
   - **Core Idea**: By monitoring the frequency and magnitude of base price downshifts, proactively intervene in extreme downtrends to control risks.
   - **Specific Measures**:
@@ -481,7 +471,7 @@ This section focuses on describing the strategy's handling logic under extreme o
        - In the `self.base_price` update logic, add a counter `self.consecutive_down_days`.
        - If the base price shifts down today, the counter `+1`; otherwise, reset to zero.
     2. **Set Threshold to Trigger Risk Control**:
-       - **Pause Selling**: If `self.consecutive_down_days` exceeds `max_down_days_to_sell` (e.g., 3 days), pause the generation of new sell orders. At this point, the strategy only handles buyback orders and no longer opens new short positions.
+       - **Pause Selling**: If `self.consecutive_down_days` exceeds `max_down_days_to_sell` (e.g., 3 days), pause the generation of new sell orders. At this point, the strategy only handles buyback orders and no longer generates new orders to reduce positions.
        - **Accelerate Buyback**: Consider increasing the density of buyback grids during the consecutive downshift period of the base price (i.e., reduce `grid_down_ratio`) to lock in short profits faster, even if the price only fluctuates slightly, it can close the position.
     3. **Code Implementation Location**:
        - The counter update logic should be implemented in Step 5 (Base Price Dynamic Downshift) of Chapter 7.
